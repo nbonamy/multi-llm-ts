@@ -1,0 +1,22 @@
+# .github/workflows/release.yml
+name: Test app
+on:
+  push:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Github checkout
+        uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Remove package-lock.json
+        uses: JesseTG/rm@v1.0.3
+        with:
+          path: ./package-lock.json
+      - name: Install Dependencies
+        run: npm i
+      - name: Run tests
+        run: npm test
