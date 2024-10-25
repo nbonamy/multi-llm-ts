@@ -1,0 +1,12 @@
+{
+  "engines": {
+    "openai": {
+      "models": {
+        "chat": [
+          "model1",
+          "model2"
+        ]
+      }
+    }
+  }
+}

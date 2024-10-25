@@ -1,0 +1,12 @@
+{
+  "llm": {
+    "engine": "openai"
+  },
+  "engines": {
+    "openai": {
+      "model": {
+        "chat": "model1"
+      }
+    }
+  }
+}
