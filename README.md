@@ -72,7 +72,7 @@ for await (const chunk of stream) {
 
 ### Function calling
 
-Check [`./example/index.ts`](blob/main/example/index.ts).
+Check [`./example/index.ts`](example/index.ts).
 
 You can easily implement Image generation using DALL-E with a Plugin class such as:
 
