@@ -10,7 +10,7 @@ if (!process.env.OPENAI_API_KEY) {
 (async () => {
 
   // initialize
-  let config: EngineConfig = { apiKey: process.env.API_KEY }
+  const config: EngineConfig = { apiKey: process.env.API_KEY }
   const openai = igniteEngine('openai', config)
   const messages = [
     new Message('system', 'You are a helpful assistant'),

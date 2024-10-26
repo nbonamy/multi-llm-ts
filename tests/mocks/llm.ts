@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { Message } from '../../src/types/index.d'
+import Message from '../../src/models/message'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmEventCallback, LlmResponse, LlmStream } from '../../src/types/llm.d'
-import { Configuration } from '../../src/types/config.d'
-import LlmEngine from '../../src/providers/engine'
+import LlmEngine from '../../src/engine'
 import RandomChunkStream from './stream'
+import { EngineConfig } from 'types'
 
 class LlmError extends Error {
 
@@ -22,7 +22,7 @@ class LlmError extends Error {
 
 export default class LlmMock extends LlmEngine {
 
-  constructor(config: Configuration) {
+  constructor(config: EngineConfig) {
     super(config)
   }
 

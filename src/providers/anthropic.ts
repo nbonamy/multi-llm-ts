@@ -60,7 +60,7 @@ export default class extends LlmEngine {
   async complete(thread: Message[], opts: LlmCompletionOpts): Promise<LlmResponse> {
 
     // model
-    let model = opts?.model || this.config.model.chat
+    const model = opts?.model || this.config.model.chat
 
     // call
     console.log(`[anthropic] prompting model ${model}`)

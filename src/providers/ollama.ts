@@ -10,6 +10,7 @@ export default class extends LlmEngine {
 
   client: any
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   static isConfigured = (engineConfig: EngineConfig): boolean => {
     return true
   }
