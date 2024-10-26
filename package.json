@@ -1,5 +1,5 @@
 {
-  "name": "llm-ts",
+  "name": "@nbonamy/llm-ts",
   "version": "1.0.0",
   "description": "Library to query multiple LLM providers in a consistent way",
   "repository": {
