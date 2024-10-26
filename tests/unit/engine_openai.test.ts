@@ -193,7 +193,7 @@ test('OpenAI image', async () => {
 test('OpenAI addImageToPayload', async () => {
   const openai = new OpenAI(config)
   const message = new Message('user', 'text')
-  message.attachFile(new Attachment('', 'image/png', 'image', true))
+  message.attach(new Attachment('image', 'image/png'))
   const payload: LLmCompletionPayload = { role: 'user', content: message }
   openai.addImageToPayload(message, payload)
   expect(payload.content).toStrictEqual([

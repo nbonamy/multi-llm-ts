@@ -3,6 +3,7 @@ import { EngineConfig, Model } from 'types/index.d'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
+import Attachment from '../../src/models/attachment'
 import Google from '../../src/providers/google'
 import { loadGoogleModels } from '../../src/llm'
 import { EnhancedGenerateContentResponse, FunctionCall, FinishReason } from '@google/generative-ai'
@@ -145,9 +146,9 @@ test('Google Text Attachments', async () => {
   const google = new Google(config)
   await google.stream([
     new Message('system', 'instruction'),
-    new Message('user', { role: 'user', type: 'text', content: 'prompt1', attachment: { url: '', mimeType: 'text/plain', contents: 'text1', downloaded: true } } ),
+    new Message('user', 'prompt1', new Attachment('text1', 'text/plain')),
     new Message('assistant', 'response1'),
-    new Message('user', { role: 'user', type: 'text', content: 'prompt2', attachment: { url: '', mimeType: 'text/plain', contents: 'text2', downloaded: true } } ),
+    new Message('user', 'prompt2', new Attachment('text2', 'text/plain')),
   ], null)
   expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({ contents: [
     { role: 'user', parts: [ { text: 'prompt1\n\ntext1' } ] },
@@ -160,13 +161,13 @@ test('Google Image Attachments', async () => {
   const google = new Google(config)
   await google.stream([
     new Message('system', 'instruction'),
-    new Message('user', { role: 'user', type: 'text', content: 'prompt1', attachment: { url: '', mimeType: 'image/png', contents: 'image', downloaded: true } } ),
+    new Message('user', 'prompt1', new Attachment('image1', 'image/png')),
     new Message('assistant', 'response1'),
-    new Message('user', { role: 'user', type: 'text', content: 'prompt2', attachment: { url: '', mimeType: 'image/png', contents: 'image', downloaded: true } } ),
+    new Message('user', 'prompt2', new Attachment('image2', 'image/png')),
   ], null)
   expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({ contents: [
     { role: 'user', parts: [ { text: 'prompt1' } ] },
     { role: 'model', parts: [ { text: 'response1' } ] },
-    { role: 'user', parts: [ { text: 'prompt2' }, { inlineData: { data: 'image', mimeType: 'image/png' }} ] },
+    { role: 'user', parts: [ { text: 'prompt2' }, { inlineData: { data: 'image2', mimeType: 'image/png' }} ] },
   ]})
 })

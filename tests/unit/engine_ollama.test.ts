@@ -98,7 +98,7 @@ test('Ollama image', async () => {
 test('Ollama addImageToPayload', async () => {
   const ollama = new Ollama(config)
   const message = new Message('user', 'text')
-  message.attachFile(new Attachment('', 'image/png', 'image', true ))
+  message.attach(new Attachment('image', 'image/png'))
   const payload: LLmCompletionPayload = { role: 'user', content: message }
   ollama.addImageToPayload(message, payload)
   expect(payload.images).toStrictEqual([ 'image' ])

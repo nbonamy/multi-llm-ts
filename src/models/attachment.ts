@@ -4,31 +4,12 @@ export const imageFormats = [ 'jpeg', 'jpg', 'png', 'webp' ]
 
 export default class Attachment {
 
-  url: string
-  mimeType: string
   contents: string
-  downloaded: boolean
+  mimeType: string
 
-  constructor(url: string|object, mimeType = '', contents = '', downloaded = false) {
-
-    if (url != null && typeof url === 'object') {
-      this.fromJson(url)
-      return
-    }
-
-    // default
-    this.url = url as string
-    this.mimeType = mimeType
+  constructor(contents = '', mimeType = '') {
     this.contents = contents
-    this.downloaded = downloaded
-
-  }
-
-  fromJson(obj: any) {
-    this.url = obj.url
-    this.mimeType = obj.mimeType || extensionToMimeType(obj.format || '')
-    this.contents = obj.contents
-    this.downloaded = obj.downloaded
+    this.mimeType = mimeType
   }
 
   format(): string {

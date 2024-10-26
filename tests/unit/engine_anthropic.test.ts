@@ -158,7 +158,7 @@ test('Anthropic image', async () => {
 test('Anthropic addImageToPayload', async () => {
   const anthropic = new Anthropic(config)
   const message = new Message('user', 'text')
-  message.attachFile(new Attachment('', 'image/png', 'image', true ))
+  message.attach(new Attachment('image', 'image/png'))
   const payload: MessageParam = { role: 'user', content: null }
   anthropic.addImageToPayload(message, payload)
   expect(payload.content).toStrictEqual([

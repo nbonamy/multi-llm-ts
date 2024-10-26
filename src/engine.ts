@@ -153,7 +153,7 @@ export default class LlmEngine {
       // and then reverse the array
 
       let imageAttached = false
-      return thread.toReversed().filter((msg) => msg.type === 'text' && msg.content !== null).map((msg): LLmCompletionPayload => {
+      return thread.toReversed().filter((msg) => msg.content !== null).map((msg): LLmCompletionPayload => {
         const payload: LLmCompletionPayload = { role: msg.role, content: msg.content }
         
         // if there is no attachment, return

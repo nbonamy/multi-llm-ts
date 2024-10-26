@@ -151,7 +151,7 @@ test('MistralAI  image', async () => {
 test('MistralAI addImageToPayload', async () => {
   const mistralai = new MistralAI(config)
   const message = new Message('user', 'text')
-  message.attachFile(new Attachment('', 'image/png', 'image', true ))
+  message.attach(new Attachment('image', 'image/png'))
   const payload: LLmCompletionPayload = { role: 'user', content: message }
   mistralai.addImageToPayload(message, payload)
   expect(payload.images).toStrictEqual([ 'image' ])

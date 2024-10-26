@@ -149,39 +149,40 @@ test('Build payload no attachment', async () => {
   expect(openai.buildPayload([], 'gpt-model1')).toStrictEqual([]) 
   expect(openai.buildPayload('content', 'gpt-model1')).toStrictEqual([{ role: 'user', content: 'content' }])
   expect(openai.buildPayload([
-    new Message('system', { role: 'system', type: 'text', content: 'instructions' }),
-    new Message('user', { role: 'user', type: 'text', content: 'prompt1' }),
-    new Message('assistant', { role: 'assistant', type: 'image', content: 'response1' }), 
-    new Message('user', { role: 'user', type: 'text', content: 'prompt2' }),
-    new Message('assistant', { role: 'assistant', type: 'text', content: 'response2' }), 
+    new Message('system', 'instructions'),
+    new Message('user', 'prompt1'),
+    new Message('assistant', 'response1'),
+    new Message('user', 'prompt2'),
+    new Message('assistant', 'response2'),
   ], 'gpt-model1')).toStrictEqual([
     { role: 'system', content: 'instructions' },
     { role: 'user', content: 'prompt1' },
+    { role: 'assistant', content: 'response1' },
     { role: 'user', content: 'prompt2' },
-    { role: 'assistant', content: 'response2'}
+    { role: 'assistant', content: 'response2' }
   ])
 })
 
 test('Build payload with text attachment', async () => {
   const openai = new OpenAI(config)
   const messages = [
-    new Message('system', { role: 'system', type: 'text', content: 'instructions' }),
-    new Message('user', { role: 'user', type: 'text', content: 'prompt1' }),
+    new Message('system', 'instructions'),
+    new Message('user', 'prompt1'),
   ]
-  messages[1].attachFile(new Attachment('', 'text/plain', 'attachment', true))
+  messages[1].attach(new Attachment('text', 'text/plain'))
   expect(openai.buildPayload(messages, 'gpt-model1')).toStrictEqual([
     { role: 'system', content: 'instructions' },
-    { role: 'user', content: 'prompt1\n\nattachment' },
+    { role: 'user', content: 'prompt1\n\ntext' },
   ])
 })
 
 test('Build payload with image attachment', async () => {
   const openai = new OpenAI(config)
   const messages = [
-    new Message('system', { role: 'system', type: 'text', content: 'instructions' }),
-    new Message('user', { role: 'user', type: 'text', content: 'prompt1' }),
+    new Message('system', 'instructions'),
+    new Message('user', 'prompt1'),
   ]
-  messages[1].attachFile(new Attachment('', 'image/png', 'attachment', true))
+  messages[1].attach(new Attachment('image', 'image/png'))
   expect(openai.buildPayload(messages, 'gpt-model1')).toStrictEqual([
     { role: 'system', content: 'instructions' },
     { role: 'user', content: 'prompt1' },
@@ -190,7 +191,7 @@ test('Build payload with image attachment', async () => {
     { role: 'system', content: 'instructions' },
     { role: 'user', content: [
       { type: 'text', text: 'prompt1' },
-      { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,attachment' } },
+      { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,image' } },
     ]},
   ])
 })
