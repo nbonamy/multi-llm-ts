@@ -1,11 +1,12 @@
 
 import { EngineConfig } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LlmEventCallback } from 'types/llm.d'
+import Message from '../models/message'
+import LlmEngine from '../engine'
+
 import OpenAI, { ClientOptions } from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
 import { Stream } from 'openai/streaming'
-import Message from '../models/message'
-import LlmEngine from '../engine'
 
 const defaultBaseUrl = 'https://api.openai.com/v1'
 
@@ -15,10 +16,6 @@ export default class extends LlmEngine {
   currentModel: string
   currentThread: Array<any>
   toolCalls: LlmToolCall[]
-
-  static isConfigured = (engineConfig: EngineConfig): boolean => {
-    return engineConfig?.apiKey?.length > 0
-  }
 
   constructor(config: EngineConfig, opts?: ClientOptions) {
     super(config)

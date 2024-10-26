@@ -2,7 +2,7 @@
 
 export type LlmRole = 'system'|'user'|'assistant'
 
-interface LlmResponse {
+export interface LlmResponse {
   type: string
   content?: string
   original_prompt?: string
@@ -10,9 +10,9 @@ interface LlmResponse {
   url?: string
 }
 
-type LlmStream = AsyncGenerator|Stream
+export type LlmStream = AsyncGenerator|Stream
 
-interface LlmCompletionOpts {
+export interface LlmCompletionOpts {
   save?: boolean
   titling?: boolean
   engine?: string
@@ -27,7 +27,7 @@ interface LlmCompletionOpts {
   n?: number
 }
 
-interface LLmCompletionPayload {
+export interface LLmCompletionPayload {
   role: llmRole
   content?: sring|LlmContentPayload[]
   images?: string[]
@@ -35,7 +35,7 @@ interface LLmCompletionPayload {
   name?: string
 }
 
-interface LlmContentPayload {
+export interface LlmContentPayload {
   type: string
   text?: string
   // openai
@@ -50,7 +50,7 @@ interface LlmContentPayload {
   }
 }
 
-interface LlmChunk {
+export interface LlmChunk {
   text: string
   done: boolean
 }
@@ -63,7 +63,7 @@ export interface LlmToolParameterOpenAI {
   required?: boolean
 }
 
-interface LlmToolOpenAI {
+export interface LlmToolOpenAI {
   type: 'function'
   function: {
     name: string
@@ -78,16 +78,16 @@ interface LlmToolOpenAI {
 
 export type LlmTool = LlmToolOpenAI
 
-interface LlmToolCall {
+export interface LlmToolCall {
   id: string
   message: any
   function: string
   args: string
 }
 
-interface LlmEvent {
+export interface LlmEvent {
   type: 'stream' | 'tool'
   content: any
 }
 
-type LlmEventCallback = (event: LlmEvent) => void
+export type LlmEventCallback = (event: LlmEvent) => void

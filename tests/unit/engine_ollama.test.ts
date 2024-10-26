@@ -4,11 +4,11 @@ import { vi, beforeEach, expect, test } from 'vitest'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import Ollama from '../../src/providers/ollama'
-import * as _ollama from 'ollama/dist/browser.mjs'
+import * as _ollama from 'ollama/dist/browser.cjs'
 import { loadOllamaModels } from '../../src/llm'
 import { EngineConfig, Model } from '../../src/types/index.d'
 
-vi.mock('ollama/browser', async() => {
+vi.mock('ollama/dist/browser.cjs', async() => {
   const Ollama = vi.fn()
   Ollama.prototype.list = vi.fn(() => {
     return { models: [

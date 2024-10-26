@@ -1,14 +1,14 @@
 
 import { anyDict, Model, EngineConfig } from 'types/index.d'
-import OpenAI from './providers/openai'
-import Ollama from './providers/ollama'
-import MistralAI from './providers/mistralai'
+import LlmEngine from 'engine'
 import Anthropic from './providers/anthropic'
+import Cerebreas from './providers/cerebras'
 import Google from './providers/google'
 import Groq from './providers/groq'
+import MistralAI from './providers/mistralai'
+import Ollama from './providers/ollama'
+import OpenAI from './providers/openai'
 import XAI from './providers/xai'
-import Cerebreas from './providers/cerebras'
-import LlmEngine from 'engine'
 
 export const igniteEngine = (engine: string, config: EngineConfig): LlmEngine => {
   if (engine === 'anthropic') return new Anthropic(config)
@@ -32,6 +32,16 @@ export const loadModels = async (engine: string, config: EngineConfig): Promise<
   if (engine === 'openai') return await loadOpenAIModels(config)
   if (engine === 'xai') return await loadXAIModels(config)
   throw new Error('Unknown engine: ' + engine)
+}
+
+export const hasVisionModels = (engine: string, config: EngineConfig) => {
+  const instance = igniteEngine(engine, config)
+  return instance.getVisionModels().length > 0
+}
+
+export const isVisionModel = (engine: string, model: string, config: EngineConfig) => {
+  const instance = igniteEngine(engine, config)
+  return instance.isVisionModel(model)
 }
 
 const getValidModelId = (engineConfig: EngineConfig, type: string, modelId: string) => {

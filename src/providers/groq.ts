@@ -1,7 +1,9 @@
+
 import { EngineConfig } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmEventCallback } from 'types/llm.d'
-import LlmEngine from '../engine'
 import Message from '../models/message'
+import LlmEngine from '../engine'
+
 import Groq from 'groq-sdk'
 import { ChatCompletionMessageParam, ChatCompletionChunk } from 'groq-sdk/resources/chat'
 import { Stream } from 'groq-sdk/lib/streaming'
@@ -10,10 +12,6 @@ export default class extends LlmEngine {
 
   client: Groq
 
-  static isConfigured = (engineConfig: EngineConfig): boolean => {
-    return engineConfig?.apiKey?.length > 0
-  }
-  
   constructor(config: EngineConfig) {
     super(config)
     this.client = new Groq({

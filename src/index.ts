@@ -1,11 +1,13 @@
 
 export * from './types/index.d'
-export * from './types/llm.d'
 export * from './types/plugin.d'
+export * from './types/llm.d'
 
 import Attachment from './models/attachment'
 import Message from './models/message'
-import Plugin from 'plugin'
+import Plugin from './plugin'
+
+import LlmEngine from './engine'
 
 import Anthropic from './providers/anthropic'
 import Cerebras from './providers/cerebras'
@@ -22,6 +24,7 @@ export {
   Plugin,
   Message,
   Attachment,
+  LlmEngine,
   Anthropic,
   Cerebras,
   Google,

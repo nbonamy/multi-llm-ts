@@ -1,11 +1,12 @@
 
 import { EngineConfig } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LlmEventCallback } from 'types/llm.d'
-import { Content, EnhancedGenerateContentResponse, GenerativeModel, GoogleGenerativeAI, ModelParams, Part, FunctionResponsePart, SchemaType, FunctionDeclarationSchemaProperty, FunctionCallingMode } from '@google/generative-ai'
-import type { FunctionDeclaration } from '@google/generative-ai/dist/types'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
 import LlmEngine from '../engine'
+
+import { Content, EnhancedGenerateContentResponse, GenerativeModel, GoogleGenerativeAI, ModelParams, Part, FunctionResponsePart, SchemaType, FunctionDeclarationSchemaProperty, FunctionCallingMode } from '@google/generative-ai'
+import type { FunctionDeclaration } from '@google/generative-ai/dist/types'
 
 export default class extends LlmEngine {
 
@@ -14,10 +15,6 @@ export default class extends LlmEngine {
   currentContent: Content[]
   toolCalls: LlmToolCall[]
 
-  static isConfigured = (engineConfig: EngineConfig): boolean => {
-    return engineConfig?.apiKey?.length > 0
-  }
-  
   constructor(config: EngineConfig) {
     super(config)
     this.client = new GoogleGenerativeAI(

@@ -4,10 +4,6 @@ import OpenAI from './openai'
 
 export default class extends OpenAI {
 
-  static isConfigured = (engineConfig: EngineConfig): boolean => {
-    return engineConfig?.apiKey?.length > 0
-  }
-  
   constructor(config: EngineConfig) {
     super(config, {
       apiKey: config.apiKey,

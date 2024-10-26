@@ -11,6 +11,14 @@ export default class LlmEngine {
   config: EngineConfig
   plugins: { [key: string]: Plugin }
 
+  static isConfigured = (engineConfig: EngineConfig): boolean => {
+    return engineConfig?.apiKey?.length > 0
+  }
+
+  static isReady = (engineConfig: EngineConfig): boolean => {
+    return LlmEngine.isConfigured(engineConfig) && engineConfig?.models?.chat?.length > 0
+  }
+  
   constructor(config: EngineConfig) {
     this.config = config
     this.plugins = {}

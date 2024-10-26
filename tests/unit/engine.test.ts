@@ -1,7 +1,7 @@
 
 import { Model } from '../../src/types/index.d'
 import { vi, expect, test } from 'vitest'
-import { loadOpenAIModels } from '../../src/llm'
+import { loadOpenAIModels, isVisionModel, hasVisionModels } from '../../src/llm'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import OpenAI from '../../src/providers/openai'
@@ -13,7 +13,7 @@ import XAI from '../../src/providers/xai'
 import Groq from '../../src/providers/groq'
 import Cerebras from '../../src/providers/cerebras'
 
-const model = [{ id: 'llava:latest', name: 'llava:latest', meta: {} }]
+const config = { apiKey: '123' }
 
 vi.mock('openai', async() => {
   const OpenAI = vi.fn()
@@ -36,23 +36,42 @@ test('Default Configuration', () => {
   expect(Ollama.isConfigured({})).toBe(true)
   expect(Anthropic.isConfigured({})).toBe(false)
   expect(Google.isConfigured({})).toBe(false)
+  expect(MistralAI.isConfigured({})).toBe(false)  
   expect(XAI.isConfigured({})).toBe(false)
   expect(Groq.isConfigured({})).toBe(false)
   expect(Cerebras.isConfigured({})).toBe(false)
 })
 
 test('Valid Configuration', () => {
-  expect(OpenAI.isConfigured({ apiKey: '123' })).toBe(true)
+  expect(OpenAI.isConfigured(config)).toBe(true)
   expect(Ollama.isConfigured({})).toBe(true)
-  expect(Anthropic.isConfigured({ apiKey: '123' })).toBe(true)
-  expect(Google.isConfigured({ apiKey: '123' })).toBe(true)
-  expect(XAI.isConfigured({ apiKey: '123' })).toBe(true)
-  expect(Groq.isConfigured({ apiKey: '123' })).toBe(true)
-  expect(Cerebras.isConfigured({ apiKey: '123' })).toBe(true)
+  expect(Anthropic.isConfigured(config)).toBe(true)
+  expect(Google.isConfigured(config)).toBe(true)
+  expect(MistralAI.isConfigured(config)).toBe(true)
+  expect(XAI.isConfigured(config)).toBe(true)
+  expect(Groq.isConfigured(config)).toBe(true)
+  expect(Cerebras.isConfigured(config)).toBe(true)
+})
+
+test('Has Vision Models', async () => {
+  expect(hasVisionModels('openai', config)).toBe(true)
+  expect(hasVisionModels('ollama', config)).toBe(true)
+  expect(hasVisionModels('mistralai', config)).toBe(false)
+  expect(hasVisionModels('anthropic', config)).toBe(true)
+  expect(hasVisionModels('google', config)).toBe(true)
+  expect(hasVisionModels('xai', config)).toBe(false)
+  expect(hasVisionModels('groq', config)).toBe(false)
+  expect(hasVisionModels('cerebras', config)).toBe(false)
+})
+
+test('Is Vision Model', async () => {
+  expect(isVisionModel('openai', 'gpt-3.5', config)).toBe(false)
+  expect(isVisionModel('openai', 'gpt-4-turbo', config)).toBe(true)
+  expect(isVisionModel('openai', 'gpt-vision', config)).toBe(true)
+  expect(isVisionModel('anthropic', 'claude-sonnet-35-latest', config)).toBe(true)
 })
 
 test('Get Chat Models', async () => {
-  const config = { apiKey: '123' }
   await loadOpenAIModels(config)
   const openai = new OpenAI(config)
   expect(openai.getChatModel()).toBe('gpt-model1')
@@ -67,7 +86,7 @@ test('Find Models', async () => {
     { id: 'gpt-model1', name: 'gpt-model1', meta: {} },
     { id: 'gpt-model2', name: 'gpt-model2', meta: {} },
   ]
-  const openai = new OpenAI({ apiKey: '123' })
+  const openai = new OpenAI(config)
   expect(openai.findModel(models, ['gpt-model'])).toBeNull()
   expect(openai.findModel(models, ['gpt-vision*'])).toBeNull()
   expect(openai.findModel(models, ['*']).id).toBe('gpt-model1')
@@ -77,7 +96,7 @@ test('Find Models', async () => {
 })
 
 test('Build payload no attachment', async () => {
-  const openai = new OpenAI({ apiKey: '123' })
+  const openai = new OpenAI(config)
   expect(openai.buildPayload([], 'gpt-model1')).toStrictEqual([]) 
   expect(openai.buildPayload('content', 'gpt-model1')).toStrictEqual([{ role: 'user', content: 'content' }])
   expect(openai.buildPayload([
@@ -95,7 +114,7 @@ test('Build payload no attachment', async () => {
 })
 
 test('Build payload with text attachment', async () => {
-  const openai = new OpenAI({ apiKey: '123' })
+  const openai = new OpenAI(config)
   const messages = [
     new Message('system', { role: 'system', type: 'text', content: 'instructions' }),
     new Message('user', { role: 'user', type: 'text', content: 'prompt1' }),
@@ -108,7 +127,7 @@ test('Build payload with text attachment', async () => {
 })
 
 test('Build payload with image attachment', async () => {
-  const openai = new OpenAI({ apiKey: '123' })
+  const openai = new OpenAI(config)
   const messages = [
     new Message('system', { role: 'system', type: 'text', content: 'instructions' }),
     new Message('user', { role: 'user', type: 'text', content: 'prompt1' }),
