@@ -1,5 +1,4 @@
 
-import { LlmChunk } from '../../src/types/llm.d'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
@@ -102,18 +101,21 @@ test('Anthropic completion', async () => {
   })
 })
 
-test('Anthropic streamChunkToLlmChunk Text', async () => {
+test('Anthropic nativeChunkToLlmChunk Text', async () => {
   const anthropic = new Anthropic(config)
   const streamChunk: any = {
     index: 0,
     type: 'content_block_delta',
     delta: { type: 'text_delta', text: 'response' }
   }
-  const llmChunk1 = await anthropic.streamChunkToLlmChunk(streamChunk, null)
-  expect(llmChunk1).toStrictEqual({ text: 'response', done: false })
+  for await (const llmChunk of anthropic.nativeChunkToLlmChunk(streamChunk)) {
+    expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
+  }
+  streamChunk.delta.text = null
   streamChunk.type = 'message_stop'
-  const llmChunk2 = await anthropic.streamChunkToLlmChunk(streamChunk, null)
-  expect(llmChunk2).toStrictEqual({ text: '', done: true })
+  for await (const llmChunk of anthropic.nativeChunkToLlmChunk(streamChunk)) {
+    expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
+  }
 })
 
 test('Anthropic stream', async () => {
@@ -128,20 +130,21 @@ test('Anthropic stream', async () => {
   expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalled()
   expect(stream.controller).toBeDefined()
   let response = ''
-  const eventCallback = vi.fn()
-  for await (const streamChunk of stream) {
-    const chunk: LlmChunk = await anthropic.streamChunkToLlmChunk(streamChunk, eventCallback)
-    if (chunk) {
-      if (chunk.done) break
-      response += chunk.text
+  let lastMsg = null
+  const toolCalls = []
+  for await (const chunk of stream) {
+    for await (const msg of anthropic.nativeChunkToLlmChunk(chunk)) {
+      lastMsg = msg
+      if (msg.type === 'content') response += msg.text
+      if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
+  expect(lastMsg.done).toBe(true)
   expect(response).toBe('response')
-  expect(eventCallback).toHaveBeenNthCalledWith(1, { type: 'tool', content: 'prep2' })
-  expect(eventCallback).toHaveBeenNthCalledWith(2, { type: 'tool', content: 'run2' })
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
-  expect(eventCallback).toHaveBeenNthCalledWith(3, { type: 'tool', content: null })
-  expect(eventCallback).toHaveBeenNthCalledWith(4, { type: 'stream', content: expect.any(Object) })
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', text: 'prep2', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', text: 'run2', done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', done: true })
   await anthropic.stop(stream)
   expect(stream.controller.abort).toHaveBeenCalled()
 })

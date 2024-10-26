@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import Message from '../../src/models/message'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmEventCallback, LlmResponse, LlmStream } from '../../src/types/llm.d'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from '../../src/types/llm.d'
 import LlmEngine from '../../src/engine'
 import RandomChunkStream from './stream'
 import { EngineConfig } from 'types'
@@ -42,7 +42,7 @@ export default class LlmMock extends LlmEngine {
     ]
   }
 
-  async complete(thread: Message[], opts: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
     return {
       type: 'text',
       content: JSON.stringify([
@@ -52,7 +52,7 @@ export default class LlmMock extends LlmEngine {
     }
   }
 
-  async stream(thread: Message[], opts: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
 
     // errors
     if (thread[thread.length-1].content.includes('no api key')) {
@@ -82,14 +82,16 @@ export default class LlmMock extends LlmEngine {
     stream.destroy()
   }
 
-  async streamChunkToLlmChunk(chunk: any, eventCallback: LlmEventCallback): Promise<LlmChunk|null> {
+  async *nativeChunkToLlmChunk(chunk: any): AsyncGenerator<LlmChunk, void, void> {
     if (chunk.toString('utf8') == '<DONE>') {
-      return {
+      yield {
+        type: 'content',
         text: null,
         done: true
       }
     } else {
-      return {
+      yield {
+        type: 'content',
         text: chunk?.toString('utf8'),
         done: chunk == null
       }
@@ -101,7 +103,7 @@ export default class LlmMock extends LlmEngine {
   }
 
    
-  async image(prompt: string, opts: LlmCompletionOpts): Promise<LlmResponse|null> {
+  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse|null> {
     return {
       type: 'image',
       original_prompt: prompt,

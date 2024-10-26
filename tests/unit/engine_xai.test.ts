@@ -1,6 +1,5 @@
 
 import { EngineConfig, Model } from '../../src/types/index.d'
-import { LlmChunk } from 'types/llm.d'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import XAI from '../../src/providers/xai'
@@ -87,20 +86,18 @@ test('xAI stream', async () => {
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
-  const eventCallback = vi.fn()
-  for await (const streamChunk of stream) {
-    const chunk: LlmChunk = await xai.streamChunkToLlmChunk(streamChunk, eventCallback)
-    if (chunk) {
-      if (chunk.done) break
-      response += chunk.text
+  const toolCalls = []
+  for await (const chunk of stream) {
+    for await (const msg of xai.nativeChunkToLlmChunk(chunk)) {
+      if (msg.type === 'content') response += msg.text
+      if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
   expect(response).toBe('response')
-  expect(eventCallback).toHaveBeenNthCalledWith(1, { type: 'tool', content: 'prep2' })
-  expect(eventCallback).toHaveBeenNthCalledWith(2, { type: 'tool', content: 'run2' })
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
-  expect(eventCallback).toHaveBeenNthCalledWith(3, { type: 'tool', content: null })
-  expect(eventCallback).toHaveBeenNthCalledWith(4, { type: 'stream', content: expect.any(Object) })
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', text: 'prep2', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', text: 'run2', done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', done: true })
   await xai.stop(stream)
   expect(stream.controller.abort).toHaveBeenCalled()
 })

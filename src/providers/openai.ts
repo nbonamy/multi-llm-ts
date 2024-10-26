@@ -1,6 +1,6 @@
 
 import { EngineConfig } from 'types/index.d'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LlmEventCallback } from 'types/llm.d'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
 
@@ -56,7 +56,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async complete(thread: Message[], opts: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // set baseURL on client
     this.setBaseURL()
@@ -76,7 +76,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(thread: Message[], opts: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
 
     // set baseURL on client
     this.setBaseURL()
@@ -92,7 +92,7 @@ export default class extends LlmEngine {
 
   async doStream(): Promise<LlmStream> {
 
-    // reset
+      // reset
     this.toolCalls = []
 
     // tools
@@ -117,10 +117,10 @@ export default class extends LlmEngine {
     await stream?.controller?.abort()
   }
 
-  async streamChunkToLlmChunk(chunk: ChatCompletionChunk, eventCallback: LlmEventCallback): Promise<LlmChunk|null> {
+  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk): AsyncGenerator<LlmChunk, void, void> {
 
     // debug
-    //console.log('streamChunkToLlmChunk', chunk)
+    //console.log('nativeChunkToLlmChunk', chunk)
 
     // tool calls
     if (chunk.choices[0]?.delta?.tool_calls) {
@@ -144,10 +144,11 @@ export default class extends LlmEngine {
         this.toolCalls.push(toolCall)
 
         // first notify
-        eventCallback?.call(this, {
+        yield {
           type: 'tool',
-          content: this.getToolPreparationDescription(toolCall.function)
-        })
+          text: this.getToolPreparationDescription(toolCall.function),
+          done: false
+        }
 
         // done
         return null
@@ -169,10 +170,11 @@ export default class extends LlmEngine {
       for (const toolCall of this.toolCalls) {
 
         // first notify
-        eventCallback?.call(this, {
+        yield {
           type: 'tool',
-          content: this.getToolRunningDescription(toolCall.function)
-        })
+          text: this.getToolRunningDescription(toolCall.function),
+          done: false
+        }
 
         // now execute
         const args = JSON.parse(toolCall.args)
@@ -197,24 +199,25 @@ export default class extends LlmEngine {
       }
 
       // clear
-      eventCallback?.call(this, {
+      yield {
         type: 'tool',
-        content: null,
-      })
+        done: true,
+      }
 
       // switch to new stream
-      eventCallback?.call(this, {
+      yield {
         type: 'stream',
-        content: await this.doStream(),
-      })
+        stream: await this.doStream(),
+      }
 
       // done
-      return null
-      
+      return
+
     }
 
     // text chunk
-    return {
+    yield {
+      type: 'content',
       text: chunk.choices[0]?.delta?.content || '',
       done: chunk.choices[0]?.finish_reason === 'stop'
     }
@@ -228,7 +231,7 @@ export default class extends LlmEngine {
   }
 
    
-  async image(prompt: string, opts: LlmCompletionOpts): Promise<LlmResponse> {
+  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // call
     const model = this.config.model.image

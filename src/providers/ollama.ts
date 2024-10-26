@@ -1,6 +1,6 @@
 
 import { EngineConfig } from 'types/index.d'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmEventCallback } from 'types/llm.d'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
 
@@ -64,7 +64,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async complete(thread: Message[], opts: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // call
     const model = opts?.model || this.config.model.chat
@@ -82,7 +82,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(thread: Message[], opts: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
 
     // model: switch to vision if needed
     const model = this.selectModel(thread, opts?.model || this.getChatModel())
@@ -104,10 +104,10 @@ export default class extends LlmEngine {
     await this.client.abort()
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async streamChunkToLlmChunk(chunk: ChatResponse, eventCallback: LlmEventCallback): Promise<LlmChunk|null> {
-    return {
-      text: chunk.message.content,
+  async *nativeChunkToLlmChunk(chunk: ChatResponse): AsyncGenerator<LlmChunk, void, void> {
+    yield {
+      type: 'content',
+      text: chunk.message.content || '',
       done: chunk.done
     }
   }
@@ -117,7 +117,7 @@ export default class extends LlmEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async image(prompt: string, opts: LlmCompletionOpts): Promise<LlmResponse|null> {
+  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse|null> {
     return null    
   }
 }

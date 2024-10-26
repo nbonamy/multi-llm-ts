@@ -1,6 +1,6 @@
 
 import { EngineConfig } from 'types/index.d'
-import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmContentPayload, LlmEventCallback, LlmToolCall, LLmCompletionPayload } from 'types/llm.d'
+import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmContentPayload, LlmToolCall, LLmCompletionPayload } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
 
@@ -57,7 +57,7 @@ export default class extends LlmEngine {
     else return 4096
   }
 
-  async complete(thread: Message[], opts: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // model
     const model = opts?.model || this.config.model.chat
@@ -79,7 +79,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(thread: Message[], opts: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
 
     // model: switch to vision if needed
     this.currentModel = this.selectModel(thread, opts?.model || this.getChatModel())
@@ -126,14 +126,14 @@ export default class extends LlmEngine {
     stream.controller.abort()
   }
    
-  async streamChunkToLlmChunk(chunk: MessageStreamEvent, eventCallback: LlmEventCallback): Promise<LlmChunk|null> {
+  async *nativeChunkToLlmChunk(chunk: MessageStreamEvent): AsyncGenerator<LlmChunk, void, void> {
     
     // log
     //console.log('[anthropic] received chunk', chunk)
 
     // done
     if (chunk.type == 'message_stop') {
-      return { text: '', done: true }
+      yield { type: 'content', text: '', done: true }
     }
 
     // block start
@@ -149,10 +149,11 @@ export default class extends LlmEngine {
         }
 
         // notify
-        eventCallback?.call(this, {
+        yield {
           type: 'tool',
-          content: this.getToolPreparationDescription(this.toolCall.function)
-        })
+          text: this.getToolPreparationDescription(this.toolCall.function),
+          done: false
+        }
         
       } else {
         this.toolCall = null
@@ -165,7 +166,7 @@ export default class extends LlmEngine {
       // text
       if (this.toolCall === null) {
         const textDelta = chunk.delta as TextDelta
-        return { text: textDelta.text, done: false }
+        yield { type: 'content', text: textDelta.text, done: false }
       }
 
       // tool us
@@ -181,10 +182,11 @@ export default class extends LlmEngine {
       if (chunk.delta.stop_reason == 'tool_use' && this.toolCall !== null) {
 
         // first notify
-        eventCallback?.call(this, {
+        yield {
           type: 'tool',
-          content: this.getToolRunningDescription(this.toolCall.function)
-        })
+          text: this.getToolRunningDescription(this.toolCall.function),
+          done: false
+        }
 
         // now execute
         const args = JSON.parse(this.toolCall.args)
@@ -225,23 +227,20 @@ export default class extends LlmEngine {
         }
 
         // clear
-        eventCallback?.call(this, {
+        yield {
           type: 'tool',
-          content: null,
-        })
+          done: true,
+        }
 
         // switch to new stream
-        eventCallback?.call(this, {
+        yield {
           type: 'stream',
-          content: await this.doStream(),
-        })
+          stream: await this.doStream(),
+        }
 
       }
 
     }
-
-    // unknown
-    return null
 
   }
 
@@ -290,7 +289,7 @@ export default class extends LlmEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async image(prompt: string, opts: LlmCompletionOpts): Promise<LlmResponse|null> {
+  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse|null> {
     return null    
   }
 }

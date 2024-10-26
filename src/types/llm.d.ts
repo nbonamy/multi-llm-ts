@@ -3,8 +3,8 @@
 export type LlmRole = 'system'|'user'|'assistant'
 
 export interface LlmResponse {
-  type: string
-  content?: string
+  type: 'text'|'image'
+  content: string
   original_prompt?: string
   revised_prompt?: string
   url?: string
@@ -51,8 +51,10 @@ export interface LlmContentPayload {
 }
 
 export interface LlmChunk {
-  text: string
-  done: boolean
+  type: 'content'|'stream'|'tool'
+  stream?: LlmStream
+  text?: string
+  done?: boolean
 }
 
 export interface LlmToolParameterOpenAI {
@@ -84,10 +86,3 @@ export interface LlmToolCall {
   function: string
   args: string
 }
-
-export interface LlmEvent {
-  type: 'stream' | 'tool'
-  content: any
-}
-
-export type LlmEventCallback = (event: LlmEvent) => void

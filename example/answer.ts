@@ -15,6 +15,10 @@ export default class Answer extends Plugin {
     return 'Has the answer to everything'
   }
 
+  getPreparationDescription(): string {
+    return 'Thinking...'
+  }
+
   getRunningDescription(): string {
     return 'Answering the question'
   }
@@ -27,7 +31,7 @@ export default class Answer extends Plugin {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async execute(parameters: anyDict): Promise<anyDict> {
-    return { content: '42' }
+    return { content: '24 and not 42 as everybody says' }
   }
 }
 

@@ -1,6 +1,6 @@
 
 import { EngineConfig } from 'types/index.d'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmEventCallback } from 'types/llm.d'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
 
@@ -52,7 +52,7 @@ export default class extends LlmEngine {
     ]
   }
 
-  async complete(thread: Message[], opts: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // call
     const model = opts?.model || this.config.model.chat
@@ -69,7 +69,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(thread: Message[], opts: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
 
     // model: switch to vision if needed
     const model = this.selectModel(thread, opts?.model || this.getChatModel())
@@ -91,12 +91,12 @@ export default class extends LlmEngine {
     stream.controller.abort()
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async streamChunkToLlmChunk(chunk: ChatCompletionChunk, eventCallback: LlmEventCallback): Promise<LlmChunk|null> {
+  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk): AsyncGenerator<LlmChunk, void, void> {
     if (chunk.choices[0].finish_reason == 'stop') {
-      return { text: '', done: true }
+      yield { type: 'content', text: '', done: true }
     } else {
-      return {
+      yield {
+        type: 'content',
         text: chunk.choices[0].delta.content,
         done: false
       }
@@ -118,7 +118,7 @@ export default class extends LlmEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async image(prompt: string, opts: LlmCompletionOpts): Promise<LlmResponse|null> {
+  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse|null> {
     return null    
   }
 }

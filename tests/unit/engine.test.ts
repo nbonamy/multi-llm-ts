@@ -2,6 +2,7 @@
 import { Model } from '../../src/types/index.d'
 import { vi, expect, test } from 'vitest'
 import { igniteEngine, loadOpenAIModels, isVisionModel, hasVisionModels } from '../../src/llm'
+import { Plugin2 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import OpenAI from '../../src/providers/openai'
@@ -13,9 +14,13 @@ import XAI from '../../src/providers/xai'
 import Groq from '../../src/providers/groq'
 import Cerebras from '../../src/providers/cerebras'
 
+Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
+
 const config = { apiKey: '123' }
 
+
 vi.mock('openai', async() => {
+  let streamIteration = 0
   const OpenAI = vi.fn()
   OpenAI.prototype.apiKey = '123'
   OpenAI.prototype.models = {
@@ -27,6 +32,38 @@ vi.mock('openai', async() => {
         { id: 'dall-e-model1', name: 'model1' },
       ] }
     })
+  }
+  OpenAI.prototype.chat = {
+    completions: {
+      create: vi.fn((opts) => {
+        if (opts.stream) {
+          return {
+            async * [Symbol.asyncIterator]() {
+              // first we yield tool call chunks
+              if (streamIteration == 0) {
+                yield { choices: [{ delta: { tool_calls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "ar' }} ] }, finish_reason: 'none' } ] }
+                yield { choices: [{ delta: { tool_calls: [ { function: { arguments: [ 'g" ]' ] } }] }, finish_reason: 'none' } ] }
+                yield { choices: [{ finish_reason: 'tool_calls' } ] }
+                streamIteration = 1
+              } else {
+                // now the text response
+                const content = 'response'
+                for (let i = 0; i < content.length; i++) {
+                  yield { choices: [{ delta: { content: content[i] }, finish_reason: 'none' }] }
+                }
+                yield { choices: [{ delta: { content: '' }, finish_reason: 'stop' }] }
+              }
+            },
+            controller: {
+              abort: vi.fn()
+            }
+          }
+        }
+        else {
+          return { choices: [{ message: { content: 'response' } }] }
+        }
+      })
+    }
   }
   return { default: OpenAI }
 })
@@ -156,4 +193,36 @@ test('Build payload with image attachment', async () => {
       { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,attachment' } },
     ]},
   ])
+})
+
+test('Complete content', async () => {
+  const openai = new OpenAI({ ...config, ...{ model: { chat: 'gpt-model1' }}})
+  const messages = [
+    new Message('system', { role: 'system', type: 'text', content: 'instructions' }),
+    new Message('user', { role: 'user', type: 'text', content: 'prompt1' }),
+  ]
+  const response = await openai.complete(messages)
+  expect(response).toStrictEqual({ type: 'text', 'content': 'response' })
+})
+
+test('Generate content', async () => {
+  const openai = new OpenAI({ ...config, ...{ model: { chat: 'gpt-model1' }}})
+  openai.addPlugin(new Plugin2(config))
+  const messages = [
+    new Message('system', { role: 'system', type: 'text', content: 'instructions' }),
+    new Message('user', { role: 'user', type: 'text', content: 'prompt1' }),
+  ]
+  const stream = openai.generate(messages)
+  expect(stream).toBeDefined()
+  let response = ''
+  const toolCalls = []
+  for await (const chunk of stream) {
+    if (chunk.type == 'content') response += chunk.text
+    else if (chunk.type == 'tool') toolCalls.push(chunk)
+  }
+  expect(response).toBe('response')
+  expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', text: 'prep2', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', text: 'run2', done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', done: true })
 })

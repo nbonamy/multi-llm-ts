@@ -1,5 +1,5 @@
 
-import { LLmCompletionPayload, LlmChunk } from '../../src/types/llm.d'
+import { LLmCompletionPayload } from '../../src/types/llm.d'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
@@ -44,9 +44,9 @@ vi.mock('openai', async () => {
               // now the text response
               const content = 'response'
               for (let i = 0; i < content.length; i++) {
-                yield { choices: [{ delta: { content: content[i], finish_reason: 'none' } }] }
+                yield { choices: [{ delta: { content: content[i] }, finish_reason: 'none' }] }
               }
-              yield { choices: [{ delta: { content: '', finish_reason: 'done' } }] }
+              yield { choices: [{ delta: { content: '' }, finish_reason: 'stop' }] }
             },
             controller: {
               abort: vi.fn()
@@ -101,21 +101,21 @@ test('OpenAI Load Image Models', async () => {
 })
 
 test('OpenAI Basic', async () => {
-  const openAI = new OpenAI(config)
-  expect(openAI.getName()).toBe('openai')
-  expect(openAI.client.apiKey).toBe('123')
-  expect(openAI.client.baseURL).toBe('https://api.openai.com/v1')
-  expect(openAI.isVisionModel('gpt-3.5')).toBe(false)
-  expect(openAI.isVisionModel('gpt-3.5-turbo')).toBe(false)
-  expect(openAI.isVisionModel('gpt-4')).toBe(false)
-  expect(openAI.isVisionModel('gpt-4-turbo')).toBe(true)
-  expect(openAI.isVisionModel('gpt-4-vision')).toBe(true)
-  expect(openAI.isVisionModel('gpt-4-vision-preview')).toBe(true)
+  const openai = new OpenAI(config)
+  expect(openai.getName()).toBe('openai')
+  expect(openai.client.apiKey).toBe('123')
+  expect(openai.client.baseURL).toBe('https://api.openai.com/v1')
+  expect(openai.isVisionModel('gpt-3.5')).toBe(false)
+  expect(openai.isVisionModel('gpt-3.5-turbo')).toBe(false)
+  expect(openai.isVisionModel('gpt-4')).toBe(false)
+  expect(openai.isVisionModel('gpt-4-turbo')).toBe(true)
+  expect(openai.isVisionModel('gpt-4-vision')).toBe(true)
+  expect(openai.isVisionModel('gpt-4-vision-preview')).toBe(true)
 })
 
 test('OpenAI completion', async () => {
-  const openAI = new OpenAI(config)
-  const response = await openAI.complete([
+  const openai = new OpenAI(config)
+  const response = await openai.complete([
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], null)
@@ -126,8 +126,8 @@ test('OpenAI completion', async () => {
   })
 })
 
-test('OpenAI streamChunkToLlmChunk Text', async () => {
-  const openAI = new OpenAI(config)
+test('OpenAI nativeChunkToLlmChunk Text', async () => {
+  const openai = new OpenAI(config)
   const streamChunk: ChatCompletionChunk = {
     id: 'id',
     created: 1,
@@ -135,20 +135,22 @@ test('OpenAI streamChunkToLlmChunk Text', async () => {
     object: 'chat.completion.chunk',
     choices: [{ index: 0, delta: { content: 'response' }, finish_reason: null }],
   }
-  const llmChunk1 = await openAI.streamChunkToLlmChunk(streamChunk, null)
-  expect(llmChunk1).toStrictEqual({ text: 'response', done: false })
+  for await (const llmChunk of openai.nativeChunkToLlmChunk(streamChunk)) {
+    expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
+  }
   streamChunk.choices[0].delta.content = null
   streamChunk.choices[0].finish_reason = 'stop'
-  const llmChunk2 = await openAI.streamChunkToLlmChunk(streamChunk, null)
-  expect(llmChunk2).toStrictEqual({ text: '', done: true })
+  for await (const llmChunk of openai.nativeChunkToLlmChunk(streamChunk)) {
+    expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
+  }
 })
 
 test('OpenAI stream', async () => {
-  const openAI = new OpenAI(config)
-  openAI.addPlugin(new Plugin1(config))
-  openAI.addPlugin(new Plugin2(config))
-  openAI.addPlugin(new Plugin3(config))
-  const stream = await openAI.stream([
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin1(config))
+  openai.addPlugin(new Plugin2(config))
+  openai.addPlugin(new Plugin3(config))
+  const stream = await openai.stream([
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], null)
@@ -156,27 +158,28 @@ test('OpenAI stream', async () => {
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
-  const eventCallback = vi.fn()
-  for await (const streamChunk of stream) {
-    const chunk: LlmChunk = await openAI.streamChunkToLlmChunk(streamChunk, eventCallback)
-    if (chunk) {
-      if (chunk.done) break
-      response += chunk.text
+  let lastMsg = null
+  const toolCalls = []
+  for await (const chunk of stream) {
+    for await (const msg of openai.nativeChunkToLlmChunk(chunk)) {
+      lastMsg = msg
+      if (msg.type === 'content') response += msg.text || ''
+      if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
+  expect(lastMsg.done).toBe(true)
   expect(response).toBe('response')
-  expect(eventCallback).toHaveBeenNthCalledWith(1, { type: 'tool', content: 'prep2' })
-  expect(eventCallback).toHaveBeenNthCalledWith(2, { type: 'tool', content: 'run2' })
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
-  expect(eventCallback).toHaveBeenNthCalledWith(3, { type: 'tool', content: null })
-  expect(eventCallback).toHaveBeenNthCalledWith(4, { type: 'stream', content: expect.any(Object) })
-  await openAI.stop(stream)
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', text: 'prep2', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', text: 'run2', done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', done: true })
+  await openai.stop(stream)
   expect(stream.controller.abort).toHaveBeenCalled()
 })
 
 test('OpenAI image', async () => {
-  const openAI = new OpenAI(config)
-  const response = await openAI.image('image', null)
+  const openai = new OpenAI(config)
+  const response = await openai.image('image', null)
   expect(_OpenAI.default.prototype.images.generate).toHaveBeenCalled()
   expect(response).toStrictEqual({
     content: 'b64_json',
@@ -188,11 +191,11 @@ test('OpenAI image', async () => {
 })
 
 test('OpenAI addImageToPayload', async () => {
-  const openAI = new OpenAI(config)
+  const openai = new OpenAI(config)
   const message = new Message('user', 'text')
   message.attachFile(new Attachment('', 'image/png', 'image', true))
   const payload: LLmCompletionPayload = { role: 'user', content: message }
-  openAI.addImageToPayload(message, payload)
+  openai.addImageToPayload(message, payload)
   expect(payload.content).toStrictEqual([
     { type: 'text', text: 'text' },
     { type: 'image_url', image_url: { url: 'data:image/png;base64,image' } }

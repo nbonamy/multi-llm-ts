@@ -92,15 +92,18 @@ test('Groq  stream', async () => {
   await groq.stop(response)
 })
 
-test('Groq streamChunkToLlmChunk Text', async () => {
+test('Groq nativeChunkToLlmChunk Text', async () => {
   const groq = new Groq(config)
   const streamChunk: ChatCompletionChunk = {
     id: '123', model: 'model1', created: null, object: 'chat.completion.chunk',
     choices: [{ index: 0, delta: { content: 'response' }, finish_reason: null }],
   }
-  const llmChunk1 = await groq.streamChunkToLlmChunk(streamChunk, null)
-  expect(llmChunk1).toStrictEqual({ text: 'response', done: false })
+  for await (const llmChunk of groq.nativeChunkToLlmChunk(streamChunk)) {
+    expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
+  }
   streamChunk.choices[0].finish_reason = 'stop'
-  const llmChunk2 = await groq.streamChunkToLlmChunk(streamChunk, null)
-  expect(llmChunk2).toStrictEqual({ text: '', done: true })
+  streamChunk.choices[0].delta.content = null
+  for await (const llmChunk of groq.nativeChunkToLlmChunk(streamChunk)) {
+    expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
+  }
 })

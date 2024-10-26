@@ -58,7 +58,7 @@ export default class Message {
   }
 
   appendText(chunk: LlmChunk) {
-    if (this.type === 'text' && chunk?.text) {
+    if (this.type === 'text' && chunk.type === 'content' && chunk?.text) {
       if (!this.content) this.content = ''
       this.content = this.content + chunk.text
     }

@@ -1,6 +1,5 @@
 
 import { EngineConfig, Model } from 'types/index.d'
-import { LlmChunk } from 'types/llm.d'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
@@ -85,7 +84,7 @@ test('Google completion', async () => {
   })
 })
 
-test('Google streamChunkToLlmChunk Text', async () => {
+test('Google nativeChunkToLlmChunk Text', async () => {
   const google = new Google(config)
   const streamChunk: EnhancedGenerateContentResponse = {
     candidates: [ {
@@ -97,16 +96,14 @@ test('Google streamChunkToLlmChunk Text', async () => {
     functionCalls: vi.fn((): FunctionCall[] => []),
     functionCall: null,
   }
-  const llmChunk1 = await google.streamChunkToLlmChunk(streamChunk, null)
-  expect(streamChunk.text).toHaveBeenCalled()
-  //expect(streamChunk.functionCalls).toHaveBeenCalled()
-  expect(llmChunk1).toStrictEqual({ text: 'response', done: false })
+  for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk)) {
+    expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
+  }
   streamChunk.candidates[0].finishReason = 'STOP' as FinishReason
-  streamChunk.text = vi.fn(() => '')
-  const llmChunk2 = await google.streamChunkToLlmChunk(streamChunk, null)
-  expect(streamChunk.text).toHaveBeenCalled()
-  //expect(streamChunk.functionCalls).toHaveBeenCalled()
-  expect(llmChunk2).toStrictEqual({ text: '', done: true })
+  streamChunk.text = vi.fn(() => null)
+  for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk)) {
+    expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
+  }
 })
 
 test('Google stream', async () => {
@@ -125,20 +122,21 @@ test('Google stream', async () => {
     parts: [ { text: 'prompt' } ]
   }]})
   let response = ''
-  const eventCallback = vi.fn()
-  for await (const streamChunk of stream) {
-    const chunk: LlmChunk = await google.streamChunkToLlmChunk(streamChunk, eventCallback)
-    if (chunk) {
-      if (chunk.done) break
-      response += chunk.text
+  let lastMsg = null
+  const toolCalls = []
+  for await (const chunk of stream) {
+    for await (const msg of google.nativeChunkToLlmChunk(chunk)) {
+      lastMsg = msg
+      if (msg.type === 'content') response += msg.text
+      if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
+  expect(lastMsg.done).toBe(true)
   expect(response).toBe('response')
-  expect(eventCallback).toHaveBeenNthCalledWith(1, { type: 'tool', content: 'prep2' })
-  expect(eventCallback).toHaveBeenNthCalledWith(2, { type: 'tool', content: 'run2' })
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
-  expect(eventCallback).toHaveBeenNthCalledWith(3, { type: 'tool', content: null })
-  expect(eventCallback).toHaveBeenNthCalledWith(4, { type: 'stream', content: expect.any(Object) })
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', text: 'prep2', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', text: 'run2', done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', done: true })
   await google.stop(stream)
   //expect(response.controller.abort).toHaveBeenCalled()
 })

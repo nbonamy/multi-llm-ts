@@ -1,5 +1,5 @@
 
-import { LLmCompletionPayload, LlmChunk } from '../../src/types/llm.d'
+import { LLmCompletionPayload } from '../../src/types/llm.d'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
@@ -41,9 +41,9 @@ vi.mock('@mistralai/mistralai', async() => {
           // now the text response
           const content = 'response'
           for (let i = 0; i < content.length; i++) {
-            yield { data: { choices: [{ delta: { content: content[i], } }] } }
+            yield { data: { choices: [{ delta: { content: content[i], }, finish_reason: 'none' }] } }
           }
-          yield { data: { choices: [{ delta: { content: '', finishReason: 'done' } }] } }
+          yield { data: { choices: [{ delta: { content: '' }, finishReason: 'done' }] } }
         },
         controller: {
           abort: vi.fn()
@@ -93,7 +93,7 @@ test('MistralAI  completion', async () => {
   })
 })
 
-test('MistralAI streamChunkToLlmChunk Text', async () => {
+test('MistralAI nativeChunkToLlmChunk Text', async () => {
   const mistralai = new MistralAI(config)
   const streamChunk: CompletionEvent = { data: {
     id: '1', model: '',
@@ -101,11 +101,14 @@ test('MistralAI streamChunkToLlmChunk Text', async () => {
       index: 0, delta: { content: 'response' }, finishReason: null
     }],
   }}
-  const llmChunk1 = await mistralai.streamChunkToLlmChunk(streamChunk, null)
-  expect(llmChunk1).toStrictEqual({ text: 'response', done: false })
+  for await (const llmChunk of mistralai.nativeChunkToLlmChunk(streamChunk)) {
+    expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
+  }
+  streamChunk.data.choices[0].delta.content = null
   streamChunk.data.choices[0].finishReason = 'stop'
-  const llmChunk2 = await mistralai.streamChunkToLlmChunk(streamChunk, null)
-  expect(llmChunk2).toStrictEqual({ text: 'response', done: true })
+  for await (const llmChunk of mistralai.nativeChunkToLlmChunk(streamChunk)) {
+    expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
+  }
 })
 
 test('MistralAI  stream', async () => {
@@ -120,20 +123,21 @@ test('MistralAI  stream', async () => {
   expect(Mistral.prototype.chat.stream).toHaveBeenCalled()
   expect(stream.controller).toBeDefined()
   let response = ''
-  const eventCallback = vi.fn()
-  for await (const streamChunk of stream) {
-    const chunk: LlmChunk = await mistralai.streamChunkToLlmChunk(streamChunk, eventCallback)
-    if (chunk) {
-      if (chunk.done) break
-      response += chunk.text
+  let lastMsg = null
+  const toolCalls = []
+  for await (const chunk of stream) {
+    for await (const msg of mistralai.nativeChunkToLlmChunk(chunk)) {
+      lastMsg = msg
+      if (msg.type === 'content') response += msg.text
+      if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
+  expect(lastMsg.done).toBe(true)
   expect(response).toBe('response')
-  expect(eventCallback).toHaveBeenNthCalledWith(1, { type: 'tool', content: 'prep2' })
-  expect(eventCallback).toHaveBeenNthCalledWith(2, { type: 'tool', content: 'run2' })
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
-  expect(eventCallback).toHaveBeenNthCalledWith(3, { type: 'tool', content: null })
-  expect(eventCallback).toHaveBeenNthCalledWith(4, { type: 'stream', content: expect.any(Object) })
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', text: 'prep2', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', text: 'run2', done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', done: true })
   await mistralai.stop()
   //expect(Mistral.prototype.abort).toHaveBeenCalled()
 })

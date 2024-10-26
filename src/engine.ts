@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { anyDict, EngineConfig, Model } from 'types/index.d'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmStream, LlmChunk, LlmEventCallback, LlmTool } from 'types/llm.d'
+import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmStream, LlmChunk, LlmTool } from 'types/llm.d'
 import { PluginParameter } from 'types/plugin.d'
 import { minimatch } from 'minimatch'
 import Message from './models/message'
@@ -36,36 +37,6 @@ export default class LlmEngine {
     throw new Error('Not implemented')
   }
   
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async complete(thread: Message[], opts: LlmCompletionOpts): Promise<LlmResponse> {
-    throw new Error('Not implemented')
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async stream(thread: Message[], opts: LlmCompletionOpts): Promise<LlmStream> {
-    throw new Error('Not implemented')
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async image(prompt: string, opts: LlmCompletionOpts): Promise<LlmResponse> {
-    throw new Error('Not implemented')
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addImageToPayload(message: Message, payload: LLmCompletionPayload) {
-    throw new Error('Not implemented')
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async stop(stream: any): Promise<void> {
-    throw new Error('Not implemented')
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async streamChunkToLlmChunk(chunk: any, eventCallback: LlmEventCallback): Promise<LlmChunk|null> {
-    throw new Error('Not implemented')
-  }
-
   getChatModel(): string {
     return this.config.model?.chat
   }
@@ -83,9 +54,58 @@ export default class LlmEngine {
     return false
   }
 
-  requiresVisionModelSwitch(thread: Message[], currentModel: string): boolean {
+  addPlugin(plugin: Plugin): void {
+    if (plugin.isEnabled()) {
+      this.plugins[plugin.getName()] = plugin
+    }
+  }
+
+  async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+    throw new Error('Not implemented')
+  }
+
+  async *generate(thread: Message[], opts?: LlmCompletionOpts): AsyncGenerator<LlmChunk, void, void> {
+    let stream = await this.stream(thread, opts)
+    while (stream != null) {
+      let stream2 = null
+      for await (const chunk of stream) {
+        const stream3 = this.nativeChunkToLlmChunk(chunk)
+        for await (const msg of stream3) {
+          if (msg.type === 'stream') {
+            stream2 = msg.stream
+          } else {
+            yield msg
+          }
+        }
+      }
+      stream = stream2
+    }
+  }
+
+  protected async stream(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+    throw new Error('Not implemented')
+  }
+
+  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse> {
+    throw new Error('Not implemented')
+  }
+
+  async stop(stream: any): Promise<void> {
+    throw new Error('Not implemented')
+  }
+
+  protected addImageToPayload(message: Message, payload: LLmCompletionPayload) {
+    throw new Error('Not implemented')
+  }
+
+  protected async *nativeChunkToLlmChunk(chunk: any): AsyncGenerator<LlmChunk, void, void> {
+    throw new Error('Not implemented')
+    yield { type: 'content', text: '', done: true }
+  }
+
+  protected requiresVisionModelSwitch(thread: Message[], currentModel: string): boolean {
     
-    // if we already have a vision or auto switch is disabled
+    // if we already have a vision
     if (this.isVisionModel(currentModel)) {
       return false
     }
@@ -95,7 +115,7 @@ export default class LlmEngine {
 
   }
 
-  findModel(models: Model[], filters: string[]): Model|null {
+  protected findModel(models: Model[], filters: string[]): Model|null {
     for (const filter of filters) {
       for (const model of models) {
         if (minimatch(model.id, filter)) {
@@ -106,7 +126,7 @@ export default class LlmEngine {
     return null
   }
 
-  selectModel(thread: Message[], currentModel: string): string {
+  protected selectModel(thread: Message[], currentModel: string): string {
 
     // if we need to switch to vision
     if (this.requiresVisionModelSwitch(thread, currentModel)) {
@@ -123,7 +143,7 @@ export default class LlmEngine {
 
   }
 
-  buildPayload(thread: Message[] | string, model: string): LLmCompletionPayload[] {
+  protected buildPayload(thread: Message[] | string, model: string): LLmCompletionPayload[] {
     if (typeof thread === 'string') {
       return [{ role: 'user', content: thread }]
     } else {
@@ -164,13 +184,7 @@ export default class LlmEngine {
     }
   }
 
-  addPlugin(plugin: Plugin): void {
-    if (plugin.isEnabled()) {
-      this.plugins[plugin.getName()] = plugin
-    }
-  }
-
-  async getAvailableTools(): Promise<LlmTool[]> {
+  protected async getAvailableTools(): Promise<LlmTool[]> {
     const tools = []
     for (const pluginName in this.plugins) {
 
@@ -199,7 +213,7 @@ export default class LlmEngine {
   // this is the default implementation as per OpenAI API
   // it is now almost a de facto standard and other providers
   // are following it such as MistralAI and others
-  getPluginAsTool(plugin: Plugin): LlmTool {
+  protected getPluginAsTool(plugin: Plugin): LlmTool {
     return {
       type: 'function',
       function: {
@@ -221,17 +235,17 @@ export default class LlmEngine {
     }
   }
 
-  getToolPreparationDescription(tool: string): string {
+  protected getToolPreparationDescription(tool: string): string {
     const plugin = this.plugins[tool]
     return plugin?.getPreparationDescription()
   }
   
-  getToolRunningDescription(tool: string): string {
+  protected getToolRunningDescription(tool: string): string {
     const plugin = this.plugins[tool]
     return plugin?.getRunningDescription()
   }
 
-  async callTool(tool: string, args: any): Promise<any> {
+  protected async callTool(tool: string, args: any): Promise<any> {
 
     // get the plugin
     const plugin: Plugin = this.plugins[tool]

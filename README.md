@@ -49,12 +49,12 @@ console.log(config.models.chat)
 ### Chat completion
 
 ```js
-const llm = igniteEngine('PROVIDER_ID', { apiKey: 'YOUR_API_KEY' })
+const llm = igniteEngine('PROVIDER_ID', { apiKey: 'YOUR_API_KEY', model: { chat: 'MODEL_ID' }})
 const messages = [
   new Message('system', 'You are a helpful assistant'),
   new Message('user', 'What is the capital of France?'),
 ]
-await llm.complete(messages, { model: 'MODEL_ID' }))
+await llm.complete(messages)
 ```
 
 ### Chat streaming
@@ -64,15 +64,30 @@ const messages = [
   new Message('system', 'You are a helpful assistant'),
   new Message('user', 'What is the capital of France?'),
 ]
-const stream = llm.stream(messages, { model: 'MODEL_ID' }))
+const stream = llm.generate(messages, { model: 'MODEL_ID' })
 for await (const chunk of stream) {
-  const response = await llm.streamChunkToLlmChunk(chunk, () => {})
+  console.log(chunk)
 }
 ```
 
 ### Function calling
 
-Check [`./example/index.ts`](example/index.ts).
+```js
+const llm = igniteEngine('PROVIDER_ID', { apiKey: 'YOUR_API_KEY' })
+llm.addPlugin(new MyPlugin())
+const messages = [
+  new Message('system', 'You are a helpful assistant'),
+  new Message('user', 'What is the capital of France?'),
+]
+const stream = llm.generate(messages, { eventCallback: (ev) => {
+  // this event will contain tool call information
+  console.log(ev)
+}})
+for await (const chunk of stream) {
+  // the chunk is purely content
+  console.log(chunk)
+}
+```
 
 You can easily implement Image generation using DALL-E with a Plugin class such as:
 
