@@ -27,6 +27,13 @@ Not all providers support a "get models" end point. Those who do are listed as `
 
 <sup>1</sup> pending https://github.com/ollama/ollama-js/issues/123
 
+## See it in action
+
+```sh
+npm i
+OPENAI_API_KEY=... npm run example
+```
+
 ## Usage
 
 ### Loading models
@@ -65,7 +72,7 @@ for await (const chunk of stream) {
 
 ### Function calling
 
-Check `./example/index.ts`.
+Check [`./example/index.ts`](blob/main/example/index.ts).
 
 You can easily implement Image generation using DALL-E with a Plugin class such as:
 
