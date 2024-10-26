@@ -157,11 +157,14 @@ export default class LlmEngine {
         const payload: LLmCompletionPayload = { role: msg.role, content: msg.content }
         
         // if there is no attachment, return
-        if (!msg.attachment) return payload
+        if (!msg.attachment) {
+          return payload
+        }
 
         // this can be a loaded chat where contents is not present
-        if (!msg.attachment.contents) {
-          throw new Error('Attachment contents not loaded')
+        if (msg.attachment.contents === null || msg.attachment.contents === undefined) {
+          console.warn('Attachment contents not available. Skipping attachment.')
+          return payload
         }
 
         // text formats

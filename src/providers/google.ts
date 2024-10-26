@@ -212,8 +212,8 @@ export default class extends LlmEngine {
   addAttachment(parts: Array<string | Part>, attachment: Attachment) {
 
     // load if no contents
-    if (!attachment.contents) {
-      throw new Error('Attachment contents not loaded')
+    if (attachment.contents === null || attachment.contents === undefined) {
+      console.warn('[google] attachment contents not available. Skipping attachment.')
     }
   
     // add inline
