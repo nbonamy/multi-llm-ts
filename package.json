@@ -12,8 +12,7 @@
   "files": [
     "dist"
   ],
-  "scripts": {
-    "build": "tsup",
+  "scripts": {   "build": "tsup",
     "lint": "eslint '**/*.ts'",
     "test": "vitest",
     "testui": "vitest --ui --coverage.enabled=true",
