@@ -3,7 +3,7 @@ export * from './types/index.d'
 export * from './types/plugin.d'
 export * from './types/llm.d'
 
-import Attachment from './models/attachment'
+import Attachment, { textFormats, imageFormats } from './models/attachment'
 import Message from './models/message'
 import Plugin from './plugin'
 
@@ -24,6 +24,8 @@ export {
   Plugin,
   Message,
   Attachment,
+  textFormats,
+  imageFormats,
   LlmEngine,
   Anthropic,
   Cerebras,
