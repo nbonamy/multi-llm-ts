@@ -1,7 +1,7 @@
 
 import { anyDict, Model, EngineConfig } from 'types/index.d'
 import LlmEngine from 'engine'
-import Anthropic from './providers/anthropic'
+import Anthropic, { AnthropicComputerToolInfo } from './providers/anthropic'
 import Cerebreas from './providers/cerebras'
 import Google from './providers/google'
 import Groq from './providers/groq'
@@ -181,12 +181,12 @@ export const loadMistralAIModels = async (engineConfig: EngineConfig) => {
 
 }
 
-export const loadAnthropicModels = async (engineConfig: EngineConfig) => {
+export const loadAnthropicModels = async (engineConfig: EngineConfig, computerInfo: AnthropicComputerToolInfo = null) => {
   
   let models = []
 
   try {
-    const anthropic = new Anthropic(engineConfig)
+    const anthropic = new Anthropic(engineConfig, computerInfo)
     models = await anthropic.getModels()
   } catch (error) {
     console.error('Error listing Anthropic models:', error);

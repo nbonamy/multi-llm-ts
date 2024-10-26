@@ -3,6 +3,7 @@ import { EngineConfig } from 'types/index.d'
 import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmContentPayload, LlmToolCall, LLmCompletionPayload } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
+import Plugin from '../plugin'
 
 import Anthropic from '@anthropic-ai/sdk'
 import { Stream } from '@anthropic-ai/sdk/streaming'
@@ -11,6 +12,12 @@ import { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta/messages/message
 
 type AnthropicTool = Tool|BetaToolUnion
 
+export interface AnthropicComputerToolInfo {
+  plugin: Plugin
+  screenSize(): { width: number, height: number }
+  screenNumber (): number
+}
+
 export default class extends LlmEngine {
 
   client: Anthropic
@@ -18,13 +25,15 @@ export default class extends LlmEngine {
   currentSystem: string
   currentThread: Array<MessageParam>
   toolCall: LlmToolCall|null = null
+  computerInfo: AnthropicComputerToolInfo|null = null
 
- constructor(config: EngineConfig) {
+ constructor(config: EngineConfig, computerInfo: AnthropicComputerToolInfo = null) {
     super(config)
     this.client = new Anthropic({
       apiKey: config.apiKey,
       dangerouslyAllowBrowser: true,
     })
+    this.computerInfo = computerInfo
   }
 
   getName(): string {
@@ -35,6 +44,10 @@ export default class extends LlmEngine {
     return ['*']
   }
 
+  getComputerUseRealModel(): string {
+    return 'claude-3-5-sonnet-20241022'
+  }
+
   async getModels(): Promise<any[]> {
 
     // need an api key
@@ -43,12 +56,20 @@ export default class extends LlmEngine {
     }
 
     // do it
-    return [
+    const models = [
       { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet' },
       { id: 'claude-3-sonnet-latest', name: 'Claude 3 Sonnet' },
       { id: 'claude-3-opus-latest', name: 'Claude 3 Opus' },
       { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
     ]
+
+    // depends on platform
+    if (this.computerInfo) {
+      models.push({ id: 'computer-use', name: 'Computer Use' })
+    }
+
+    // done
+    return models
 
   }
 
@@ -60,7 +81,10 @@ export default class extends LlmEngine {
   async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // model
-    const model = opts?.model || this.config.model.chat
+    let model = opts?.model || this.config.model.chat
+    if (model === 'computer-use') {
+      model = this.getComputerUseRealModel()
+    }
 
     // call
     console.log(`[anthropic] prompting model ${model}`)
@@ -84,6 +108,12 @@ export default class extends LlmEngine {
     // model: switch to vision if needed
     this.currentModel = this.selectModel(thread, opts?.model || this.getChatModel())
   
+    // add computer tools
+    if (this.computerInfo && this.currentModel === 'computer-use') {
+      if (!this.plugins['computer']) {
+        this.plugins['computer'] = this.computerInfo.plugin
+      }
+    }
     // save the message thread
     this.currentSystem = thread[0].content
     this.currentThread = this.buildPayload(thread, this.currentModel)
@@ -109,6 +139,29 @@ export default class extends LlmEngine {
       }
     })
 
+    // add computer tools
+    if (this.currentModel === 'computer-use') {
+      const scaledScreenSize = this.computerInfo.screenSize()
+      tools.push({
+        name: 'computer',
+        type: 'computer_20241022',
+        display_width_px: scaledScreenSize.width,
+        display_height_px: scaledScreenSize.height,
+        display_number: this.computerInfo.screenNumber()
+      })
+    }
+
+    // call
+    if (this.currentModel === 'computer-use') {
+      return this.doStreamBeta(tools)
+    } else {
+      return this.doStreamNormal(tools)
+    }
+
+  }
+
+  async doStreamNormal(tools: AnthropicTool[]): Promise<LlmStream> {
+
     console.log(`[anthropic] prompting model ${this.currentModel}`)
     return this.client.messages.create({
       model: this.currentModel,
@@ -122,6 +175,20 @@ export default class extends LlmEngine {
 
   }
 
+  async doStreamBeta(tools: AnthropicTool[]): Promise<LlmStream> {
+    console.log(`[anthropic] prompting model ${this.currentModel}`)
+    return this.client.beta.messages.create({
+      model: this.getComputerUseRealModel(),
+      betas: [ 'computer-use-2024-10-22' ],
+      system: this.currentSystem,
+      max_tokens: this.getMaxTokens(this.currentModel),
+      messages: this.currentThread,
+      tool_choice: { type: 'auto' },
+      tools: tools,
+      stream: true,
+    })
+  }
+  
   async stop(stream: Stream<any>) {
     stream.controller.abort()
   }
