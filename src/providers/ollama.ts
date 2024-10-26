@@ -1,9 +1,10 @@
 
-import { EngineConfig, Message } from 'types/index.d'
+import { EngineConfig } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmEventCallback } from 'types/llm.d'
 import LlmEngine from '../engine'
 import { Ollama } from 'ollama/dist/browser.mjs'
 import { ChatResponse, ProgressResponse } from 'ollama'
+import Message from '../models/message'
 
 export const getChatModels = [
   { id: 'llama3.2:latest', name: 'Llama 3.2' },

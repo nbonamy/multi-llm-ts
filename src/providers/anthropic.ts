@@ -1,9 +1,9 @@
 
 import { EngineConfig } from 'types/index.d'
 import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmContentPayload, LlmEventCallback, LlmToolCall, LLmCompletionPayload } from 'types/llm.d'
-import { Message } from 'types/index.d'
 import LlmEngine from '../engine'
 import Anthropic from '@anthropic-ai/sdk'
+import Message from '../models/message'
 import { Stream } from '@anthropic-ai/sdk/streaming'
 import { Tool, ImageBlockParam, MessageParam, MessageStreamEvent, TextBlockParam, TextBlock, TextDelta, InputJSONDelta } from '@anthropic-ai/sdk/resources'
 import { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta/messages/messages'

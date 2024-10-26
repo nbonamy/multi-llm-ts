@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { EngineConfig, Message } from 'types/index.d'
+import { EngineConfig } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmEventCallback, LlmToolCall } from 'types/llm.d'
 import { Mistral } from '@mistralai/mistralai'
 import { AssistantMessage, CompletionEvent, SystemMessage, ToolMessage, UserMessage } from '@mistralai/mistralai/models/components'
+import Message from '../models/message'
 import LlmEngine from '../engine'
 
 type MistralNessages = Array<

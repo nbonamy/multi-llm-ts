@@ -1,6 +1,7 @@
-import { EngineConfig, Message } from 'types/index.d'
+import { EngineConfig } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmEventCallback } from 'types/llm.d'
 import LlmEngine from '../engine'
+import Message from '../models/message'
 import Groq from 'groq-sdk'
 import { ChatCompletionMessageParam, ChatCompletionChunk } from 'groq-sdk/resources/chat'
 import { Stream } from 'groq-sdk/lib/streaming'

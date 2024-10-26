@@ -1,9 +1,8 @@
 
-import { Message } from 'types/index.d'
 import { LlmRole, LlmChunk } from 'types/llm.d'
 import Attachment from './attachment'
 
-export default class implements Message {
+export default class Message {
 
   uuid: string
   createdAt: number

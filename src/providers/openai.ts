@@ -1,10 +1,11 @@
 
-import { EngineConfig, Message } from 'types/index.d'
+import { EngineConfig } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LlmEventCallback } from 'types/llm.d'
-import LlmEngine from '../engine'
 import OpenAI, { ClientOptions } from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
 import { Stream } from 'openai/streaming'
+import Message from '../models/message'
+import LlmEngine from '../engine'
 
 const defaultBaseUrl = 'https://api.openai.com/v1'
 

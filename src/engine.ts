@@ -1,8 +1,9 @@
 
-import { anyDict, EngineConfig, Message, Model } from 'types/index.d'
+import { anyDict, EngineConfig, Model } from 'types/index.d'
 import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmStream, LlmChunk, LlmEventCallback, LlmTool } from 'types/llm.d'
 import { PluginParameter } from 'types/plugin.d'
 import { minimatch } from 'minimatch'
+import Message from './models/message'
 import Plugin from './plugin'
 
 export default class LlmEngine {

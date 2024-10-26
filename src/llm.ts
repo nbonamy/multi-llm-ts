@@ -8,6 +8,31 @@ import Google from './providers/google'
 import Groq from './providers/groq'
 import XAI from './providers/xai'
 import Cerebreas from './providers/cerebras'
+import LlmEngine from 'engine'
+
+export const igniteEngine = (engine: string, config: EngineConfig): LlmEngine => {
+  if (engine === 'anthropic') return new Anthropic(config)
+  if (engine === 'cerebras') return new Cerebreas(config)
+  if (engine === 'google') return new Google(config)
+  if (engine === 'groq') return new Groq(config)
+  if (engine === 'mistralai') return new MistralAI(config)
+  if (engine === 'ollama') return new Ollama(config)
+  if (engine === 'openai') return new OpenAI(config)
+  if (engine === 'xai') return new XAI(config)
+  throw new Error('Unknown engine: ' + engine)
+}
+
+export const loadModels = async (engine: string, config: EngineConfig): Promise<boolean> => {
+  if (engine === 'anthropic') return await loadAnthropicModels(config)
+  if (engine === 'cerebras') return await loadCerebrasModels(config)
+  if (engine === 'google') return await loadGoogleModels(config)
+  if (engine === 'groq') return await loadGroqModels(config)
+  if (engine === 'mistralai') return await loadMistralAIModels(config)
+  if (engine === 'ollama') return await loadOllamaModels(config)
+  if (engine === 'openai') return await loadOpenAIModels(config)
+  if (engine === 'xai') return await loadXAIModels(config)
+  throw new Error('Unknown engine: ' + engine)
+}
 
 const getValidModelId = (engineConfig: EngineConfig, type: string, modelId: string) => {
   const models: Model[] = engineConfig?.models?.[type as keyof typeof engineConfig.models]
