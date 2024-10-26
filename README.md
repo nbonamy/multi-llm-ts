@@ -36,6 +36,12 @@ OPENAI_API_KEY=... npm run example
 
 ## Usage
 
+### Installation
+
+```sh
+npm i multi-llm-ts
+```
+
 ### Loading models
 
 You can download the list of available models for any provider.
