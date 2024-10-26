@@ -16,6 +16,8 @@ export default defineConfig({
     coverage: {
       exclude: [
         ...coverageConfigDefaults.exclude,
+        'src/index.ts',
+        'example/**',
       ]
     },
   },

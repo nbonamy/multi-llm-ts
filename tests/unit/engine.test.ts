@@ -1,7 +1,7 @@
 
 import { Model } from '../../src/types/index.d'
 import { vi, expect, test } from 'vitest'
-import { loadOpenAIModels, isVisionModel, hasVisionModels } from '../../src/llm'
+import { igniteEngine, loadOpenAIModels, isVisionModel, hasVisionModels } from '../../src/llm'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import OpenAI from '../../src/providers/openai'
@@ -51,6 +51,18 @@ test('Valid Configuration', () => {
   expect(XAI.isConfigured(config)).toBe(true)
   expect(Groq.isConfigured(config)).toBe(true)
   expect(Cerebras.isConfigured(config)).toBe(true)
+})
+
+test('Ignite Engine', async () => {
+  expect(await igniteEngine('openai', config)).toBeInstanceOf(OpenAI)
+  expect(await igniteEngine('ollama', config)).toBeInstanceOf(Ollama)
+  expect(await igniteEngine('mistralai', config)).toBeInstanceOf(MistralAI)
+  expect(await igniteEngine('anthropic', config)).toBeInstanceOf(Anthropic)
+  expect(await igniteEngine('google', config)).toBeInstanceOf(Google)
+  expect(await igniteEngine('xai', config)).toBeInstanceOf(XAI)
+  expect(await igniteEngine('groq', config)).toBeInstanceOf(Groq)
+  expect(await igniteEngine('cerebras', config)).toBeInstanceOf(Cerebras)
+  expect(async() => await igniteEngine('aws', config)).rejects.toThrowError(/Unknown engine/)
 })
 
 test('Has Vision Models', async () => {
