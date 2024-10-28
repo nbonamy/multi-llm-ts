@@ -85,12 +85,11 @@ const messages = [
   new Message('system', 'You are a helpful assistant'),
   new Message('user', 'What is the capital of France?'),
 ]
-const stream = llm.generate(messages, { eventCallback: (ev) => {
-  // this event will contain tool call information
-  console.log(ev)
-}})
+const stream = llm.generate(messages)
 for await (const chunk of stream) {
-  // the chunk is purely content
+  // use chunk.type to decide what to do
+  // type == 'tool' => tool usage status information
+  // type == 'content' => generated text
   console.log(chunk)
 }
 ```
