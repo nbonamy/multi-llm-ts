@@ -1,14 +1,8 @@
 
 import { anyDict } from 'types/index.d'
-import { PluginParameter, PluginConfig } from 'types/plugin.d'
+import { PluginParameter } from 'types/plugin.d'
 
 export default class Plugin {
-
-  config: PluginConfig
-  
-  constructor(config: PluginConfig) {
-    this.config = config
-  }
 
   sezializeInTools(): boolean {
     return true
