@@ -198,8 +198,8 @@ test('Build payload with image attachment', async () => {
 test('Complete content', async () => {
   const openai = new OpenAI({ ...config, ...{ model: { chat: 'gpt-model1' }}})
   const messages = [
-    new Message('system', { role: 'system', type: 'text', content: 'instructions' }),
-    new Message('user', { role: 'user', type: 'text', content: 'prompt1' }),
+    new Message('system', 'instructions'),
+    new Message('user', 'prompt1'),
   ]
   const response = await openai.complete(messages)
   expect(response).toStrictEqual({ type: 'text', 'content': 'response' })
@@ -209,8 +209,8 @@ test('Generate content', async () => {
   const openai = new OpenAI({ ...config, ...{ model: { chat: 'gpt-model1' }}})
   openai.addPlugin(new Plugin2(config))
   const messages = [
-    new Message('system', { role: 'system', type: 'text', content: 'instructions' }),
-    new Message('user', { role: 'user', type: 'text', content: 'prompt1' }),
+    new Message('system', 'instructions'),
+    new Message('user', 'prompt1'),
   ]
   const stream = openai.generate(messages)
   expect(stream).toBeDefined()
@@ -222,7 +222,7 @@ test('Generate content', async () => {
   }
   expect(response).toBe('response')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
-  expect(toolCalls[0]).toStrictEqual({ type: 'tool', text: 'prep2', done: false })
-  expect(toolCalls[1]).toStrictEqual({ type: 'tool', text: 'run2', done: false })
-  expect(toolCalls[2]).toStrictEqual({ type: 'tool', call: { params: ['arg'], result: 'result2' }, done: true })
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'prep2', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'run2', done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
 })

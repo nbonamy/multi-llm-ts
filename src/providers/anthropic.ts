@@ -218,7 +218,8 @@ export default class extends LlmEngine {
         // notify
         yield {
           type: 'tool',
-          text: this.getToolPreparationDescription(this.toolCall.function),
+          name: this.toolCall.function,
+          status: this.getToolPreparationDescription(this.toolCall.function),
           done: false
         }
         
@@ -251,7 +252,8 @@ export default class extends LlmEngine {
         // first notify
         yield {
           type: 'tool',
-          text: this.getToolRunningDescription(this.toolCall.function),
+          name: this.toolCall.function,
+          status: this.getToolRunningDescription(this.toolCall.function),
           done: false
         }
 
@@ -296,6 +298,7 @@ export default class extends LlmEngine {
         // clear
         yield {
           type: 'tool',
+          name: this.toolCall.function,
           done: true,
           call: {
             params: args,
