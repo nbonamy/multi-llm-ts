@@ -13,5 +13,8 @@
     "resolveJsonModule": true,
     "paths": {
     }
-  }
+  },
+  "exclude": [
+    "./tests/**/*.ts"
+  ]
 }
