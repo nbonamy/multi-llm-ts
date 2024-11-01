@@ -52,7 +52,7 @@ const conversation = async (llm: LlmEngine, messages: Message[]) => {
 
 const tooling = async (llm: LlmEngine, messages: Message[]) => {
   console.log('\n** Function calling')
-  const answer = new Answer({})
+  const answer = new Answer()
   llm.addPlugin(answer)
   messages[1].content = 'What is the answer to life, the universe and everything?'
   const stream = llm.generate(messages)

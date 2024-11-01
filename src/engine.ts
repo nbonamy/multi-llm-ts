@@ -10,7 +10,7 @@ import Plugin from './plugin'
 export default class LlmEngine {
 
   config: EngineConfig
-  plugins: { [key: string]: Plugin }
+  plugins: Plugin[]
 
   static isConfigured = (engineConfig: EngineConfig): boolean => {
     return engineConfig?.apiKey?.length > 0
@@ -22,7 +22,7 @@ export default class LlmEngine {
   
   constructor(config: EngineConfig) {
     this.config = config
-    this.plugins = {}
+    this.plugins = []
   }
 
   getName(): string {
@@ -55,9 +55,7 @@ export default class LlmEngine {
   }
 
   addPlugin(plugin: Plugin): void {
-    if (plugin.isEnabled()) {
-      this.plugins[plugin.getName()] = plugin
-    }
+    this.plugins.push(plugin)
   }
 
   async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
@@ -188,12 +186,17 @@ export default class LlmEngine {
   }
 
   protected async getAvailableTools(): Promise<LlmTool[]> {
+    
     const tools = []
-    for (const pluginName in this.plugins) {
+    for (const plugin of this.plugins) {
+
+      // needs to be enabled
+      if (!plugin.isEnabled()) {
+        continue
+      }
 
       // some plugins are vendor specific and are handled
       // inside the LlmEngine concrete class
-      const plugin = this.plugins[pluginName]
       if (!plugin.sezializeInTools()) {
         continue
       }
@@ -239,19 +242,19 @@ export default class LlmEngine {
   }
 
   protected getToolPreparationDescription(tool: string): string {
-    const plugin = this.plugins[tool]
+    const plugin = this.plugins.find((plugin) => plugin.getName() === tool)
     return plugin?.getPreparationDescription()
   }
   
   protected getToolRunningDescription(tool: string): string {
-    const plugin = this.plugins[tool]
+    const plugin = this.plugins.find((plugin) => plugin.getName() === tool)
     return plugin?.getRunningDescription()
   }
 
   protected async callTool(tool: string, args: any): Promise<any> {
 
     // get the plugin
-    const plugin: Plugin = this.plugins[tool]
+    const plugin = this.plugins.find((plugin) => plugin.getName() === tool)
     if (plugin) {
       return await plugin.execute(args)
     }

@@ -110,10 +110,12 @@ export default class extends LlmEngine {
   
     // add computer tools
     if (this.computerInfo && this.currentModel === 'computer-use') {
-      if (!this.plugins['computer']) {
-        this.plugins['computer'] = this.computerInfo.plugin
+      const computerUse = this.plugins.find((p) => p.getName() === this.computerInfo.plugin.getName())
+      if (!computerUse) {
+        this.plugins.push(this.computerInfo.plugin)
       }
     }
+
     // save the message thread
     this.currentSystem = thread[0].content
     this.currentThread = this.buildPayload(thread, this.currentModel)
