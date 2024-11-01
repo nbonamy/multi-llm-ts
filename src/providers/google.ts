@@ -287,6 +287,10 @@ export default class extends LlmEngine {
         yield {
           type: 'tool',
           done: true,
+          call: {
+            params: args,
+            result: content
+          },
         }
 
       }

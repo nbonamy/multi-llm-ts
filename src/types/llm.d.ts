@@ -1,5 +1,4 @@
 
-
 export type LlmRole = 'system'|'user'|'assistant'
 
 export interface LlmResponse {
@@ -50,12 +49,28 @@ export interface LlmContentPayload {
   }
 }
 
-export interface LlmChunk {
-  type: 'content'|'stream'|'tool'
-  stream?: LlmStream
-  text?: string
-  done?: boolean
+export type LlmChunkContent = {
+  type: 'content'
+  text: string
+  done: boolean
 }
+
+export type LlmChunkStream ={
+  type: 'stream'
+  stream: LlmStream
+}
+
+export type LlmChunkTool = {
+  type: 'tool'
+  text?: string
+  call?: {
+    params: any
+    result: any
+  }
+  done: boolean
+}
+
+export type LlmChunk = LlmChunkContent | LlmChunkStream | LlmChunkTool
 
 export interface LlmToolParameterOpenAI {
   name: string

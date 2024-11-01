@@ -1,5 +1,5 @@
 
-import { LlmRole, LlmChunk } from 'types/llm.d'
+import { LlmRole, LlmChunkContent } from 'types/llm.d'
 import Attachment from './attachment'
 
 export default class Message {
@@ -20,8 +20,8 @@ export default class Message {
     this.attachment = attachment
   }
 
-  appendText(chunk: LlmChunk) {
-    if (chunk.type === 'content' && chunk?.text) {
+  appendText(chunk: LlmChunkContent) {
+    if (chunk?.text) {
       this.content = (this.content||'') + chunk.text
     }
     if (chunk?.done) {

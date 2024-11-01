@@ -137,7 +137,7 @@ test('Google stream', async () => {
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', text: 'prep2', done: false })
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', text: 'run2', done: false })
-  expect(toolCalls[2]).toStrictEqual({ type: 'tool', done: true })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', call: { params: ['arg'], result: 'result2' }, done: true })
   await google.stop(stream)
   //expect(response.controller.abort).toHaveBeenCalled()
 })

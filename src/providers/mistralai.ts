@@ -187,12 +187,17 @@ export default class extends LlmEngine {
           name: toolCall.function,
           content: JSON.stringify(content)
         })
-      }
 
-      // clear
-      yield {
-        type: 'tool',
-        done: true,
+        // clear
+        yield {
+          type: 'tool',
+          done: true,
+          call: {
+            params: args,
+            result: content
+          },
+        }
+
       }
 
       // switch to new stream
