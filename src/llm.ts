@@ -74,6 +74,15 @@ export const loadOpenAIModels = async (engineConfig: EngineConfig) => {
     }})
     .sort((a, b) => a.name.localeCompare(b.name))
 
+  // report unknown models (o1 watch)
+  for (const model of models) {
+    if (!model.id.startsWith('babbage-') && !model.id.startsWith('chatgpt-') && !model.id.startsWith('gpt-') &&
+        !model.id.startsWith('dall-e-') && !model.id.startsWith('tts-') && !model.id.startsWith('whisper-') &&
+        !model.id.startsWith('davinci-') && !model.id.startsWith('text-embedding-')) {
+      console.warn(`[openai] Unknown model type: ${model.id}`)
+    }
+  }
+
   // store
   engineConfig.models = {
     chat: models.filter(model => model.id.startsWith('gpt-') || model.id.startsWith('o1-')),
