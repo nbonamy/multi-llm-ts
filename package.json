@@ -17,7 +17,8 @@
     "lint": "eslint '**/*.ts'",
     "test": "vitest",
     "testui": "vitest --ui --coverage.enabled=true",
-    "example": "tsx ./example/index.ts"
+    "example": "tsx ./example/index.ts",
+    "publish": "npm run build && npm publish"
   },
   "author": {
     "name": "Nicolas Bonamy",
