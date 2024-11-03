@@ -62,7 +62,7 @@ export default class LlmEngine {
     throw new Error('Not implemented')
   }
 
-  async *generate(thread: Message[], opts?: LlmCompletionOpts): AsyncGenerator<LlmChunk, void, void> {
+  async *generate(thread: Message[], opts?: LlmCompletionOpts): AsyncIterable<LlmChunk> {
     let stream = await this.stream(thread, opts)
     while (stream != null) {
       let stream2 = null
