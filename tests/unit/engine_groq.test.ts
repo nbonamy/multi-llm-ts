@@ -4,7 +4,7 @@ import Message from '../../src/models/message'
 import Groq from '../../src/providers/groq'
 import { ChatCompletionChunk } from 'groq-sdk/resources/chat'
 import { loadGroqModels } from '../../src/llm'
-import { EngineConfig, Model } from '../../src/types/index.d'
+import { EngineCreateOpts, Model } from '../../src/types/index.d'
 
 vi.mock('groq-sdk', async() => {
   const Groq = vi.fn()
@@ -34,19 +34,16 @@ vi.mock('groq-sdk', async() => {
   return { default : Groq }
 })
 
-let config: EngineConfig = {}
+let config: EngineCreateOpts = {}
 beforeEach(() => {
   config = {
     apiKey: '123',
-    models: { chat: [] },
-    model: { chat: '' },
   }
 })
 
 test('Groq Load Models', async () => {
-  expect(await loadGroqModels(config)).toBe(true)
-  const models = config.models.chat
-  expect(models.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
+  const models = await loadGroqModels(config)
+  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
     { id: 'llama-3.2-1b-preview', name: 'Llama 3.2 1B Text (Preview)' },
     { id: 'llama-3.2-3b-preview', name: 'Llama 3.2 3B Text (Preview)' },
     { id: 'llama-3.2-11b-text-preview', name: 'Llama 3.2 11B Text (Preview)' },
@@ -60,7 +57,6 @@ test('Groq Load Models', async () => {
     { id: 'gemma2-9b-it', name: 'Gemma 2 9b', },
     { id: 'gemma-7b-it', name: 'Gemma 7b', }
   ])
-  expect(config.model.chat).toStrictEqual(models[0].id)
 })
 
 test('Groq Basic', async () => {
@@ -72,10 +68,10 @@ test('Groq Basic', async () => {
 
 test('Groq  completion', async () => {
   const groq = new Groq(config)
-  const response = await groq.complete([
+  const response = await groq.complete('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], null)
+  ])
   expect(response).toStrictEqual({
     type: 'text',
     content: 'response'
@@ -84,10 +80,10 @@ test('Groq  completion', async () => {
 
 test('Groq  stream', async () => {
   const groq = new Groq(config)
-  const response = await groq.stream([
+  const response = await groq.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], null)
+  ])
   expect(response.controller).toBeDefined()
   await groq.stop(response)
 })

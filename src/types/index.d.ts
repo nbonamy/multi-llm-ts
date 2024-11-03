@@ -1,22 +1,10 @@
 
-
-export type anyDict = {[key: string]: any}
-export type strDict = {[key: string]: string}
-
-export interface EngineConfig {
+export interface EngineCreateOpts {
   apiKey?: string
   baseURL?: string
-  models?: ModelsConfig
-  model?: ModelConfig
 }
 
-export interface ModelConfig {
-  chat: string
-  image?: string
-  embedding?: string
-}
-
-export interface ModelsConfig {
+export interface ModelsList {
   chat: Model[]
   image?: Model[]
   embedding?: Model[]

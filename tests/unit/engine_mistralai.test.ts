@@ -1,5 +1,5 @@
 
-import { LLmCompletionPayload } from '../../src/types/llm.d'
+import { LlmChunkContent, LLmCompletionPayload } from '../../src/types/llm.d'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
@@ -8,7 +8,7 @@ import MistralAI from '../../src/providers/mistralai'
 import { Mistral } from '@mistralai/mistralai'
 import { CompletionEvent } from '@mistralai/mistralai/models/components'
 import { loadMistralAIModels } from '../../src/llm'
-import { EngineConfig, Model } from '../../src/types/index.d'
+import { EngineCreateOpts, Model } from '../../src/types/index.d'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -54,23 +54,19 @@ vi.mock('@mistralai/mistralai', async() => {
   return { Mistral }
 })
 
-let config: EngineConfig = {}
+let config: EngineCreateOpts = {}
 beforeEach(() => {
   config = {
     apiKey: '123',
-    models: { chat: [] },
-    model: { chat: '' },
   }
 })
 
 test('MistralAI Load Models', async () => {
-  expect(await loadMistralAIModels(config)).toBe(true)
-  const models = config.models.chat
-  expect(models.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
+  const models = await loadMistralAIModels(config)
+  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
     { id: 'model1', name: 'model1' },
     { id: 'model2', name: 'model2' },
   ])
-  expect(config.model.chat).toStrictEqual(models[0].id)
 })
 
 test('MistralAI Basic', async () => {
@@ -82,10 +78,10 @@ test('MistralAI Basic', async () => {
 
 test('MistralAI  completion', async () => {
   const mistralai = new MistralAI(config)
-  const response = await mistralai.complete([
+  const response = await mistralai.complete('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], null)
+  ])
   expect(Mistral.prototype.chat.complete).toHaveBeenCalled()
   expect(response).toStrictEqual({
     type: 'text',
@@ -113,17 +109,17 @@ test('MistralAI nativeChunkToLlmChunk Text', async () => {
 
 test('MistralAI  stream', async () => {
   const mistralai = new MistralAI(config)
-  mistralai.addPlugin(new Plugin1(config))
-  mistralai.addPlugin(new Plugin2(config))
-  mistralai.addPlugin(new Plugin3(config))
-  const stream = await mistralai.stream([
+  mistralai.addPlugin(new Plugin1())
+  mistralai.addPlugin(new Plugin2())
+  mistralai.addPlugin(new Plugin3())
+  const stream = await mistralai.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], null)
+  ])
   expect(Mistral.prototype.chat.stream).toHaveBeenCalled()
   expect(stream.controller).toBeDefined()
   let response = ''
-  let lastMsg = null
+  let lastMsg: LlmChunkContent|null = null
   const toolCalls = []
   for await (const chunk of stream) {
     for await (const msg of mistralai.nativeChunkToLlmChunk(chunk)) {
@@ -132,7 +128,7 @@ test('MistralAI  stream', async () => {
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
-  expect(lastMsg.done).toBe(true)
+  expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'prep2', done: false })
@@ -140,12 +136,6 @@ test('MistralAI  stream', async () => {
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await mistralai.stop()
   //expect(Mistral.prototype.abort).toHaveBeenCalled()
-})
-
-test('MistralAI  image', async () => {
-  const mistralai = new MistralAI(config)
-  const response = await mistralai.image('image', null)
-  expect(response).toBeNull()
 })
 
 test('MistralAI addImageToPayload', async () => {

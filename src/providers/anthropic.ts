@@ -1,5 +1,5 @@
 
-import { EngineConfig } from 'types/index.d'
+import { EngineCreateOpts } from 'types/index.d'
 import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmContentPayload, LlmToolCall, LLmCompletionPayload } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
@@ -27,7 +27,7 @@ export default class extends LlmEngine {
   toolCall: LlmToolCall|null = null
   computerInfo: AnthropicComputerToolInfo|null = null
 
- constructor(config: EngineConfig, computerInfo: AnthropicComputerToolInfo = null) {
+ constructor(config: EngineCreateOpts, computerInfo: AnthropicComputerToolInfo = null) {
     super(config)
     this.client = new Anthropic({
       apiKey: config.apiKey,
@@ -78,10 +78,9 @@ export default class extends LlmEngine {
     else return 4096
   }
 
-  async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[]): Promise<LlmResponse> {
 
     // model
-    let model = opts?.model || this.config.model.chat
     if (model === 'computer-use') {
       model = this.getComputerUseRealModel()
     }
@@ -92,7 +91,7 @@ export default class extends LlmEngine {
       model: model,
       system: thread[0].content,
       max_tokens: this.getMaxTokens(model),
-      messages: this.buildPayload(thread, model) as MessageParam[],
+      messages: this.buildPayload(model, thread) as MessageParam[],
     });
 
     // return an object
@@ -103,10 +102,10 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
 
     // model: switch to vision if needed
-    this.currentModel = this.selectModel(thread, opts?.model || this.getChatModel())
+    this.currentModel = this.selectModel(model, thread, opts)
   
     // add computer tools
     if (this.computerInfo && this.currentModel === 'computer-use') {
@@ -118,7 +117,7 @@ export default class extends LlmEngine {
 
     // save the message thread
     this.currentSystem = thread[0].content
-    this.currentThread = this.buildPayload(thread, this.currentModel) as MessageParam[]
+    this.currentThread = this.buildPayload(this.currentModel, thread) as MessageParam[]
     return await this.doStream()
 
   }
@@ -331,8 +330,8 @@ export default class extends LlmEngine {
     ]
   }
 
-  buildPayload(thread: Message[], model: string): Array<LLmCompletionPayload> {
-    const payload: LLmCompletionPayload[] = super.buildPayload(thread, model)
+  buildPayload(model: string, thread: Message[]): Array<LLmCompletionPayload> {
+    const payload: LLmCompletionPayload[] = super.buildPayload(model, thread)
     return payload.filter((payload) => payload.role != 'system').map((payload): MessageParam => {
       if (payload.role == 'system') return null
       if (typeof payload.content == 'string') {
@@ -365,8 +364,4 @@ export default class extends LlmEngine {
     })
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse|null> {
-    return null    
-  }
 }

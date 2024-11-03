@@ -1,5 +1,5 @@
 
-import { EngineConfig, Model } from 'types/index.d'
+import { EngineCreateOpts, Model } from '../../src/types/index.d'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
@@ -8,6 +8,7 @@ import Google from '../../src/providers/google'
 import { loadGoogleModels } from '../../src/llm'
 import { EnhancedGenerateContentResponse, FunctionCall, FinishReason } from '@google/generative-ai'
 import * as _Google from '@google/generative-ai'
+import { LlmChunkContent } from '../../src/types/llm'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -38,25 +39,21 @@ vi.mock('@google/generative-ai', async() => {
   return { GoogleGenerativeAI, GenerativeModel, default: GoogleGenerativeAI, SchemaType, FunctionCallingMode }
 })
 
-let config: EngineConfig = {}
+let config: EngineCreateOpts = {}
 beforeEach(() => {
   config = {
     apiKey: '123',
-    models: { chat: [] },
-    model: { chat: 'models/gemini-1.5-pro-latest' },
   }
   vi.clearAllMocks()
 })
 
 test('Google Load Models', async () => {
-  expect(await loadGoogleModels(config)).toBe(true)
-  const models = config.models.chat
-  expect(models.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
+  const models = await loadGoogleModels(config)
+  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
     { id: 'models/gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
     { id: 'gemini-1.5-flash-latest', name: 'Gemini  1.5 Flash' },
     { id: 'models/gemini-pro', name: 'Gemini 1.0 Pro' },
   ])
-  expect(config.model.chat).toStrictEqual(models[0].id)
 })
 
 test('Google Basic', async () => {
@@ -69,10 +66,10 @@ test('Google Basic', async () => {
 
 test('Google completion', async () => {
   const google = new Google(config)
-  const response = await google.complete([
+  const response = await google.complete('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], null)
+  ])
   expect(_Google.GoogleGenerativeAI).toHaveBeenCalled()
   expect(_Google.GoogleGenerativeAI.prototype.getGenerativeModel).toHaveBeenCalled()
   expect(_Google.GenerativeModel.prototype.generateContent).toHaveBeenCalledWith({ contents: [{
@@ -109,13 +106,13 @@ test('Google nativeChunkToLlmChunk Text', async () => {
 
 test('Google stream', async () => {
   const google = new Google(config)
-  google.addPlugin(new Plugin1(config))
-  google.addPlugin(new Plugin2(config))
-  google.addPlugin(new Plugin3(config))
-  const stream = await google.stream([
+  google.addPlugin(new Plugin1())
+  google.addPlugin(new Plugin2())
+  google.addPlugin(new Plugin3())
+  const stream = await google.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], null)
+  ])
   expect(_Google.GoogleGenerativeAI).toHaveBeenCalled()
   expect(_Google.GoogleGenerativeAI.prototype.getGenerativeModel).toHaveBeenCalled()
   expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({ contents: [{
@@ -123,7 +120,7 @@ test('Google stream', async () => {
     parts: [ { text: 'prompt' } ]
   }]})
   let response = ''
-  let lastMsg = null
+  let lastMsg: LlmChunkContent|null = null
   const toolCalls = []
   for await (const chunk of stream) {
     for await (const msg of google.nativeChunkToLlmChunk(chunk)) {
@@ -132,7 +129,7 @@ test('Google stream', async () => {
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
-  expect(lastMsg.done).toBe(true)
+  expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'prep2', done: false })
@@ -144,12 +141,12 @@ test('Google stream', async () => {
 
 test('Google Text Attachments', async () => {
   const google = new Google(config)
-  await google.stream([
+  await google.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt1', new Attachment('text1', 'text/plain')),
     new Message('assistant', 'response1'),
     new Message('user', 'prompt2', new Attachment('text2', 'text/plain')),
-  ], null)
+  ])
   expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({ contents: [
     { role: 'user', parts: [ { text: 'prompt1\n\ntext1' } ] },
     { role: 'model', parts: [ { text: 'response1' } ] },
@@ -159,12 +156,12 @@ test('Google Text Attachments', async () => {
 
 test('Google Image Attachments', async () => {
   const google = new Google(config)
-  await google.stream([
+  await google.stream('models/gemini-1.5-pro-latest', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt1', new Attachment('image1', 'image/png')),
     new Message('assistant', 'response1'),
     new Message('user', 'prompt2', new Attachment('image2', 'image/png')),
-  ], null)
+  ])
   expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({ contents: [
     { role: 'user', parts: [ { text: 'prompt1' } ] },
     { role: 'model', parts: [ { text: 'response1' } ] },

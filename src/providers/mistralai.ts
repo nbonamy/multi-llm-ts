@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import { EngineConfig } from 'types/index.d'
+
+import { EngineCreateOpts } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
@@ -21,7 +21,7 @@ export default class extends LlmEngine {
   currentThread: MistralNessages
   toolCalls: LlmToolCall[]
 
-  constructor(config: EngineConfig) {
+  constructor(config: EngineCreateOpts) {
     super(config)
     this.client = new Mistral({
       apiKey: config.apiKey || ''
@@ -52,14 +52,13 @@ export default class extends LlmEngine {
     }
   }
 
-  async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[]): Promise<LlmResponse> {
 
     // call
-    const model = opts?.model || this.config.model.chat
     console.log(`[mistralai] prompting model ${model}`)
     const response = await this.client.chat.complete({
       model: model,
-      messages: this.buildPayload(thread, model) as MistralNessages,
+      messages: this.buildPayload(model, thread) as MistralNessages,
     });
 
     // return an object
@@ -69,13 +68,13 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
 
     // model: switch to vision if needed
-    this.currentModel = this.selectModel(thread, opts?.model || this.getChatModel())
+    this.currentModel = this.selectModel(model, thread, opts)
   
     // save the message thread
-    this.currentThread = this.buildPayload(thread, this.currentModel) as MistralNessages
+    this.currentThread = this.buildPayload(this.currentModel, thread) as MistralNessages
     return await this.doStream()
 
   }
@@ -227,10 +226,6 @@ export default class extends LlmEngine {
   }
 
    
-  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse|null> {
-    return null    
-  }
-
   async getAvailableToolsForModel(model: string): Promise<any[]> {
     if (model.includes('mistral-large') || model.includes('mixtral-8x22b')) {
       return await this.getAvailableTools()

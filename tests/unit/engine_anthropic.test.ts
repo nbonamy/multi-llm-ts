@@ -7,7 +7,8 @@ import Anthropic from '../../src/providers/anthropic'
 import * as _Anthropic from '@anthropic-ai/sdk'
 import { MessageParam } from '@anthropic-ai/sdk/resources'
 import { loadAnthropicModels } from '../../src/llm'
-import { EngineConfig, Model } from '../../src/types/index.d'
+import { EngineCreateOpts, Model } from '../../src/types/index.d'
+import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -58,25 +59,21 @@ vi.mock('@anthropic-ai/sdk', async() => {
   return { default : Anthropic }
 })
 
-let config: EngineConfig = {}
+let config: EngineCreateOpts = {}
 beforeEach(() => {
   config = {
     apiKey: '123',
-    models: { chat: [] },
-    model: { chat: '' },
   }
 })
 
 test('Anthropic Load Models', async () => {
-  expect(await loadAnthropicModels(config)).toBe(true)
-  const models = config.models.chat
-  expect(models.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
+  const models = await loadAnthropicModels(config)
+  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
     { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet' },
     { id: 'claude-3-sonnet-latest', name: 'Claude 3 Sonnet' },
     { id: 'claude-3-opus-latest', name: 'Claude 3 Opus' },
     { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
-])
-  expect(config.model.chat).toStrictEqual(models[0].id)
+  ])
 })
 
 test('Anthropic Basic', async () => {
@@ -90,10 +87,10 @@ test('Anthropic Basic', async () => {
 
 test('Anthropic completion', async () => {
   const anthropic = new Anthropic(config)
-  const response = await anthropic.complete([
+  const response = await anthropic.complete('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], null)
+  ])
   expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalled()
   expect(response).toStrictEqual({
     type: 'text',
@@ -120,18 +117,18 @@ test('Anthropic nativeChunkToLlmChunk Text', async () => {
 
 test('Anthropic stream', async () => {
   const anthropic = new Anthropic(config)
-  anthropic.addPlugin(new Plugin1(config))
-  anthropic.addPlugin(new Plugin2(config))
-  anthropic.addPlugin(new Plugin3(config))
-  const stream = await anthropic.stream([
+  anthropic.addPlugin(new Plugin1())
+  anthropic.addPlugin(new Plugin2())
+  anthropic.addPlugin(new Plugin3())
+  const stream = await anthropic.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], null)
+  ])
   expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalled()
   expect(stream.controller).toBeDefined()
   let response = ''
-  let lastMsg = null
-  const toolCalls = []
+  let lastMsg: LlmChunkContent|null = null
+  const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
     for await (const msg of anthropic.nativeChunkToLlmChunk(chunk)) {
       lastMsg = msg
@@ -139,7 +136,7 @@ test('Anthropic stream', async () => {
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
-  expect(lastMsg.done).toBe(true)
+  expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'prep2', done: false })
@@ -147,12 +144,6 @@ test('Anthropic stream', async () => {
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await anthropic.stop(stream)
   expect(stream.controller.abort).toHaveBeenCalled()
-})
-
-test('Anthropic image', async () => {
-  const anthropic = new Anthropic(config)
-  const response = await anthropic.image('image', null)
-  expect(response).toBeNull()
 })
 
 test('Anthropic addImageToPayload', async () => {

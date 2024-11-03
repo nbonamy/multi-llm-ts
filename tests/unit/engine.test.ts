@@ -1,7 +1,6 @@
 
-import { Model } from '../../src/types/index.d'
 import { vi, expect, test } from 'vitest'
-import { igniteEngine, loadOpenAIModels, isVisionModel, hasVisionModels } from '../../src/llm'
+import { igniteEngine, isVisionModel, hasVisionModels } from '../../src/llm'
 import { Plugin2 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
@@ -13,6 +12,7 @@ import Google from '../../src/providers/google'
 import XAI from '../../src/providers/xai'
 import Groq from '../../src/providers/groq'
 import Cerebras from '../../src/providers/cerebras'
+import * as _openai from 'openai'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -39,7 +39,7 @@ vi.mock('openai', async() => {
           return {
             async * [Symbol.asyncIterator]() {
               // first we yield tool call chunks
-              if (streamIteration == 0) {
+              if (opts.model != 'model-no-tool' && opts.model != 'model-vision' && streamIteration == 0) {
                 yield { choices: [{ delta: { tool_calls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "ar' }} ] }, finish_reason: 'none' } ] }
                 yield { choices: [{ delta: { tool_calls: [ { function: { arguments: [ 'g" ]' ] } }] }, finish_reason: 'none' } ] }
                 yield { choices: [{ finish_reason: 'tool_calls' } ] }
@@ -119,16 +119,6 @@ test('Is Vision Model', async () => {
   expect(isVisionModel('anthropic', 'claude-sonnet-35-latest', config)).toBe(true)
 })
 
-test('Get Chat Models', async () => {
-  await loadOpenAIModels(config)
-  const openai = new OpenAI(config)
-  expect(openai.getChatModel()).toBe('gpt-model1')
-  expect(openai.getChatModels().map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
-    { id: 'gpt-model1', name: 'gpt-model1' },
-    { id: 'gpt-model2', name: 'gpt-model2' },
-  ])
-})
-
 test('Find Models', async () => {
   const models = [
     { id: 'gpt-model1', name: 'gpt-model1', meta: {} },
@@ -145,15 +135,15 @@ test('Find Models', async () => {
 
 test('Build payload no attachment', async () => {
   const openai = new OpenAI(config)
-  expect(openai.buildPayload([], 'gpt-model1')).toStrictEqual([]) 
-  expect(openai.buildPayload('content', 'gpt-model1')).toStrictEqual([{ role: 'user', content: 'content' }])
-  expect(openai.buildPayload([
+  expect(openai.buildPayload('gpt-model1', [])).toStrictEqual([]) 
+  expect(openai.buildPayload('gpt-model1', 'content')).toStrictEqual([{ role: 'user', content: 'content' }])
+  expect(openai.buildPayload('got-model1', [
     new Message('system', 'instructions'),
     new Message('user', 'prompt1'),
     new Message('assistant', 'response1'),
     new Message('user', 'prompt2'),
     new Message('assistant', 'response2'),
-  ], 'gpt-model1')).toStrictEqual([
+  ])).toStrictEqual([
     { role: 'system', content: 'instructions' },
     { role: 'user', content: 'prompt1' },
     { role: 'assistant', content: 'response1' },
@@ -169,7 +159,7 @@ test('Build payload with text attachment', async () => {
     new Message('user', 'prompt1'),
   ]
   messages[1].attach(new Attachment('text', 'text/plain'))
-  expect(openai.buildPayload(messages, 'gpt-model1')).toStrictEqual([
+  expect(openai.buildPayload('gpt-model1', messages)).toStrictEqual([
     { role: 'system', content: 'instructions' },
     { role: 'user', content: 'prompt1\n\ntext' },
   ])
@@ -182,11 +172,11 @@ test('Build payload with image attachment', async () => {
     new Message('user', 'prompt1'),
   ]
   messages[1].attach(new Attachment('image', 'image/png'))
-  expect(openai.buildPayload(messages, 'gpt-model1')).toStrictEqual([
+  expect(openai.buildPayload('gpt-model1', messages)).toStrictEqual([
     { role: 'system', content: 'instructions' },
     { role: 'user', content: 'prompt1' },
   ])
-  expect(openai.buildPayload(messages, 'gpt-4-vision')).toStrictEqual([
+  expect(openai.buildPayload('gpt-4-vision', messages)).toStrictEqual([
     { role: 'system', content: 'instructions' },
     { role: 'user', content: [
       { type: 'text', text: 'prompt1' },
@@ -201,18 +191,18 @@ test('Complete content', async () => {
     new Message('system', 'instructions'),
     new Message('user', 'prompt1'),
   ]
-  const response = await openai.complete(messages)
+  const response = await openai.complete('model', messages)
   expect(response).toStrictEqual({ type: 'text', 'content': 'response' })
 })
 
 test('Generate content', async () => {
-  const openai = new OpenAI({ ...config, ...{ model: { chat: 'gpt-model1' }}})
-  openai.addPlugin(new Plugin2(config))
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin2())
   const messages = [
     new Message('system', 'instructions'),
     new Message('user', 'prompt1'),
   ]
-  const stream = openai.generate(messages)
+  const stream = openai.generate('model', messages)
   expect(stream).toBeDefined()
   let response = ''
   const toolCalls = []
@@ -225,4 +215,39 @@ test('Generate content', async () => {
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'prep2', done: false })
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'run2', done: false })
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
+})
+
+test('Does not switch vision by default', async () => {
+  const openai = new OpenAI(config)
+  const messages = [
+    new Message('system', 'instructions'),
+    new Message('user', 'prompt1'),
+  ]
+  messages[1].attach(new Attachment('image', 'image/png'))
+  const stream = await openai.generate('model-no-tool', messages, { models: [ { id: 'model-vision', name: 'model-vision' }] })
+  // eslint-disable-next-line no-empty,@typescript-eslint/no-unused-vars
+  for await (const chunk of stream) { }
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'model-no-tool', stream: true, tools: null, tool_choice: null,
+    messages: [ { role: 'system', content: 'instructions' }, { role: 'user', content: 'prompt1' } ]
+  })
+})
+
+test('Switches to vision when asked', async () => {
+  const openai = new OpenAI(config)
+  const messages = [
+    new Message('system', 'instructions'),
+    new Message('user', 'prompt1'),
+  ]
+  messages[1].attach(new Attachment('image', 'image/png'))
+  const stream = await openai.generate('model-no-tool', messages, { autoSwitchVision: true, models: [ { id: 'model-vision', name: 'model-vision' }] })
+  // eslint-disable-next-line no-empty,@typescript-eslint/no-unused-vars
+  for await (const chunk of stream) { }
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'model-vision', stream: true, tools: null, tool_choice: null,
+    messages: [ { role: 'system', content: 'instructions' }, { role: 'user', content: [
+      { type: 'text', text: 'prompt1' },
+      { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,image' } },
+    ]}]
+  })
 })

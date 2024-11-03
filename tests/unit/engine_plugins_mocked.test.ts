@@ -2,9 +2,9 @@
 import { beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import OpenAI from '../../src/providers/openai'
-import { EngineConfig } from 'types'
+import { EngineCreateOpts } from 'types'
 
-let config: EngineConfig = {}
+let config: EngineCreateOpts = {}
 beforeEach(() => {
   config = {
     apiKey: '123',
@@ -15,9 +15,9 @@ beforeEach(() => {
 
 test('Engine plugin descriptions', () => {
   const llm = new OpenAI(config)
-  llm.addPlugin(new Plugin1(config))
-  llm.addPlugin(new Plugin2(config))
-  llm.addPlugin(new Plugin3(config))
+  llm.addPlugin(new Plugin1())
+  llm.addPlugin(new Plugin2())
+  llm.addPlugin(new Plugin3())
   expect(llm.getToolPreparationDescription('plugin1')).toBeNull()
   expect(llm.getToolRunningDescription('plugin1')).toBe('run1')
   expect(llm.getToolPreparationDescription('plugin2')).toBe('prep2')
@@ -26,18 +26,18 @@ test('Engine plugin descriptions', () => {
 
 test('Engine plugin execution', async () => {
   const llm = new OpenAI(config)
-  llm.addPlugin(new Plugin1(config))
-  llm.addPlugin(new Plugin2(config))
-  llm.addPlugin(new Plugin3(config))
+  llm.addPlugin(new Plugin1())
+  llm.addPlugin(new Plugin2())
+  llm.addPlugin(new Plugin3())
   expect(await llm.callTool('plugin1', {})).toStrictEqual('result1')
   expect(await llm.callTool('plugin2', { param1: 'a', param2: 1 })).toStrictEqual({ param1: 'a', param2: 1 })
 })
 
 test('OpenAI Functions', async () => {
   const llm = new OpenAI(config)
-  llm.addPlugin(new Plugin1(config))
-  llm.addPlugin(new Plugin2(config))
-  llm.addPlugin(new Plugin3(config))
+  llm.addPlugin(new Plugin1())
+  llm.addPlugin(new Plugin2())
+  llm.addPlugin(new Plugin3())
   expect(await llm.getAvailableTools()).toStrictEqual([
     {
       type: 'function',

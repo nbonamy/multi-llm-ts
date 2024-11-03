@@ -1,5 +1,5 @@
 
-import { anyDict, Model, EngineConfig } from 'types/index.d'
+import { EngineCreateOpts, ModelsList } from 'types/index.d'
 import LlmEngine from 'engine'
 import Anthropic, { AnthropicComputerToolInfo } from './providers/anthropic'
 import Cerebreas from './providers/cerebras'
@@ -10,7 +10,7 @@ import Ollama from './providers/ollama'
 import OpenAI from './providers/openai'
 import XAI from './providers/xai'
 
-export const igniteEngine = (engine: string, config: EngineConfig): LlmEngine => {
+export const igniteEngine = (engine: string, config: EngineCreateOpts): LlmEngine => {
   if (engine === 'anthropic') return new Anthropic(config)
   if (engine === 'cerebras') return new Cerebreas(config)
   if (engine === 'google') return new Google(config)
@@ -22,7 +22,7 @@ export const igniteEngine = (engine: string, config: EngineConfig): LlmEngine =>
   throw new Error('Unknown engine: ' + engine)
 }
 
-export const loadModels = async (engine: string, config: EngineConfig): Promise<boolean> => {
+export const loadModels = async (engine: string, config: EngineCreateOpts): Promise<ModelsList> => {
   if (engine === 'anthropic') return await loadAnthropicModels(config)
   if (engine === 'cerebras') return await loadCerebrasModels(config)
   if (engine === 'google') return await loadGoogleModels(config)
@@ -34,23 +34,17 @@ export const loadModels = async (engine: string, config: EngineConfig): Promise<
   throw new Error('Unknown engine: ' + engine)
 }
 
-export const hasVisionModels = (engine: string, config: EngineConfig) => {
+export const hasVisionModels = (engine: string, config: EngineCreateOpts) => {
   const instance = igniteEngine(engine, config)
   return instance.getVisionModels().length > 0
 }
 
-export const isVisionModel = (engine: string, model: string, config: EngineConfig) => {
+export const isVisionModel = (engine: string, model: string, config: EngineCreateOpts) => {
   const instance = igniteEngine(engine, config)
   return instance.isVisionModel(model)
 }
 
-const getValidModelId = (engineConfig: EngineConfig, type: string, modelId: string) => {
-  const models: Model[] = engineConfig?.models?.[type as keyof typeof engineConfig.models]
-  const m = models?.find(m => m.id == modelId)
-  return m ? modelId : (models?.[0]?.id || null)
-}
-
-export const loadOpenAIModels = async (engineConfig: EngineConfig) => {
+export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList> => {
 
   // load
   let models = null
@@ -61,8 +55,7 @@ export const loadOpenAIModels = async (engineConfig: EngineConfig) => {
     console.error('Error listing OpenAI models:', error);
   }
   if (!models) {
-    engineConfig.models = { chat: [], image: [], }
-    return false
+    return { chat: [], image: [], }
   }
 
   // xform
@@ -83,24 +76,15 @@ export const loadOpenAIModels = async (engineConfig: EngineConfig) => {
     }
   }
 
-  // store
-  engineConfig.models = {
+  // done
+  return {
     chat: models.filter(model => model.id.startsWith('gpt-') || model.id.startsWith('o1-')),
     image: models.filter(model => model.id.startsWith('dall-e-'))
   }
 
-  // select valid model
-  engineConfig.model = {
-    chat: getValidModelId(engineConfig, 'chat', engineConfig.model?.chat),
-    image: getValidModelId(engineConfig, 'image', engineConfig.model?.image)
-  }
-
-  // done
-  return true
-
 }
 
-export const loadOllamaModels = async (engineConfig: EngineConfig) => {
+export const loadOllamaModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList> => {
 
   // needed
   const ollama = new Ollama(engineConfig)
@@ -113,12 +97,11 @@ export const loadOllamaModels = async (engineConfig: EngineConfig) => {
     console.error('Error listing Ollama models:', error);
   }
   if (!models) {
-    engineConfig.models = { chat: [], image: [], }
-    return false
+    return { chat: [], image: [], }
   }
 
   // get info
-  const modelInfo: anyDict = {}
+  const modelInfo: { [key: string]: any } = {}
   for (const model of models) {
     const info = await ollama.getModelInfo(model.model)
     modelInfo[model.model] = {
@@ -136,8 +119,8 @@ export const loadOllamaModels = async (engineConfig: EngineConfig) => {
     }
   }
 
-  // store
-  engineConfig.models = {
+  // done
+  return {
     chat: models
       .filter(model => modelInfo[model.model].family.includes('bert') === false)
       .map(ollamaModelMapper)
@@ -148,15 +131,9 @@ export const loadOllamaModels = async (engineConfig: EngineConfig) => {
       .sort((a, b) => a.name.localeCompare(b.name)),
   }
 
-  // select valid model
-  engineConfig.model.chat = getValidModelId(engineConfig, 'chat', engineConfig.model.chat)
-
-  // done
-  return true
-
 }
 
-export const loadMistralAIModels = async (engineConfig: EngineConfig) => {
+export const loadMistralAIModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList> => {
 
   // load
   let models: any[] = null
@@ -167,12 +144,11 @@ export const loadMistralAIModels = async (engineConfig: EngineConfig) => {
     console.error('Error listing MistralAI models:', error);
   }
   if (!models) {
-    engineConfig.models = { chat: [], image: [], }
-    return false
+    return { chat: [], image: [], }
   }
 
-  // store
-  engineConfig.models = {
+  // done
+  return {
     chat: models
     .map(model => { return {
       id: model.id,
@@ -182,15 +158,9 @@ export const loadMistralAIModels = async (engineConfig: EngineConfig) => {
     .sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  // select valid model
-  engineConfig.model.chat = getValidModelId(engineConfig, 'chat', engineConfig.model.chat)
-
-  // done
-  return true
-
 }
 
-export const loadAnthropicModels = async (engineConfig: EngineConfig, computerInfo: AnthropicComputerToolInfo = null) => {
+export const loadAnthropicModels = async (engineConfig: EngineCreateOpts, computerInfo: AnthropicComputerToolInfo = null): Promise<ModelsList> => {
   
   let models = []
 
@@ -201,12 +171,11 @@ export const loadAnthropicModels = async (engineConfig: EngineConfig, computerIn
     console.error('Error listing Anthropic models:', error);
   }
   if (!models) {
-    engineConfig.models = { chat: [], image: [], }
-    return false
+    return { chat: [], image: [], }
   }
 
-  // store
-  engineConfig.models = {
+  // done
+  return {
     chat: models
     .map(model => { return {
       id: model.id,
@@ -216,14 +185,9 @@ export const loadAnthropicModels = async (engineConfig: EngineConfig, computerIn
     //.sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  // select valid model
-  engineConfig.model.chat = getValidModelId(engineConfig, 'chat', engineConfig.model.chat)
-
-  // done
-  return true
 }
 
-export const loadGoogleModels = async (engineConfig: EngineConfig) => {
+export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList> => {
   
   let models = []
 
@@ -234,12 +198,11 @@ export const loadGoogleModels = async (engineConfig: EngineConfig) => {
     console.error('Error listing Google models:', error);
   }
   if (!models) {
-    engineConfig.models = { chat: [], image: [], }
-    return false
+    return { chat: [], image: [], }
   }
 
-  // store
-  engineConfig.models = {
+  // done
+  return {
     chat: models
     .map(model => { return {
       id: model.id,
@@ -249,14 +212,9 @@ export const loadGoogleModels = async (engineConfig: EngineConfig) => {
     //.sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  // select valid model
-  engineConfig.model.chat = getValidModelId(engineConfig, 'chat', engineConfig.model.chat)
-
-  // done
-  return true
 }
 
-export const loadGroqModels = async (engineConfig: EngineConfig) => {
+export const loadGroqModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList> => {
   
   let models = []
 
@@ -267,12 +225,11 @@ export const loadGroqModels = async (engineConfig: EngineConfig) => {
     console.error('Error listing Groq models:', error);
   }
   if (!models) {
-    engineConfig.models = { chat: [], image: [], }
-    return false
+    return { chat: [], image: [], }
   }
 
-  // store
-  engineConfig.models = {
+  // done
+  return {
     chat: models
     .map(model => { return {
       id: model.id,
@@ -282,14 +239,9 @@ export const loadGroqModels = async (engineConfig: EngineConfig) => {
     //.sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  // select valid model
-  engineConfig.model.chat = getValidModelId(engineConfig, 'chat', engineConfig.model.chat)
-
-  // done
-  return true
 }
 
-export const loadCerebrasModels = async (engineConfig: EngineConfig) => {
+export const loadCerebrasModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList> => {
   
   let models = []
 
@@ -300,12 +252,11 @@ export const loadCerebrasModels = async (engineConfig: EngineConfig) => {
     console.error('Error listing Cerebras models:', error);
   }
   if (!models) {
-    engineConfig.models = { chat: [], image: [], }
-    return false
+    return { chat: [], image: [], }
   }
 
-  // store
-  engineConfig.models = {
+  // done
+  return {
     chat: models
     .map(model => { return {
       id: model.id,
@@ -315,14 +266,9 @@ export const loadCerebrasModels = async (engineConfig: EngineConfig) => {
     //.sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  // select valid model
-  engineConfig.model.chat = getValidModelId(engineConfig, 'chat', engineConfig.model.chat)
-
-  // done
-  return true
 }
 
-export const loadXAIModels = async (engineConfig: EngineConfig) => {
+export const loadXAIModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList> => {
   
   let models = []
 
@@ -333,12 +279,11 @@ export const loadXAIModels = async (engineConfig: EngineConfig) => {
     console.error('Error listing xAI models:', error);
   }
   if (!models) {
-    engineConfig.models = { chat: [], image: [], }
-    return false
+    return { chat: [], image: [], }
   }
 
-  // store
-  engineConfig.models = {
+  // done
+  return {
     chat: models
     .map(model => { return {
       id: model.id,
@@ -348,9 +293,4 @@ export const loadXAIModels = async (engineConfig: EngineConfig) => {
     //.sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  // select valid model
-  engineConfig.model.chat = getValidModelId(engineConfig, 'chat', engineConfig.model.chat)
-
-  // done
-  return true
 }

@@ -8,7 +8,7 @@ import OpenAI from '../../src/providers/openai'
 import * as _OpenAI from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
 import { loadOpenAIModels } from '../../src/llm'
-import { EngineConfig, Model } from '../../src/types/index.d'
+import { EngineCreateOpts, Model } from '../../src/types/index.d'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -69,35 +69,29 @@ vi.mock('openai', async () => {
   return { default: OpenAI }
 })
 
-let config: EngineConfig = {}
+let config: EngineCreateOpts = {}
 beforeEach(() => {
   config = {
     apiKey: '123',
-    models: { chat: [] },
-    model: { chat: '' },
   }
 })
 
 test('OpenAI Load Chat Models', async () => {
-  expect(await loadOpenAIModels(config)).toBe(true)
-  const models = config.models.chat
+  const models = await loadOpenAIModels(config)
   expect(_OpenAI.default.prototype.models.list).toHaveBeenCalled()
-  expect(models.map((m: Model) => { return { id: m.id, name: m.name } })).toStrictEqual([
+  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name } })).toStrictEqual([
     { id: 'gpt-model1', name: 'gpt-model1' },
     { id: 'gpt-model2', name: 'gpt-model2' },
   ])
-  expect(config.model.chat).toStrictEqual(models[0].id)
 })
 
 test('OpenAI Load Image Models', async () => {
-  expect(await loadOpenAIModels(config)).toBe(true)
-  const models = config.models.image
+  const models = await loadOpenAIModels(config)
   expect(_OpenAI.default.prototype.models.list).toHaveBeenCalled()
-  expect(models.map((m: Model) => { return { id: m.id, name: m.name } })).toStrictEqual([
+  expect(models.image.map((m: Model) => { return { id: m.id, name: m.name } })).toStrictEqual([
     { id: 'dall-e-model1', name: 'dall-e-model1' },
     { id: 'dall-e-model2', name: 'dall-e-model2' },
   ])
-  expect(config.model.image).toStrictEqual(models[0].id)
 })
 
 test('OpenAI Basic', async () => {
@@ -115,10 +109,10 @@ test('OpenAI Basic', async () => {
 
 test('OpenAI completion', async () => {
   const openai = new OpenAI(config)
-  const response = await openai.complete([
+  const response = await openai.complete('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], null)
+  ])
   expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalled()
   expect(response).toStrictEqual({
     type: 'text',
@@ -147,13 +141,13 @@ test('OpenAI nativeChunkToLlmChunk Text', async () => {
 
 test('OpenAI stream', async () => {
   const openai = new OpenAI(config)
-  openai.addPlugin(new Plugin1(config))
-  openai.addPlugin(new Plugin2(config))
-  openai.addPlugin(new Plugin3(config))
-  const stream = await openai.stream([
+  openai.addPlugin(new Plugin1())
+  openai.addPlugin(new Plugin2())
+  openai.addPlugin(new Plugin3())
+  const stream = await openai.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], null)
+  ])
   expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalled()
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
@@ -175,19 +169,6 @@ test('OpenAI stream', async () => {
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await openai.stop(stream)
   expect(stream.controller.abort).toHaveBeenCalled()
-})
-
-test('OpenAI image', async () => {
-  const openai = new OpenAI(config)
-  const response = await openai.image('image', null)
-  expect(_OpenAI.default.prototype.images.generate).toHaveBeenCalled()
-  expect(response).toStrictEqual({
-    content: 'b64_json',
-    original_prompt: 'image',
-    revised_prompt: 'revised_prompt',
-    type: 'image',
-    url: 'url',
-  })
 })
 
 test('OpenAI addImageToPayload', async () => {

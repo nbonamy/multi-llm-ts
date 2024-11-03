@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { anyDict, EngineConfig, Model } from 'types/index.d'
+import { EngineCreateOpts, Model } from 'types/index.d'
 import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmStream, LlmChunk, LlmTool } from 'types/llm.d'
 import { PluginParameter } from 'types/plugin.d'
 import { minimatch } from 'minimatch'
@@ -9,18 +9,18 @@ import Plugin from './plugin'
 
 export default class LlmEngine {
 
-  config: EngineConfig
+  config: EngineCreateOpts
   plugins: Plugin[]
 
-  static isConfigured = (engineConfig: EngineConfig): boolean => {
-    return engineConfig?.apiKey?.length > 0
+  static isConfigured = (opts: EngineCreateOpts): boolean => {
+    return opts?.apiKey?.length > 0
   }
 
-  static isReady = (engineConfig: EngineConfig): boolean => {
-    return LlmEngine.isConfigured(engineConfig) && engineConfig?.models?.chat?.length > 0
+  static isReady = (opts: EngineCreateOpts): boolean => {
+    return LlmEngine.isConfigured(opts)
   }
   
-  constructor(config: EngineConfig) {
+  constructor(config: EngineCreateOpts) {
     this.config = config
     this.plugins = []
   }
@@ -37,14 +37,6 @@ export default class LlmEngine {
     throw new Error('Not implemented')
   }
   
-  getChatModel(): string {
-    return this.config.model?.chat
-  }
-
-  getChatModels(): Model[] {
-    return this.config.models?.chat
-  }
-
   isVisionModel(model: string): boolean {
     for (const filter of this.getVisionModels()) {
       if (minimatch(model, filter)) {
@@ -58,12 +50,12 @@ export default class LlmEngine {
     this.plugins.push(plugin)
   }
 
-  async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[]): Promise<LlmResponse> {
     throw new Error('Not implemented')
   }
 
-  async *generate(thread: Message[], opts?: LlmCompletionOpts): AsyncIterable<LlmChunk> {
-    let stream = await this.stream(thread, opts)
+  async *generate(model: string, thread: Message[], opts?: LlmCompletionOpts): AsyncIterable<LlmChunk> {
+    let stream = await this.stream(model, thread, opts)
     while (stream != null) {
       let stream2 = null
       for await (const chunk of stream) {
@@ -80,11 +72,7 @@ export default class LlmEngine {
     }
   }
 
-  protected async stream(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
-    throw new Error('Not implemented')
-  }
-
-  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse|null> {
+  protected async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
     throw new Error('Not implemented')
   }
 
@@ -124,24 +112,29 @@ export default class LlmEngine {
     return null
   }
 
-  protected selectModel(thread: Message[], currentModel: string): string {
+  protected selectModel(model: string, thread: Message[], opts?: LlmCompletionOpts): string {
+
+    // init
+    if (!opts || !opts.autoSwitchVision || !opts.models) {
+      return model
+    }
 
     // if we need to switch to vision
-    if (this.requiresVisionModelSwitch(thread, currentModel)) {
+    if (this.requiresVisionModelSwitch(thread, model)) {
 
       // find the vision model
-      const visionModel = this.findModel(this.getChatModels(), this.getVisionModels())
+      const visionModel = this.findModel(opts.models, this.getVisionModels())
       if (visionModel) {
         return visionModel.id
       }
     }
 
     // no need to switch
-    return currentModel
+    return model
 
   }
 
-  protected buildPayload(thread: Message[] | string, model: string): LLmCompletionPayload[] {
+  protected buildPayload(model: string, thread: Message[] | string): LLmCompletionPayload[] {
     if (typeof thread === 'string') {
       return [{ role: 'user', content: thread }]
     } else {
@@ -227,7 +220,7 @@ export default class LlmEngine {
         description: plugin.getDescription(),
         parameters: {
           type: 'object',
-          properties: plugin.getParameters().reduce((obj: anyDict, param: PluginParameter) => {
+          properties: plugin.getParameters().reduce((obj: any, param: PluginParameter) => {
             obj[param.name] = {
               type: param.type,
               enum: param.enum,

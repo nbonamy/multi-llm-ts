@@ -1,5 +1,4 @@
 
-import { anyDict } from 'types/index.d'
 import { PluginParameter } from 'types/plugin.d'
 
 export default class Plugin {
@@ -36,7 +35,7 @@ export default class Plugin {
     throw new Error('Not implemented')
   }
 
-  async getTools(): Promise<anyDict|Array<anyDict>> {
+  async getTools(): Promise<any|Array<any>> {
     throw new Error('Not implemented')
   }
 
@@ -46,7 +45,7 @@ export default class Plugin {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async execute(parameters: anyDict): Promise<anyDict> {
+  async execute(parameters: any): Promise<any> {
     throw new Error('Not implemented')
   }
 

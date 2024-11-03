@@ -1,4 +1,6 @@
 
+import { Model } from './index.d'
+
 export type LlmRole = 'system'|'user'|'assistant'
 
 export interface LlmResponse {
@@ -12,8 +14,8 @@ export interface LlmResponse {
 export type LlmStream = AsyncIterable<any>
 
 export interface LlmCompletionOpts {
-  engine?: string
-  model?: string
+  models?: Model[]
+  autoSwitchVision?: boolean
   size?: '256x256' | '512x512' | '1024x1024' | '1792x1024' | '1024x1792' | null
   style?: 'vivid' | 'natural' | null
   //maxTokens?: number
@@ -45,7 +47,7 @@ export interface LlmContentPayload {
 
 export type LlmChunkContent = {
   type: 'content'
-  text: string
+  text: string|null
   done: boolean
 }
 

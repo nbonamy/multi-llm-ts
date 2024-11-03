@@ -1,5 +1,5 @@
 
-import { EngineConfig } from 'types/index.d'
+import { EngineCreateOpts } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
@@ -17,7 +17,7 @@ export default class extends LlmEngine {
   currentThread: Array<any>
   toolCalls: LlmToolCall[]
 
-  constructor(config: EngineConfig, opts?: ClientOptions) {
+  constructor(config: EngineCreateOpts, opts?: ClientOptions) {
     super(config)
     this.client = new OpenAI({
       apiKey: opts?.apiKey || config.apiKey,
@@ -56,17 +56,16 @@ export default class extends LlmEngine {
     }
   }
 
-  async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[]): Promise<LlmResponse> {
 
     // set baseURL on client
     this.setBaseURL()
 
     // call
-    const model = opts?.model || this.config.model.chat
     console.log(`[openai] prompting model ${model}`)
     const response = await this.client.chat.completions.create({
       model: model,
-      messages: this.buildPayload(thread, model) as Array<any>
+      messages: this.buildPayload(model, thread) as Array<any>
     });
 
     // return an object
@@ -76,16 +75,16 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
 
     // set baseURL on client
     this.setBaseURL()
 
     // model: switch to vision if needed
-    this.currentModel = this.selectModel(thread, opts?.model || this.getChatModel())
+    this.currentModel = this.selectModel(model, thread, opts)
 
     // save the message thread
-    this.currentThread = this.buildPayload(thread, this.currentModel)
+    this.currentThread = this.buildPayload(this.currentModel, thread)
     return await this.doStream()
 
   }
@@ -236,32 +235,6 @@ export default class extends LlmEngine {
       { type: 'text', text: message.content },
       { type: 'image_url', image_url: { url: `data:${message.attachment.mimeType};base64,${message.attachment.contents}` } }
     ]
-  }
-
-   
-  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse> {
-
-    // call
-    const model = this.config.model.image
-    console.log(`[openai] prompting model ${model}`)
-    const response = await this.client.images.generate({
-      model: model,
-      prompt: prompt,
-      response_format: 'b64_json',
-      size: opts?.size,
-      style: opts?.style,
-      n: opts?.n || 1,
-    })
-
-    // return an object
-    return {
-      type: 'image',
-      original_prompt: prompt,
-      revised_prompt: response.data[0].revised_prompt,
-      url: response.data[0].url,
-      content: response.data[0].b64_json,
-    }
-
   }
 
 }

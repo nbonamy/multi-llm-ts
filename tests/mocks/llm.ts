@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import Message from '../../src/models/message'
+import { EngineCreateOpts } from '../../src/types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from '../../src/types/llm.d'
 import LlmEngine from '../../src/engine'
 import RandomChunkStream from './stream'
-import { EngineConfig } from 'types'
 
 class LlmError extends Error {
 
@@ -22,7 +22,7 @@ class LlmError extends Error {
 
 export default class LlmMock extends LlmEngine {
 
-  constructor(config: EngineConfig) {
+  constructor(config: EngineCreateOpts) {
     super(config)
   }
 
@@ -42,7 +42,7 @@ export default class LlmMock extends LlmEngine {
     ]
   }
 
-  async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[]): Promise<LlmResponse> {
     return {
       type: 'text',
       content: JSON.stringify([
@@ -52,7 +52,7 @@ export default class LlmMock extends LlmEngine {
     }
   }
 
-  async stream(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
 
     // errors
     if (thread[thread.length-1].content.includes('no api key')) {
@@ -66,10 +66,10 @@ export default class LlmMock extends LlmEngine {
     }
 
     // model: switch to vision if needed
-    const model = this.selectModel(thread, opts?.model || this.getChatModel())
+    model = this.selectModel(model, thread, opts)
 
     // build payload
-    const payload = this.buildPayload(thread, model)
+    const payload = this.buildPayload(model, thread)
 
     // now stream
     return new RandomChunkStream(JSON.stringify([
@@ -103,12 +103,4 @@ export default class LlmMock extends LlmEngine {
   }
 
    
-  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse|null> {
-    return {
-      type: 'image',
-      original_prompt: prompt,
-      content: 'image_content'
-    }
-  }
-
 }

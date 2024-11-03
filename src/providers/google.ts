@@ -1,5 +1,5 @@
 
-import { EngineConfig } from 'types/index.d'
+import { EngineCreateOpts } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall } from 'types/llm.d'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
@@ -15,7 +15,7 @@ export default class extends LlmEngine {
   currentContent: Content[]
   toolCalls: LlmToolCall[]
 
-  constructor(config: EngineConfig) {
+  constructor(config: EngineCreateOpts) {
     super(config)
     this.client = new GoogleGenerativeAI(
       config.apiKey,
@@ -47,10 +47,9 @@ export default class extends LlmEngine {
   }
 
 
-  async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(modelName: string, thread: Message[]): Promise<LlmResponse> {
 
     // call
-    const modelName = opts?.model || this.config.model.chat
     console.log(`[google] prompting model ${modelName}`)
     const model = await this.getModel(modelName, thread[0].content)
     const response = await model.generateContent({
@@ -64,10 +63,10 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(modelName: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
 
     // model: switch to vision if needed
-    const modelName = this.selectModel(thread, opts?.model || this.getChatModel())
+    modelName = this.selectModel(modelName, thread, opts)
 
     // call
     this.currentModel = await this.getModel(modelName, thread[0].content)
@@ -186,7 +185,7 @@ export default class extends LlmEngine {
 
   threadToHistory(thread: Message[], modelName: string): Content[] {
     const hasInstructions = this.supportsInstructions(modelName)
-    const payload = this.buildPayload(thread.slice(hasInstructions ? 1 : 0), modelName).map((p) => {
+    const payload = this.buildPayload(modelName, thread.slice(hasInstructions ? 1 : 0)).map((p) => {
       if (p.role === 'system') p.role = 'user'
       return p
     })
@@ -326,11 +325,6 @@ export default class extends LlmEngine {
    
   addImageToPayload(message: Message, payload: LLmCompletionPayload) {
     payload.images = [ message.attachment.contents ]
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse> {
-    return null    
   }
 
 }

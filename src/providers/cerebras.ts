@@ -1,10 +1,10 @@
 
-import { EngineConfig } from 'types/index.d'
+import { EngineCreateOpts } from 'types/index.d'
 import OpenAI from './openai'
 
 export default class extends OpenAI {
 
-  constructor(config: EngineConfig) {
+  constructor(config: EngineCreateOpts) {
     super(config, {
       apiKey: config.apiKey,
       baseURL: 'https://api.cerebras.ai/v1',

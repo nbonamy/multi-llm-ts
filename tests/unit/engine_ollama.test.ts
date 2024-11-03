@@ -6,7 +6,7 @@ import Attachment from '../../src/models/attachment'
 import Ollama from '../../src/providers/ollama'
 import * as _ollama from 'ollama/dist/browser.cjs'
 import { loadOllamaModels } from '../../src/llm'
-import { EngineConfig, Model } from '../../src/types/index.d'
+import { EngineCreateOpts, Model } from '../../src/types/index.d'
 
 vi.mock('ollama/dist/browser.cjs', async() => {
   const Ollama = vi.fn()
@@ -38,23 +38,19 @@ vi.mock('ollama/dist/browser.cjs', async() => {
   return { Ollama: Ollama }
 })
 
-let config: EngineConfig = {}
+let config: EngineCreateOpts = {}
 beforeEach(() => {
   config = {
     apiKey: '123',
-    models: { chat: [] },
-    model: { chat: '' },
   }
 })
 
 test('Ollama Load Models', async () => {
-  expect(await loadOllamaModels(config)).toBe(true)
-  const models = config.models.chat
-  expect(models.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
+  const models = await loadOllamaModels(config)
+  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
     { id: 'model1', name: 'model1' },
     { id: 'model2', name: 'model2' },
   ])
-  expect(config.model.chat).toStrictEqual(models[0].name)
 })
 
 test('Ollama Basic', async () => {
@@ -66,10 +62,10 @@ test('Ollama Basic', async () => {
 
 test('Ollama completion', async () => {
   const ollama = new Ollama(config)
-  const response = await ollama.complete([
+  const response = await ollama.complete('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], null)
+  ])
   expect(_ollama.Ollama.prototype.chat).toHaveBeenCalled()
   expect(response).toStrictEqual({
     type: 'text',
@@ -79,20 +75,14 @@ test('Ollama completion', async () => {
 
 test('Ollama stream', async () => {
   const ollama = new Ollama(config)
-  const response = await ollama.stream([
+  const response = await ollama.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], null)
+  ])
   expect(_ollama.Ollama.prototype.chat).toHaveBeenCalled()
   expect(response.controller).toBeDefined()
   await ollama.stop()
   expect(_ollama.Ollama.prototype.abort).toHaveBeenCalled()
-})
-
-test('Ollama image', async () => {
-  const ollama = new Ollama(config)
-  const response = await ollama.image('image', null)
-  expect(response).toBeNull()
 })
 
 test('Ollama addImageToPayload', async () => {

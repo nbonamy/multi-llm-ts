@@ -1,5 +1,5 @@
 
-import { EngineConfig } from 'types/index.d'
+import { EngineCreateOpts } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
@@ -12,7 +12,7 @@ export default class extends LlmEngine {
 
   client: Groq
 
-  constructor(config: EngineConfig) {
+  constructor(config: EngineCreateOpts) {
     super(config)
     this.client = new Groq({
       apiKey: config.apiKey || '',
@@ -52,14 +52,13 @@ export default class extends LlmEngine {
     ]
   }
 
-  async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[]): Promise<LlmResponse> {
 
     // call
-    const model = opts?.model || this.config.model.chat
     console.log(`[Groq] prompting model ${model}`)
     const response = await this.client.chat.completions.create({
       model: model,
-      messages: this.buildPayload(thread, model) as ChatCompletionMessageParam[],
+      messages: this.buildPayload(model, thread) as ChatCompletionMessageParam[],
     });
 
     // return an object
@@ -69,16 +68,16 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
 
     // model: switch to vision if needed
-    const model = this.selectModel(thread, opts?.model || this.getChatModel())
+    model = this.selectModel(model, thread, opts)
   
     // call
     console.log(`[Groq] prompting model ${model}`)
     const stream = this.client.chat.completions.create({
       model: model,
-      messages: this.buildPayload(thread, model) as ChatCompletionMessageParam[],
+      messages: this.buildPayload(model, thread) as ChatCompletionMessageParam[],
       stream: true,
     })
 
@@ -107,8 +106,8 @@ export default class extends LlmEngine {
   addImageToPayload(message: Message, payload: LLmCompletionPayload) {
   }
 
-  buildPayload(thread: Message[], model: string): Array<LLmCompletionPayload> {
-    const payload: LLmCompletionPayload[] = super.buildPayload(thread, model)
+  buildPayload(model: string, thread: Message[]): Array<LLmCompletionPayload> {
+    const payload: LLmCompletionPayload[] = super.buildPayload(model, thread)
     return payload.map((payload): LLmCompletionPayload => {
       return {
         role: payload.role,
@@ -117,8 +116,4 @@ export default class extends LlmEngine {
     })
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse|null> {
-    return null    
-  }
 }

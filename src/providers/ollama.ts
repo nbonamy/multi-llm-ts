@@ -1,5 +1,5 @@
 
-import { EngineConfig } from 'types/index.d'
+import { EngineCreateOpts } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
@@ -11,15 +11,16 @@ export default class extends LlmEngine {
   client: any
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  static isConfigured = (engineConfig: EngineConfig): boolean => {
+  static isConfigured = (engineConfig: EngineCreateOpts): boolean => {
     return true
   }
 
-  static isReady = (engineConfig: EngineConfig): boolean => {
-    return engineConfig.models.chat.length > 0
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  static isReady = (engineConfig: EngineCreateOpts): boolean => {
+    return true
   }
 
-  constructor(config: EngineConfig) {
+  constructor(config: EngineCreateOpts) {
     super(config)
     this.client = new Ollama({
       host: config.baseURL,
@@ -64,14 +65,13 @@ export default class extends LlmEngine {
     }
   }
 
-  async complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[]): Promise<LlmResponse> {
 
     // call
-    const model = opts?.model || this.config.model.chat
     console.log(`[ollama] prompting model ${model}`)
     const response = await this.client.chat({
       model: model,
-      messages: this.buildPayload(thread, model),
+      messages: this.buildPayload(model, thread),
       stream: false
     });
 
@@ -82,16 +82,16 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
 
     // model: switch to vision if needed
-    const model = this.selectModel(thread, opts?.model || this.getChatModel())
+    model = this.selectModel(model, thread, opts)
   
     // call
     console.log(`[ollama] prompting model ${model}`)
     const stream = this.client.chat({
       model: model,
-      messages: this.buildPayload(thread, model),
+      messages: this.buildPayload(model, thread),
       stream: true,
     })
 
@@ -116,8 +116,4 @@ export default class extends LlmEngine {
     payload.images = [ message.attachment.contents ]
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse|null> {
-    return null    
-  }
 }

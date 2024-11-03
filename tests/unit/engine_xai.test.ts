@@ -1,5 +1,5 @@
 
-import { EngineConfig, Model } from '../../src/types/index.d'
+import { EngineCreateOpts, Model } from '../../src/types/index.d'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import XAI from '../../src/providers/xai'
@@ -47,22 +47,18 @@ vi.mock('openai', async () => {
   return { default : OpenAI }
 })
 
-let config: EngineConfig = {}
+let config: EngineCreateOpts = {}
 beforeEach(() => {
   config = {
     apiKey: '123',
-    models: { chat: [] },
-    model: { chat: '' },
   }
 })
 
 test('xAI Load Chat Models', async () => {
-  expect(await loadXAIModels(config)).toBe(true)
-  const models = config.models.chat
-  expect(models.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
+  const models = await loadXAIModels(config)
+  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
     { id: 'grok-beta', name: 'Grok Beta' },
   ])
-  expect(config.model.chat).toStrictEqual(models[0].id)
 })
 
 test('xAI Basic', async () => {
@@ -75,13 +71,13 @@ test('xAI Basic', async () => {
 
 test('xAI stream', async () => {
   const xai = new XAI(config)
-  xai.addPlugin(new Plugin1(config))
-  xai.addPlugin(new Plugin2(config))
-  xai.addPlugin(new Plugin3(config))
-  const stream = await xai.stream([
+  xai.addPlugin(new Plugin1())
+  xai.addPlugin(new Plugin2())
+  xai.addPlugin(new Plugin3())
+  const stream = await xai.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], null)
+  ])
   expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalled()
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
