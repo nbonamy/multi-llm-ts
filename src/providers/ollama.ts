@@ -1,5 +1,5 @@
 
-import { EngineCreateOpts } from 'types/index.d'
+import { EngineCreateOpts, ModelsList } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
@@ -15,9 +15,8 @@ export default class extends LlmEngine {
     return true
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  static isReady = (engineConfig: EngineCreateOpts): boolean => {
-    return true
+  static isReady = (opts: EngineCreateOpts, models: ModelsList): boolean => {
+    return models?.chat?.length > 0
   }
 
   constructor(config: EngineCreateOpts) {

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { EngineCreateOpts, Model } from 'types/index.d'
+import { EngineCreateOpts, Model, ModelsList } from 'types/index.d'
 import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmStream, LlmChunk, LlmTool } from 'types/llm.d'
 import { PluginParameter } from 'types/plugin.d'
 import { minimatch } from 'minimatch'
@@ -16,8 +16,8 @@ export default class LlmEngine {
     return opts?.apiKey?.length > 0
   }
 
-  static isReady = (opts: EngineCreateOpts): boolean => {
-    return LlmEngine.isConfigured(opts)
+  static isReady = (opts: EngineCreateOpts, models: ModelsList): boolean => {
+    return LlmEngine.isConfigured(opts) && models?.chat?.length > 0
   }
   
   constructor(config: EngineCreateOpts) {

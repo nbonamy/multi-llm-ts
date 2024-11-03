@@ -22,7 +22,7 @@ export const igniteEngine = (engine: string, config: EngineCreateOpts): LlmEngin
   throw new Error('Unknown engine: ' + engine)
 }
 
-export const loadModels = async (engine: string, config: EngineCreateOpts): Promise<ModelsList> => {
+export const loadModels = async (engine: string, config: EngineCreateOpts): Promise<ModelsList|null> => {
   if (engine === 'anthropic') return await loadAnthropicModels(config)
   if (engine === 'cerebras') return await loadCerebrasModels(config)
   if (engine === 'google') return await loadGoogleModels(config)
@@ -44,7 +44,7 @@ export const isVisionModel = (engine: string, model: string, config: EngineCreat
   return instance.isVisionModel(model)
 }
 
-export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList> => {
+export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
 
   // load
   let models = null
@@ -55,7 +55,7 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
     console.error('Error listing OpenAI models:', error);
   }
   if (!models) {
-    return { chat: [], image: [], }
+    return null
   }
 
   // xform
@@ -84,7 +84,7 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
 
 }
 
-export const loadOllamaModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList> => {
+export const loadOllamaModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
 
   // needed
   const ollama = new Ollama(engineConfig)
@@ -97,7 +97,7 @@ export const loadOllamaModels = async (engineConfig: EngineCreateOpts): Promise<
     console.error('Error listing Ollama models:', error);
   }
   if (!models) {
-    return { chat: [], image: [], }
+    return null
   }
 
   // get info
@@ -133,7 +133,7 @@ export const loadOllamaModels = async (engineConfig: EngineCreateOpts): Promise<
 
 }
 
-export const loadMistralAIModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList> => {
+export const loadMistralAIModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
 
   // load
   let models: any[] = null
@@ -144,7 +144,7 @@ export const loadMistralAIModels = async (engineConfig: EngineCreateOpts): Promi
     console.error('Error listing MistralAI models:', error);
   }
   if (!models) {
-    return { chat: [], image: [], }
+    return null
   }
 
   // done
@@ -160,7 +160,7 @@ export const loadMistralAIModels = async (engineConfig: EngineCreateOpts): Promi
 
 }
 
-export const loadAnthropicModels = async (engineConfig: EngineCreateOpts, computerInfo: AnthropicComputerToolInfo = null): Promise<ModelsList> => {
+export const loadAnthropicModels = async (engineConfig: EngineCreateOpts, computerInfo: AnthropicComputerToolInfo = null): Promise<ModelsList|null> => {
   
   let models = []
 
@@ -171,7 +171,7 @@ export const loadAnthropicModels = async (engineConfig: EngineCreateOpts, comput
     console.error('Error listing Anthropic models:', error);
   }
   if (!models) {
-    return { chat: [], image: [], }
+    return null
   }
 
   // done
@@ -187,7 +187,7 @@ export const loadAnthropicModels = async (engineConfig: EngineCreateOpts, comput
 
 }
 
-export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList> => {
+export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
   
   let models = []
 
@@ -198,7 +198,7 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
     console.error('Error listing Google models:', error);
   }
   if (!models) {
-    return { chat: [], image: [], }
+    return null
   }
 
   // done
@@ -214,7 +214,7 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
 
 }
 
-export const loadGroqModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList> => {
+export const loadGroqModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
   
   let models = []
 
@@ -225,7 +225,7 @@ export const loadGroqModels = async (engineConfig: EngineCreateOpts): Promise<Mo
     console.error('Error listing Groq models:', error);
   }
   if (!models) {
-    return { chat: [], image: [], }
+    return null
   }
 
   // done
@@ -241,7 +241,7 @@ export const loadGroqModels = async (engineConfig: EngineCreateOpts): Promise<Mo
 
 }
 
-export const loadCerebrasModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList> => {
+export const loadCerebrasModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
   
   let models = []
 
@@ -252,7 +252,7 @@ export const loadCerebrasModels = async (engineConfig: EngineCreateOpts): Promis
     console.error('Error listing Cerebras models:', error);
   }
   if (!models) {
-    return { chat: [], image: [], }
+    return null
   }
 
   // done
@@ -268,7 +268,7 @@ export const loadCerebrasModels = async (engineConfig: EngineCreateOpts): Promis
 
 }
 
-export const loadXAIModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList> => {
+export const loadXAIModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
   
   let models = []
 
@@ -279,7 +279,7 @@ export const loadXAIModels = async (engineConfig: EngineCreateOpts): Promise<Mod
     console.error('Error listing xAI models:', error);
   }
   if (!models) {
-    return { chat: [], image: [], }
+    return null
   }
 
   // done
