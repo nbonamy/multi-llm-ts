@@ -59,7 +59,7 @@ export default class extends LlmEngine {
     console.log(`[Groq] prompting model ${model}`)
     const response = await this.client.chat.completions.create({
       model: model,
-      messages: this.buildPayload(thread, model),
+      messages: this.buildPayload(thread, model) as ChatCompletionMessageParam[],
     });
 
     // return an object
@@ -78,7 +78,7 @@ export default class extends LlmEngine {
     console.log(`[Groq] prompting model ${model}`)
     const stream = this.client.chat.completions.create({
       model: model,
-      messages: this.buildPayload(thread, model),
+      messages: this.buildPayload(thread, model) as ChatCompletionMessageParam[],
       stream: true,
     })
 
@@ -107,9 +107,9 @@ export default class extends LlmEngine {
   addImageToPayload(message: Message, payload: LLmCompletionPayload) {
   }
 
-  buildPayload(thread: Message[], model: string): Array<ChatCompletionMessageParam> {
+  buildPayload(thread: Message[], model: string): Array<LLmCompletionPayload> {
     const payload: LLmCompletionPayload[] = super.buildPayload(thread, model)
-    return payload.map((payload): ChatCompletionMessageParam => {
+    return payload.map((payload): LLmCompletionPayload => {
       return {
         role: payload.role,
         content: payload.content

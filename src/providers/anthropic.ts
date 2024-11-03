@@ -92,7 +92,7 @@ export default class extends LlmEngine {
       model: model,
       system: thread[0].content,
       max_tokens: this.getMaxTokens(model),
-      messages: this.buildPayload(thread, model),
+      messages: this.buildPayload(thread, model) as MessageParam[],
     });
 
     // return an object
@@ -118,7 +118,7 @@ export default class extends LlmEngine {
 
     // save the message thread
     this.currentSystem = thread[0].content
-    this.currentThread = this.buildPayload(thread, this.currentModel)
+    this.currentThread = this.buildPayload(thread, this.currentModel) as MessageParam[]
     return await this.doStream()
 
   }
@@ -331,9 +331,10 @@ export default class extends LlmEngine {
     ]
   }
 
-  buildPayload(thread: Message[], model: string): Array<MessageParam> {
+  buildPayload(thread: Message[], model: string): Array<LLmCompletionPayload> {
     const payload: LLmCompletionPayload[] = super.buildPayload(thread, model)
     return payload.filter((payload) => payload.role != 'system').map((payload): MessageParam => {
+      if (payload.role == 'system') return null
       if (typeof payload.content == 'string') {
         return {
           role: payload.role,

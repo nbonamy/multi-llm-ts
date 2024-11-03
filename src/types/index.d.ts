@@ -10,6 +10,12 @@ export interface EngineConfig {
   model?: ModelConfig
 }
 
+export interface ModelConfig {
+  chat: string
+  image?: string
+  embedding?: string
+}
+
 export interface ModelsConfig {
   chat: Model[]
   image?: Model[]

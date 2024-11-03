@@ -9,17 +9,11 @@ export interface LlmResponse {
   url?: string
 }
 
-export type LlmStream = AsyncGenerator|Stream
+export type LlmStream = AsyncIterable<any>
 
 export interface LlmCompletionOpts {
-  save?: boolean
-  titling?: boolean
   engine?: string
   model?: string
-  overwriteEngineModel?: boolean
-  systemInstructions?: string
-  attachment?: Attachment
-  docrepo?: string
   size?: '256x256' | '512x512' | '1024x1024' | '1792x1024' | '1024x1792' | null
   style?: 'vivid' | 'natural' | null
   //maxTokens?: number
@@ -27,8 +21,8 @@ export interface LlmCompletionOpts {
 }
 
 export interface LLmCompletionPayload {
-  role: llmRole
-  content?: sring|LlmContentPayload[]
+  role: LlmRole
+  content?: string|LlmContentPayload[]
   images?: string[]
   tool_call_id?: string
   name?: string

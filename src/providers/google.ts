@@ -196,7 +196,7 @@ export default class extends LlmEngine {
   messageToContent(payload: LLmCompletionPayload): Content {
     const content: Content = {
       role: payload.role == 'assistant' ? 'model' : payload.role,
-      parts: [ { text: payload.content } ]
+      parts: [ { text: payload.content as string } ]
     }
     for (const index in payload.images) {
       content.parts.push({

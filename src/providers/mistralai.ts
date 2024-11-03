@@ -59,7 +59,7 @@ export default class extends LlmEngine {
     console.log(`[mistralai] prompting model ${model}`)
     const response = await this.client.chat.complete({
       model: model,
-      messages: this.buildPayload(thread, model),
+      messages: this.buildPayload(thread, model) as MistralNessages,
     });
 
     // return an object
@@ -75,7 +75,7 @@ export default class extends LlmEngine {
     this.currentModel = this.selectModel(thread, opts?.model || this.getChatModel())
   
     // save the message thread
-    this.currentThread = this.buildPayload(thread, this.currentModel)
+    this.currentThread = this.buildPayload(thread, this.currentModel) as MistralNessages
     return await this.doStream()
 
   }

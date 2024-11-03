@@ -84,7 +84,7 @@ export default class LlmEngine {
     throw new Error('Not implemented')
   }
 
-  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async image(prompt: string, opts?: LlmCompletionOpts): Promise<LlmResponse|null> {
     throw new Error('Not implemented')
   }
 
