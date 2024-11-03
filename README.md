@@ -48,19 +48,19 @@ You can download the list of available models for any provider.
 
 ```js
 const config = { apiKey: 'YOUR_API_KEY' }
-await loadModels('PROVIDER_ID', config)
-console.log(config.models.chat)
+const models = await loadModels('PROVIDER_ID', config)
+console.log(models.chat)
 ```
 
 ### Chat completion
 
 ```js
-const llm = igniteEngine('PROVIDER_ID', { apiKey: 'YOUR_API_KEY', model: { chat: 'MODEL_ID' }})
+const llm = igniteEngine('PROVIDER_ID', { apiKey: 'YOUR_API_KEY' })
 const messages = [
   new Message('system', 'You are a helpful assistant'),
   new Message('user', 'What is the capital of France?'),
 ]
-await llm.complete(messages)
+await llm.complete('MODEL_ID', messages)
 ```
 
 ### Chat streaming
@@ -70,7 +70,7 @@ const messages = [
   new Message('system', 'You are a helpful assistant'),
   new Message('user', 'What is the capital of France?'),
 ]
-const stream = llm.generate(messages, { model: 'MODEL_ID' })
+const stream = llm.generate('MODEL_ID', messages)
 for await (const chunk of stream) {
   console.log(chunk)
 }
@@ -85,7 +85,7 @@ const messages = [
   new Message('system', 'You are a helpful assistant'),
   new Message('user', 'What is the capital of France?'),
 ]
-const stream = llm.generate(messages)
+const stream = llm.generate('MODEL_ID', messages)
 for await (const chunk of stream) {
   // use chunk.type to decide what to do
   // type == 'tool' => tool usage status information
@@ -179,7 +179,7 @@ export default class extends Plugin {
   }
 
    
-  async execute(parameters: anyDict): Promise<anyDict> {
+  async execute(parameters: any): Promise<any> {
 
     // init
     const client = new OpenAI({
