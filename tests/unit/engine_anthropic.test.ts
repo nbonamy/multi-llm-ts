@@ -70,8 +70,9 @@ test('Anthropic Load Models', async () => {
   const models = await loadAnthropicModels(config)
   expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
     { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet' },
-    { id: 'claude-3-sonnet-latest', name: 'Claude 3 Sonnet' },
-    { id: 'claude-3-opus-latest', name: 'Claude 3 Opus' },
+    { id: 'claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku' },
+    { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
+    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
     { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
   ])
 })
