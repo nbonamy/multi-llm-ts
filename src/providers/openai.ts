@@ -31,7 +31,7 @@ export default class extends LlmEngine {
   }
 
   getVisionModels(): string[] {
-    return [/*'*4o*', */ 'gpt-4-turbo', 'gpt-4-vision', '*vision*']
+    return [ '*o1*', '*gpt-4o*', 'gpt-4-turbo', 'gpt-4-vision', '*vision*' ]
   }
 
   async getModels(): Promise<any[]> {

@@ -109,3 +109,20 @@ test('Ollama nativeChunkToLlmChunk Text', async () => {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
+
+test('Build payload with image attachment', async () => {
+  const ollama = new Ollama(config)
+  const messages = [
+    new Message('system', 'instructions'),
+    new Message('user', 'prompt1'),
+  ]
+  messages[1].attach(new Attachment('image', 'image/png'))
+  expect(ollama.buildPayload('llama', messages)).toStrictEqual([
+    { role: 'system', content: 'instructions' },
+    { role: 'user', content: 'prompt1' },
+  ])
+  expect(ollama.buildPayload('llama-vision', messages)).toStrictEqual([
+    { role: 'system', content: 'instructions' },
+    { role: 'user', content: 'prompt1', images: [ 'image' ] },
+  ])
+})
