@@ -121,7 +121,7 @@ test('Build payload with image attachment', async () => {
     { role: 'system', content: 'instructions' },
     { role: 'user', content: 'prompt1' },
   ])
-  expect(ollama.buildPayload('llama-vision', messages)).toStrictEqual([
+  expect(ollama.buildPayload('llama3.2-vision:11b', messages)).toStrictEqual([
     { role: 'system', content: 'instructions' },
     { role: 'user', content: 'prompt1', images: [ 'image' ] },
   ])
