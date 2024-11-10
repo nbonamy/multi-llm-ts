@@ -4,6 +4,7 @@ import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStre
 import Attachment from '../models/attachment'
 import Message from '../models/message'
 import LlmEngine from '../engine'
+import logger from '../logger'
 
 import { Content, EnhancedGenerateContentResponse, GenerativeModel, GoogleGenerativeAI, ModelParams, Part, FunctionResponsePart, SchemaType, FunctionDeclarationSchemaProperty, FunctionCallingMode } from '@google/generative-ai'
 import type { FunctionDeclaration } from '@google/generative-ai/dist/types'
@@ -50,7 +51,7 @@ export default class extends LlmEngine {
   async complete(modelName: string, thread: Message[]): Promise<LlmResponse> {
 
     // call
-    console.log(`[google] prompting model ${modelName}`)
+    logger.log(`[google] prompting model ${modelName}`)
     const model = await this.getModel(modelName, thread[0].content)
     const response = await model.generateContent({
       contents: this.threadToHistory(thread, modelName),
@@ -80,7 +81,7 @@ export default class extends LlmEngine {
     // reset
     this.toolCalls = []
 
-    console.log(`[google] prompting model ${this.currentModel.model}`)
+    logger.log(`[google] prompting model ${this.currentModel.model}`)
     const response = await this.currentModel.generateContentStream({
       contents: this.currentContent
     })
@@ -276,7 +277,7 @@ export default class extends LlmEngine {
         // now execute
         const args = JSON.parse(toolCall.args)
         const content = await this.callTool(toolCall.function, args)
-        console.log(`[google] tool call ${toolCall.function} with ${JSON.stringify(args)} => ${JSON.stringify(content).substring(0, 128)}`)
+        logger.log(`[google] tool call ${toolCall.function} with ${JSON.stringify(args)} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // send
         results.push({ functionResponse: {

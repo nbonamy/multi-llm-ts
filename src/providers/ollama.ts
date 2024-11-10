@@ -3,6 +3,7 @@ import { EngineCreateOpts, ModelsList } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
+import logger from '../logger'
 
 import { Ollama, ChatResponse, ProgressResponse } from 'ollama/dist/browser.cjs'
 
@@ -67,7 +68,7 @@ export default class extends LlmEngine {
   async complete(model: string, thread: Message[]): Promise<LlmResponse> {
 
     // call
-    console.log(`[ollama] prompting model ${model}`)
+    logger.log(`[ollama] prompting model ${model}`)
     const response = await this.client.chat({
       model: model,
       messages: this.buildPayload(model, thread),
@@ -87,7 +88,7 @@ export default class extends LlmEngine {
     model = this.selectModel(model, thread, opts)
   
     // call
-    console.log(`[ollama] prompting model ${model}`)
+    logger.log(`[ollama] prompting model ${model}`)
     const stream = this.client.chat({
       model: model,
       messages: this.buildPayload(model, thread),

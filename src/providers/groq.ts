@@ -3,6 +3,7 @@ import { EngineCreateOpts } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
+import logger from '../logger'
 
 import Groq from 'groq-sdk'
 import { ChatCompletionMessageParam, ChatCompletionChunk } from 'groq-sdk/resources/chat'
@@ -55,7 +56,7 @@ export default class extends LlmEngine {
   async complete(model: string, thread: Message[]): Promise<LlmResponse> {
 
     // call
-    console.log(`[Groq] prompting model ${model}`)
+    logger.log(`[Groq] prompting model ${model}`)
     const response = await this.client.chat.completions.create({
       model: model,
       messages: this.buildPayload(model, thread) as ChatCompletionMessageParam[],
@@ -74,7 +75,7 @@ export default class extends LlmEngine {
     model = this.selectModel(model, thread, opts)
   
     // call
-    console.log(`[Groq] prompting model ${model}`)
+    logger.log(`[Groq] prompting model ${model}`)
     const stream = this.client.chat.completions.create({
       model: model,
       messages: this.buildPayload(model, thread) as ChatCompletionMessageParam[],

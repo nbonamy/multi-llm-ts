@@ -4,6 +4,7 @@ import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmContentPayload,
 import Message from '../models/message'
 import LlmEngine from '../engine'
 import Plugin from '../plugin'
+import logger from '../logger'
 
 import Anthropic from '@anthropic-ai/sdk'
 import { Stream } from '@anthropic-ai/sdk/streaming'
@@ -87,7 +88,7 @@ export default class extends LlmEngine {
     }
 
     // call
-    console.log(`[anthropic] prompting model ${model}`)
+    logger.log(`[anthropic] prompting model ${model}`)
     const response = await this.client.messages.create({
       model: model,
       system: thread[0].content,
@@ -164,7 +165,7 @@ export default class extends LlmEngine {
 
   async doStreamNormal(tools: AnthropicTool[]): Promise<LlmStream> {
 
-    console.log(`[anthropic] prompting model ${this.currentModel}`)
+    logger.log(`[anthropic] prompting model ${this.currentModel}`)
     return this.client.messages.create({
       model: this.currentModel,
       system: this.currentSystem,
@@ -178,7 +179,7 @@ export default class extends LlmEngine {
   }
 
   async doStreamBeta(tools: AnthropicTool[]): Promise<LlmStream> {
-    console.log(`[anthropic] prompting model ${this.currentModel}`)
+    logger.log(`[anthropic] prompting model ${this.currentModel}`)
     return this.client.beta.messages.create({
       model: this.getComputerUseRealModel(),
       betas: [ 'computer-use-2024-10-22' ],
@@ -198,7 +199,7 @@ export default class extends LlmEngine {
   async *nativeChunkToLlmChunk(chunk: MessageStreamEvent): AsyncGenerator<LlmChunk, void, void> {
     
     // log
-    //console.log('[anthropic] received chunk', chunk)
+    //logger.log('[anthropic] received chunk', chunk)
 
     // done
     if (chunk.type == 'message_stop') {
@@ -261,9 +262,9 @@ export default class extends LlmEngine {
 
         // now execute
         const args = JSON.parse(this.toolCall.args)
-        console.log(`[anthropic] tool call ${this.toolCall.function} with ${JSON.stringify(args)}`)
+        logger.log(`[anthropic] tool call ${this.toolCall.function} with ${JSON.stringify(args)}`)
         const content = await this.callTool(this.toolCall.function, args)
-        console.log(`[anthropic] tool call ${this.toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+        logger.log(`[anthropic] tool call ${this.toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message
         this.currentThread.push({

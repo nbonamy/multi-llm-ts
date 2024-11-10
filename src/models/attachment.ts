@@ -28,7 +28,7 @@ export default class Attachment {
 
 export function mimeTypeToExtension(mimeType: string): string {
 
-  //console.log('mimeTypeToExtension', mimeType)
+  //logger.log('mimeTypeToExtension', mimeType)
   switch (mimeType) {
     case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
       return 'docx'

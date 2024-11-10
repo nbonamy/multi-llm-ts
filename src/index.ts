@@ -20,7 +20,14 @@ import XAI from './providers/xai'
 
 export * from './llm'
 
+import * as _logger from './logger'
+const logger = {
+  disable: _logger.default.disableLogger,
+  set: _logger.default.setLogger,
+}
+
 export {
+  logger,
   Plugin,
   Message,
   Attachment,

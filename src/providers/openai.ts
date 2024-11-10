@@ -3,6 +3,7 @@ import { EngineCreateOpts } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
+import logger from '../logger'
 
 import OpenAI, { ClientOptions } from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
@@ -62,7 +63,7 @@ export default class extends LlmEngine {
     this.setBaseURL()
 
     // call
-    console.log(`[openai] prompting model ${model}`)
+    logger.log(`[${this.getName()}] prompting model ${model}`)
     const response = await this.client.chat.completions.create({
       model: model,
       messages: this.buildPayload(model, thread) as Array<any>
@@ -98,7 +99,7 @@ export default class extends LlmEngine {
     const tools = await this.getAvailableTools()
 
     // call
-    console.log(`[openai] prompting model ${this.currentModel}`)
+    logger.log(`[${this.getName()}] prompting model ${this.currentModel}`)
     const stream = this.client.chat.completions.create({
       model: this.currentModel,
       messages: this.currentThread,
@@ -119,7 +120,7 @@ export default class extends LlmEngine {
   async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk): AsyncGenerator<LlmChunk, void, void> {
 
     // debug
-    //console.log('nativeChunkToLlmChunk', chunk)
+    //logger.log('nativeChunkToLlmChunk', chunk)
 
     // tool calls
     if (chunk.choices[0]?.delta?.tool_calls) {
@@ -128,7 +129,7 @@ export default class extends LlmEngine {
       if (chunk.choices[0].delta.tool_calls[0].id) {
 
         // debug
-        //console.log('[openai] tool call start:', chunk)
+        //logger.log('[${this.getName()}] tool call start:', chunk)
 
         // record the tool call
         const toolCall: LlmToolCall = {
@@ -179,9 +180,9 @@ export default class extends LlmEngine {
 
         // now execute
         const args = JSON.parse(toolCall.args)
-        console.log(`[openai] tool call ${toolCall.function} with ${JSON.stringify(args)}`)
+        logger.log(`[${this.getName()}] tool call ${toolCall.function} with ${JSON.stringify(args)}`)
         const content = await this.callTool(toolCall.function, args)
-        console.log(`[openai] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+        logger.log(`[${this.getName()}] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message
         this.currentThread.push({

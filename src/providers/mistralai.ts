@@ -3,6 +3,7 @@ import { EngineCreateOpts } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
+import logger from '../logger'
 
 import { Mistral } from '@mistralai/mistralai'
 import { AssistantMessage, CompletionEvent, SystemMessage, ToolMessage, UserMessage } from '@mistralai/mistralai/models/components'
@@ -55,7 +56,7 @@ export default class extends LlmEngine {
   async complete(model: string, thread: Message[]): Promise<LlmResponse> {
 
     // call
-    console.log(`[mistralai] prompting model ${model}`)
+    logger.log(`[mistralai] prompting model ${model}`)
     const response = await this.client.chat.complete({
       model: model,
       messages: this.buildPayload(model, thread) as MistralNessages,
@@ -88,7 +89,7 @@ export default class extends LlmEngine {
     const tools = await this.getAvailableToolsForModel(this.currentModel)
 
     // call
-    console.log(`[mistralai] prompting model ${this.currentModel}`)
+    logger.log(`[mistralai] prompting model ${this.currentModel}`)
     const stream = this.client.chat.stream({
       model: this.currentModel,
       messages: this.currentThread,
@@ -117,7 +118,7 @@ export default class extends LlmEngine {
       if (chunk.data.choices[0].delta.toolCalls[0].id) {
 
         // debug
-        //console.log('[mistralai] tool call start:', chunk)
+        //logger.log('[mistralai] tool call start:', chunk)
 
         // record the tool call
         const toolCall: LlmToolCall = {
@@ -129,7 +130,7 @@ export default class extends LlmEngine {
           function: chunk.data.choices[0].delta.toolCalls[0].function.name,
           args: chunk.data.choices[0].delta.toolCalls[0].function.arguments as string,
         }
-        console.log('[mistralai] tool call:', toolCall)
+        logger.log('[mistralai] tool call:', toolCall)
         this.toolCalls.push(toolCall)
 
         // first notify
@@ -157,7 +158,7 @@ export default class extends LlmEngine {
     if (chunk.data.choices[0]?.finishReason === 'tool_calls') {
 
       // debug
-      //console.log('[mistralai] tool calls:', this.toolCalls)
+      //logger.log('[mistralai] tool calls:', this.toolCalls)
 
       // add tools
       for (const toolCall of this.toolCalls) {
@@ -173,7 +174,7 @@ export default class extends LlmEngine {
         // now execute
         const args = JSON.parse(toolCall.args)
         const content = await this.callTool(toolCall.function, args)
-        console.log(`[mistralai] tool call ${toolCall.function} with ${JSON.stringify(args)} => ${JSON.stringify(content).substring(0, 128)}`)
+        logger.log(`[mistralai] tool call ${toolCall.function} with ${JSON.stringify(args)} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message
         this.currentThread.push({
