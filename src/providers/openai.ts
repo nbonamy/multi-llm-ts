@@ -240,10 +240,12 @@ export default class extends LlmEngine {
     }
 
     // text chunk
-    yield {
-      type: 'content',
-      text: chunk.choices[0]?.delta?.content || '',
-      done: done
+    if (chunk.choices?.length) {
+      yield {
+        type: 'content',
+        text: chunk.choices[0]?.delta?.content || '',
+        done: done
+      }
     }
 
     // usage
