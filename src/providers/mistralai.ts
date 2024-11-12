@@ -20,6 +20,7 @@ export default class extends LlmEngine {
   client: Mistral
   currentModel: string
   currentThread: MistralNessages
+  currentOpts: LlmCompletionOpts
   toolCalls: LlmToolCall[]
 
   constructor(config: EngineCreateOpts) {
@@ -53,7 +54,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async complete(model: string, thread: Message[]): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // call
     logger.log(`[mistralai] prompting model ${model}`)
@@ -65,7 +66,11 @@ export default class extends LlmEngine {
     // return an object
     return {
       type: 'text',
-      content: response.choices[0].message.content
+      content: response.choices[0].message.content,
+      ...(opts?.usage ? { usage: {
+        prompt_tokens: response.usage.promptTokens,
+        completion_tokens: response.usage.completionTokens,
+      } } : {}),
     }
   }
 
@@ -76,6 +81,9 @@ export default class extends LlmEngine {
   
     // save the message thread
     this.currentThread = this.buildPayload(this.currentModel, thread) as MistralNessages
+
+    // save opts and run
+    this.currentOpts = opts
     return await this.doStream()
 
   }
@@ -110,7 +118,7 @@ export default class extends LlmEngine {
 
    
   async *nativeChunkToLlmChunk(chunk: CompletionEvent): AsyncGenerator<LlmChunk, void, void> {
-    
+
     // tool calls
     if (chunk.data.choices[0]?.delta?.toolCalls) {
 
@@ -219,6 +227,17 @@ export default class extends LlmEngine {
       type: 'content',
       text: chunk.data.choices[0].delta.content || '',
       done: chunk.data.choices[0].finishReason != null
+    }
+
+    // usage
+    if (this.currentOpts?.usage && chunk.data.usage) {
+      yield {
+        type: 'usage',
+        usage: {
+          prompt_tokens: chunk.data.usage.promptTokens,
+          completion_tokens: chunk.data.usage.completionTokens,
+        }
+      }
     }
   }
 

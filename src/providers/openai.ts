@@ -16,7 +16,9 @@ export default class extends LlmEngine {
   client: OpenAI
   currentModel: string
   currentThread: Array<any>
+  currentOpts: LlmCompletionOpts
   toolCalls: LlmToolCall[]
+  streamDone: boolean
 
   constructor(config: EngineCreateOpts, opts?: ClientOptions) {
     super(config)
@@ -57,7 +59,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async complete(model: string, thread: Message[]): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // set baseURL on client
     this.setBaseURL()
@@ -66,14 +68,16 @@ export default class extends LlmEngine {
     logger.log(`[${this.getName()}] prompting model ${model}`)
     const response = await this.client.chat.completions.create({
       model: model,
-      messages: this.buildPayload(model, thread) as Array<any>
+      messages: this.buildPayload(model, thread) as Array<any>,
     });
 
-    // return an object
+    // done
     return {
       type: 'text',
-      content: response.choices[0].message.content
+      content: response.choices[0].message.content,
+      ...(opts?.usage && response.usage ? { usage: response.usage } : {}),
     }
+
   }
 
   async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
@@ -86,6 +90,10 @@ export default class extends LlmEngine {
 
     // save the message thread
     this.currentThread = this.buildPayload(this.currentModel, thread)
+
+    // save the opts and do it
+    this.streamDone = false
+    this.currentOpts = opts
     return await this.doStream()
 
   }
@@ -105,6 +113,8 @@ export default class extends LlmEngine {
       messages: this.currentThread,
       tools: tools.length ? tools : null,
       tool_choice: tools.length ? 'auto' : null,
+      stream_options: { include_usage: this.currentOpts?.usage || false },
+      //max_tokens: this.currentOpts?.maxTokens,
       stream: true,
     })
 
@@ -223,12 +233,27 @@ export default class extends LlmEngine {
 
     }
 
+    // done?
+    const done = chunk.choices[0]?.finish_reason === 'stop'
+    if (done) {
+      this.streamDone = true
+    }
+
     // text chunk
     yield {
       type: 'content',
       text: chunk.choices[0]?.delta?.content || '',
-      done: chunk.choices[0]?.finish_reason === 'stop'
+      done: done
     }
+
+    // usage
+    if (this.currentOpts?.usage && this.streamDone && chunk.usage) {
+      yield {
+        type: 'usage',
+        usage: chunk.usage
+      }
+    }
+
   }
 
   addImageToPayload(message: Message, payload: LLmCompletionPayload) {

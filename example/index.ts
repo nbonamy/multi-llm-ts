@@ -1,20 +1,20 @@
 
-import { EngineCreateOpts, LlmEngine, Message, igniteEngine, loadOpenAIModels } from '../src/index'
+import { EngineCreateOpts, LlmEngine, Message, igniteEngine, loadModels } from '../src/index'
 import Answer from './answer'
 
 // we need an api key
-if (!process.env.OPENAI_API_KEY) {
-  throw new Error('OPENAI_API_KEY environment variable is not set')
+if (!process.env.API_KEY) {
+  throw new Error('API_KEY environment variable is not set')
 }
 
-const completion = async (llm: LlmEngine, messages: Message[]) => {
+const completion = async (llm: LlmEngine, model: string, messages: Message[]) => {
   console.log('\n** Chat completion')
-  console.log(await llm.complete('gpt-3.5-turbo', messages))
+  console.log(await llm.complete(model, messages, { usage: true }))
 }
 
-const streaming = async (llm: LlmEngine, messages: Message[]) => {
+const streaming = async (llm: LlmEngine, model: string, messages: Message[]) => {
   console.log('\n** Chat streaming')
-  const stream = llm.generate('gpt-3.5-turbo', messages)
+  const stream = llm.generate(model, messages, { usage: true })
   let response = ''
   for await (const chunk of stream) {
     console.log(chunk)
@@ -25,10 +25,10 @@ const streaming = async (llm: LlmEngine, messages: Message[]) => {
   console.log(response)
 }
 
-const conversation = async (llm: LlmEngine, messages: Message[]) => {
+const conversation = async (llm: LlmEngine, model: string, messages: Message[]) => {
   console.log('\n** Chat conversation')
   const AssistantMessage = new Message('assistant', '')
-  let stream = llm.generate('gpt-3.5-turbo', messages)
+  let stream = llm.generate(model, messages)
   let response = ''
   for await (const chunk of stream) {
     if (chunk.type === 'content') {
@@ -39,7 +39,7 @@ const conversation = async (llm: LlmEngine, messages: Message[]) => {
   console.log(response)
   messages.push(AssistantMessage)
   messages.push(new Message('user', 'What is your last message?'))
-  stream = llm.generate('gpt-3.5-turbo', messages)
+  stream = llm.generate(model, messages)
   response = ''
   for await (const chunk of stream) {
     if (chunk.type === 'content') {
@@ -50,12 +50,12 @@ const conversation = async (llm: LlmEngine, messages: Message[]) => {
   messages.splice(2,2)
 }
 
-const tooling = async (llm: LlmEngine, messages: Message[]) => {
+const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
   console.log('\n** Function calling')
   const answer = new Answer()
   llm.addPlugin(answer)
   messages[1].content = 'What is the answer to life, the universe and everything?'
-  const stream = llm.generate('gpt-3.5-turbo', messages)
+  const stream = llm.generate(model, messages)
   let response = ''
   for await (const chunk of stream) {
     console.log(chunk)
@@ -69,8 +69,10 @@ const tooling = async (llm: LlmEngine, messages: Message[]) => {
 (async () => {
 
   // initialize
+  const engine = process.env.ENGINE ?? 'openai'
+  const model = process.env.MODEL ?? 'gpt-3.5-turbo'
   const config: EngineCreateOpts = { apiKey: process.env.API_KEY }
-  const openai = igniteEngine('openai', config)
+  const llm = igniteEngine(engine, config)
   const messages = [
     new Message('system', 'You are a helpful assistant'),
     new Message('user', 'What is the capital of France?'),
@@ -78,14 +80,14 @@ const tooling = async (llm: LlmEngine, messages: Message[]) => {
 
   // load models
   console.log('\n** Load models')
-  const models = await loadOpenAIModels(config)
+  const models = await loadModels(engine, config)
   console.log(`${models.chat.length} chat models found`)
-  console.log(`${models.image.length} image models found`)
+  console.log(`${models.image?.length ?? 0} image models found`)
 
   // each demo
-  await completion(openai, messages)
-  await streaming(openai, messages)
-  await conversation(openai, messages)
-  await tooling(openai, messages)
+  await completion(llm, model, messages)
+  await streaming(llm, model, messages)
+  await conversation(llm, model, messages)
+  await tooling(llm, model, messages)
 
 })()

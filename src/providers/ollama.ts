@@ -10,6 +10,7 @@ import { Ollama, ChatResponse, ProgressResponse } from 'ollama/dist/browser.cjs'
 export default class extends LlmEngine {
 
   client: any
+  currentOpts: LlmCompletionOpts
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   static isConfigured = (engineConfig: EngineCreateOpts): boolean => {
@@ -65,7 +66,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async complete(model: string, thread: Message[]): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // call
     logger.log(`[ollama] prompting model ${model}`)
@@ -78,7 +79,11 @@ export default class extends LlmEngine {
     // return an object
     return {
       type: 'text',
-      content: response.message.content
+      content: response.message.content,
+      ...(opts?.usage ?  { usage: {
+        prompt_tokens: response.prompt_eval_count,
+        completion_tokens: response.eval_count,
+      } } : {})
     }
   }
 
@@ -86,6 +91,9 @@ export default class extends LlmEngine {
 
     // model: switch to vision if needed
     model = this.selectModel(model, thread, opts)
+
+    // save opts
+    this.currentOpts = opts
   
     // call
     logger.log(`[ollama] prompting model ${model}`)
@@ -105,11 +113,22 @@ export default class extends LlmEngine {
   }
 
   async *nativeChunkToLlmChunk(chunk: ChatResponse): AsyncGenerator<LlmChunk, void, void> {
+
     yield {
       type: 'content',
       text: chunk.message.content || '',
       done: chunk.done
     }
+
+    if (this.currentOpts?.usage && chunk.done) {
+      yield {
+        type: 'usage',
+        usage: {
+          prompt_tokens: chunk.prompt_eval_count,
+          completion_tokens: chunk.eval_count,
+      }}
+    } 
+  
   }
 
   addImageToPayload(message: Message, payload: LLmCompletionPayload) {

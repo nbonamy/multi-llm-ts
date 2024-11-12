@@ -50,7 +50,7 @@ export default class LlmEngine {
     this.plugins.push(plugin)
   }
 
-  async complete(model: string, thread: Message[]): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
     throw new Error('Not implemented')
   }
 

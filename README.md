@@ -9,21 +9,22 @@ Features include:
 - Text Attachments
 - Vision model (image attachments)
 - Function calling
+- Usage reporting (tokens count)
 
 ## Providers supported
 
 Not all providers support a "get models" end point. Those who do are listed as `dynamic` in the table below. For those who are listed as `static`, the list of models is hardcoded.
 
-|Provider|id|Models|Completion|Streaming|Function calling|
-|---|---|---|---|---|---|
-|**Anthropic**|`anthropic`|static|yes|yes|yes|
-|**Cerebras**|`cerebras`|static|yes|yes|no|
-|**Google**|`google`|static|yes|yes|yes|
-|**Groq**|`groq`|static|yes|yes|no|
-|**MistralAI**|`mistralai`|dynamic|yes|yes|yes|
-|**Ollama**|`ollama`|dynamic|yes|yes|no<sup>1</sup>|
-|**OpenAI**|`openai`|dynamic|yes|yes|yes|
-|**xAI**|`xai`|static|yes|yes|yes|
+|Provider|id|Models|Completion|Streaming|Function calling|Usage reporting|
+|---|---|---|---|---|---|--|
+|**Anthropic**|`anthropic`|static|yes|yes|yes|yes|
+|**Cerebras**|`cerebras`|static|yes|yes|no|yes|
+|**Google**|`google`|static|yes|yes|yes|yes|
+|**Groq**|`groq`|static|yes|yes|no|yes|
+|**MistralAI**|`mistralai`|dynamic|yes|yes|yes|yes|
+|**Ollama**|`ollama`|dynamic|yes|yes|no<sup>1</sup>|yes|
+|**OpenAI**|`openai`|dynamic|yes|yes|yes|yes|
+|**xAI**|`xai`|static|yes|yes|yes|yes|
 
 <sup>1</sup> pending https://github.com/ollama/ollama-js/issues/123
 
@@ -31,7 +32,14 @@ Not all providers support a "get models" end point. Those who do are listed as `
 
 ```sh
 npm i
-OPENAI_API_KEY=... npm run example
+API_KEY=your-openai-api-key npm run example
+```
+
+You can run it for another provider:
+
+```sh
+npm i
+API_KEY=your-anthropic_api_key ENGINE=anthropic MODEL=claude-3-haiku-20240307 npm run example
 ```
 
 ## Usage

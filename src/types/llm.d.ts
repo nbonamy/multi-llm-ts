@@ -3,11 +3,25 @@ import { Model } from './index.d'
 
 export type LlmRole = 'system'|'user'|'assistant'
 
+export interface LlmUsage {
+  prompt_tokens: number
+  completion_tokens: number
+  prompt_tokens_details?: {
+    cached_tokens?: number
+    audio_tokens?: number
+  }
+  completion_tokens_details?: {
+    reasoning_tokens?: number
+    audio_tokens?: number
+  }
+}
+
 export interface LlmResponse {
   type: 'text'|'image'
   content: string
   original_prompt?: string
   revised_prompt?: string
+  usage?: LlmUsage
   url?: string
 }
 
@@ -18,7 +32,8 @@ export interface LlmCompletionOpts {
   autoSwitchVision?: boolean
   size?: '256x256' | '512x512' | '1024x1024' | '1792x1024' | '1024x1792' | null
   style?: 'vivid' | 'natural' | null
-  //maxTokens?: number
+  maxTokens?: number
+  usage?: bool
   n?: number
 }
 
@@ -67,7 +82,12 @@ export type LlmChunkTool = {
   done: boolean
 }
 
-export type LlmChunk = LlmChunkContent | LlmChunkStream | LlmChunkTool
+export type LlmChunkUsage = {
+  type: 'usage'
+  usage: LlmUsage
+}
+
+export type LlmChunk = LlmChunkContent | LlmChunkStream | LlmChunkTool | LlmChunkUsage
 
 export interface LlmToolParameterOpenAI {
   name: string

@@ -14,6 +14,7 @@ export default class extends LlmEngine {
   client: GoogleGenerativeAI
   currentModel: GenerativeModel
   currentContent: Content[]
+  currentOpts: LlmCompletionOpts
   toolCalls: LlmToolCall[]
 
   constructor(config: EngineCreateOpts) {
@@ -48,7 +49,7 @@ export default class extends LlmEngine {
   }
 
 
-  async complete(modelName: string, thread: Message[]): Promise<LlmResponse> {
+  async complete(modelName: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // call
     logger.log(`[google] prompting model ${modelName}`)
@@ -60,7 +61,11 @@ export default class extends LlmEngine {
     // done
     return {
       type: 'text',
-      content: response.response.text()
+      content: response.response.text(),
+      ...(opts?.usage && response.response.usageMetadata ? { usage: {
+        prompt_tokens: response.response.usageMetadata.promptTokenCount,
+        completion_tokens: response.response.usageMetadata.candidatesTokenCount,
+      } } : {}),
     }
   }
 
@@ -70,6 +75,7 @@ export default class extends LlmEngine {
     modelName = this.selectModel(modelName, thread, opts)
 
     // call
+    this.currentOpts = opts
     this.currentModel = await this.getModel(modelName, thread[0].content)
     this.currentContent = this.threadToHistory(thread, modelName)
     return await this.doStream()
@@ -316,10 +322,19 @@ export default class extends LlmEngine {
     }
 
     // text chunk
+    const done = chunk.candidates[0].finishReason === 'STOP'
     yield {
       type: 'content',
       text: chunk.text() || '',
-      done: chunk.candidates[0].finishReason === 'STOP'
+      done: done
+    }
+
+    // usage
+    if (done && this.currentOpts?.usage && chunk.usageMetadata) {
+      yield { type: 'usage', usage: {
+        prompt_tokens: chunk.usageMetadata.promptTokenCount,
+        completion_tokens: chunk.usageMetadata.candidatesTokenCount,
+      }}
     }
   }
 

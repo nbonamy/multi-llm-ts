@@ -12,6 +12,7 @@ import { Stream } from 'groq-sdk/lib/streaming'
 export default class extends LlmEngine {
 
   client: Groq
+  currentOpts: LlmCompletionOpts
 
   constructor(config: EngineCreateOpts) {
     super(config)
@@ -53,7 +54,7 @@ export default class extends LlmEngine {
     ]
   }
 
-  async complete(model: string, thread: Message[]): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // call
     logger.log(`[Groq] prompting model ${model}`)
@@ -65,7 +66,8 @@ export default class extends LlmEngine {
     // return an object
     return {
       type: 'text',
-      content: response.choices[0].message.content
+      content: response.choices[0].message.content,
+      ...(opts?.usage && response.usage ? { usage: response.usage } : {}),
     }
   }
 
@@ -74,6 +76,9 @@ export default class extends LlmEngine {
     // model: switch to vision if needed
     model = this.selectModel(model, thread, opts)
   
+    // save opts
+    this.currentOpts = opts
+
     // call
     logger.log(`[Groq] prompting model ${model}`)
     const stream = this.client.chat.completions.create({
@@ -92,8 +97,17 @@ export default class extends LlmEngine {
   }
 
   async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk): AsyncGenerator<LlmChunk, void, void> {
+
     if (chunk.choices[0].finish_reason == 'stop') {
+
+      // done
       yield { type: 'content', text: '', done: true }
+
+      // usage?
+      if (this.currentOpts?.usage && chunk.x_groq?.usage) {
+        yield { type: 'usage', usage: chunk.x_groq.usage }
+      }
+    
     } else {
       yield {
         type: 'content',

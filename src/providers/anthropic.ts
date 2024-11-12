@@ -8,7 +8,7 @@ import logger from '../logger'
 
 import Anthropic from '@anthropic-ai/sdk'
 import { Stream } from '@anthropic-ai/sdk/streaming'
-import { Tool, ImageBlockParam, MessageParam, MessageStreamEvent, TextBlockParam, TextBlock, TextDelta, InputJSONDelta } from '@anthropic-ai/sdk/resources'
+import { Tool, ImageBlockParam, MessageParam, MessageStreamEvent, TextBlockParam, TextBlock, TextDelta, InputJSONDelta, Usage, RawMessageStartEvent, RawMessageDeltaEvent, MessageDeltaUsage } from '@anthropic-ai/sdk/resources'
 import { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 
 type AnthropicTool = Tool|BetaToolUnion
@@ -25,6 +25,8 @@ export default class extends LlmEngine {
   currentModel: string
   currentSystem: string
   currentThread: Array<MessageParam>
+  currentOpts: LlmCompletionOpts
+  currentUsage: Usage
   toolCall: LlmToolCall|null = null
   computerInfo: AnthropicComputerToolInfo|null = null
 
@@ -80,7 +82,7 @@ export default class extends LlmEngine {
     else return 4096
   }
 
-  async complete(model: string, thread: Message[]): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // model
     if (model === 'computer-use') {
@@ -100,7 +102,11 @@ export default class extends LlmEngine {
     const content = response.content[0] as TextBlock
     return {
       type: 'text',
-      content: content.text
+      content: content.text,
+      ...(opts?.usage && response.usage ? { usage: {
+        prompt_tokens: response.usage.input_tokens,
+        completion_tokens: response.usage.output_tokens,
+      } } : {}),
     }
   }
 
@@ -120,6 +126,10 @@ export default class extends LlmEngine {
     // save the message thread
     this.currentSystem = thread[0].content
     this.currentThread = this.buildPayload(this.currentModel, thread) as MessageParam[]
+
+    // save the opts and do it
+    this.currentOpts = opts
+    this.currentUsage = { input_tokens: 0, output_tokens: 0 }
     return await this.doStream()
 
   }
@@ -171,8 +181,10 @@ export default class extends LlmEngine {
       system: this.currentSystem,
       max_tokens: this.getMaxTokens(this.currentModel),
       messages: this.currentThread,
-      tool_choice: { type: 'auto' },
-      tools: tools as Tool[],
+      ...(tools?.length ? {
+        tool_choice: { type: 'auto' },
+        tools: tools as Tool[]
+      } : {}),
       stream: true,
     })
 
@@ -201,9 +213,24 @@ export default class extends LlmEngine {
     // log
     //logger.log('[anthropic] received chunk', chunk)
 
+    // usage
+    const usage: Usage|MessageDeltaUsage = (chunk as RawMessageStartEvent).message?.usage ?? (chunk as RawMessageDeltaEvent).usage
+    if (usage) {
+      if ('input_tokens' in usage) {
+        this.currentUsage.input_tokens += (usage as Usage).input_tokens ?? 0
+      }
+      this.currentUsage.output_tokens += usage.output_tokens ?? 0
+    }
+
     // done
     if (chunk.type == 'message_stop') {
       yield { type: 'content', text: '', done: true }
+      if (this.currentOpts?.usage) {
+        yield { type: 'usage', usage: {
+          prompt_tokens: this.currentUsage.input_tokens,
+          completion_tokens: this.currentUsage.output_tokens,
+        }}
+      }
     }
 
     // block start

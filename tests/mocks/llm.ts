@@ -42,7 +42,7 @@ export default class LlmMock extends LlmEngine {
     ]
   }
 
-  async complete(model: string, thread: Message[]): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
     return {
       type: 'text',
       content: JSON.stringify([
