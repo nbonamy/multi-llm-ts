@@ -47,9 +47,9 @@ beforeEach(() => {
 
 test('Ollama Load Models', async () => {
   const models = await loadOllamaModels(config)
-  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
-    { id: 'model1', name: 'model1' },
-    { id: 'model2', name: 'model2' },
+  expect(models.chat).toStrictEqual([
+    { id: 'model1', name: 'model1', meta: { model: 'model1', name: 'model1' }, },
+    { id: 'model2', name: 'model2', meta: { model: 'model2', name: 'model2' }, },
   ])
 })
 
@@ -85,12 +85,12 @@ test('Ollama stream', async () => {
   expect(_ollama.Ollama.prototype.abort).toHaveBeenCalled()
 })
 
-test('Ollama addImageToPayload', async () => {
+test('Ollama addAttachmentToPayload', async () => {
   const ollama = new Ollama(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
   const payload: LLmCompletionPayload = { role: 'user', content: message }
-  ollama.addImageToPayload(message, payload)
+  ollama.addAttachmentToPayload(message, payload)
   expect(payload.images).toStrictEqual([ 'image' ])
 })
 

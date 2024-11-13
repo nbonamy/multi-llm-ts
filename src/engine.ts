@@ -13,7 +13,7 @@ export default class LlmEngine {
   plugins: Plugin[]
 
   static isConfigured = (opts: EngineCreateOpts): boolean => {
-    return opts?.apiKey?.length > 0
+    return (opts?.apiKey != null && opts.apiKey.length > 0)
   }
 
   static isReady = (opts: EngineCreateOpts, models: ModelsList): boolean => {
@@ -33,7 +33,7 @@ export default class LlmEngine {
     throw new Error('Not implemented')
   }
 
-  async getModels(): Promise<any[]> {
+  async getModels(): Promise<Model[]> {
     throw new Error('Not implemented')
   }
   
@@ -55,7 +55,7 @@ export default class LlmEngine {
   }
 
   async *generate(model: string, thread: Message[], opts?: LlmCompletionOpts): AsyncIterable<LlmChunk> {
-    let stream = await this.stream(model, thread, opts)
+    let stream: LlmStream|null = await this.stream(model, thread, opts)
     while (stream != null) {
       let stream2 = null
       for await (const chunk of stream) {
@@ -80,7 +80,7 @@ export default class LlmEngine {
     throw new Error('Not implemented')
   }
 
-  protected addImageToPayload(message: Message, payload: LLmCompletionPayload) {
+  protected addAttachmentToPayload(message: Message, payload: LLmCompletionPayload): void {
     throw new Error('Not implemented')
   }
 
@@ -166,7 +166,7 @@ export default class LlmEngine {
         // image formats
         if (msg.attachment.isImage()) {
           if (!imageAttached && this.isVisionModel(model)) {
-            this.addImageToPayload(msg, payload)
+            this.addAttachmentToPayload(msg, payload)
             imageAttached = true
           }
         }
@@ -236,12 +236,12 @@ export default class LlmEngine {
 
   protected getToolPreparationDescription(tool: string): string {
     const plugin = this.plugins.find((plugin) => plugin.getName() === tool)
-    return plugin?.getPreparationDescription()
+    return plugin?.getPreparationDescription() || ''
   }
   
   protected getToolRunningDescription(tool: string): string {
     const plugin = this.plugins.find((plugin) => plugin.getName() === tool)
-    return plugin?.getRunningDescription()
+    return plugin?.getRunningDescription() || ''
   }
 
   protected async callTool(tool: string, args: any): Promise<any> {

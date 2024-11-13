@@ -1,5 +1,5 @@
 
-import { EngineCreateOpts, ModelsList } from 'types/index.d'
+import { EngineCreateOpts, Model, ModelsList } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
@@ -10,7 +10,7 @@ import { Ollama, ChatResponse, ProgressResponse } from 'ollama/dist/browser.cjs'
 export default class extends LlmEngine {
 
   client: any
-  currentOpts: LlmCompletionOpts
+  currentOpts: LlmCompletionOpts|null = null
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   static isConfigured = (engineConfig: EngineCreateOpts): boolean => {
@@ -36,12 +36,19 @@ export default class extends LlmEngine {
     return [ 'llama3.2-vision*', 'llava-llama3:latest', 'llava:latest', '*llava*' ]
   }
 
-  async getModels(): Promise<any[]> {
+  async getModels(): Promise<Model[]> {
     try {
       const response = await this.client.list()
-      return response.models
+      return response.models.map((model: any) => {
+        return {
+          id: model.model,
+          name: model.name,
+          meta: model,
+        }
+      })
     } catch (error) {
       console.error('Error listing models:', error);
+      return [] 
     }
   }
 
@@ -54,7 +61,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async pullModel(model: string): Promise<AsyncGenerator<ProgressResponse>> {
+  async pullModel(model: string): Promise<AsyncGenerator<ProgressResponse>|null> {
     try {
       return this.client.pull({
         model: model,
@@ -93,7 +100,7 @@ export default class extends LlmEngine {
     model = this.selectModel(model, thread, opts)
 
     // save opts
-    this.currentOpts = opts
+    this.currentOpts = opts || null
   
     // call
     logger.log(`[ollama] prompting model ${model}`)
@@ -131,8 +138,10 @@ export default class extends LlmEngine {
   
   }
 
-  addImageToPayload(message: Message, payload: LLmCompletionPayload) {
-    payload.images = [ message.attachment.contents ]
+  addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
+    if (message.attachment) {
+      payload.images = [ message.attachment.contents ]
+    }
   }
 
 }

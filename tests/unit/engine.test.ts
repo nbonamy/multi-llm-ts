@@ -1,4 +1,5 @@
 
+import { LlmChunk } from '../../src/types/llm.d'
 import { vi, expect, test } from 'vitest'
 import { igniteEngine, isVisionModel, hasVisionModels } from '../../src/llm'
 import { Plugin2 } from '../mocks/plugins'
@@ -205,7 +206,7 @@ test('Generate content', async () => {
   const stream = openai.generate('model', messages)
   expect(stream).toBeDefined()
   let response = ''
-  const toolCalls = []
+  const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
     if (chunk.type == 'content') response += chunk.text
     else if (chunk.type == 'tool') toolCalls.push(chunk)
@@ -228,7 +229,7 @@ test('Does not switch vision by default', async () => {
   // eslint-disable-next-line no-empty,@typescript-eslint/no-unused-vars
   for await (const chunk of stream) { }
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
-    model: 'model-no-tool', stream: true, stream_options: { include_usage: false }, tools: null, tool_choice: null,
+    model: 'model-no-tool', stream: true, stream_options: { include_usage: false },
     messages: [ { role: 'system', content: 'instructions' }, { role: 'user', content: 'prompt1' } ]
   })
 })
@@ -244,7 +245,7 @@ test('Switches to vision when asked', async () => {
   // eslint-disable-next-line no-empty,@typescript-eslint/no-unused-vars
   for await (const chunk of stream) { }
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
-    model: 'model-vision', stream: true, stream_options: { include_usage: false }, tools: null, tool_choice: null,
+    model: 'model-vision', stream: true, stream_options: { include_usage: false },
     messages: [ { role: 'system', content: 'instructions' }, { role: 'user', content: [
       { type: 'text', text: 'prompt1' },
       { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,image' } },

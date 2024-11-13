@@ -1,5 +1,5 @@
 
-import { EngineCreateOpts } from 'types/index.d'
+import { EngineCreateOpts, Model } from 'types/index.d'
 import OpenAI from './openai'
 
 export default class extends OpenAI {
@@ -19,10 +19,10 @@ export default class extends OpenAI {
     return []
   }
   
-  async getModels(): Promise<any[]> {
+  async getModels(): Promise<Model[]> {
     // need an api key
     if (!this.client.apiKey) {
-      return null
+      return []
     }
 
     // do it

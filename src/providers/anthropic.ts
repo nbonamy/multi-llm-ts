@@ -1,6 +1,6 @@
 
-import { EngineCreateOpts } from 'types/index.d'
-import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmContentPayload, LlmToolCall, LLmCompletionPayload } from 'types/llm.d'
+import { EngineCreateOpts, Model } from 'types/index.d'
+import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmContentPayload, LlmToolCall, LLmCompletionPayload, LLmContentPayloadImageAnthropic, LLmContentPayloadText } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
 import Plugin from '../plugin'
@@ -22,15 +22,15 @@ export interface AnthropicComputerToolInfo {
 export default class extends LlmEngine {
 
   client: Anthropic
-  currentModel: string
-  currentSystem: string
-  currentThread: Array<MessageParam>
-  currentOpts: LlmCompletionOpts
-  currentUsage: Usage
+  currentModel: string = ''
+  currentSystem: string = ''
+  currentThread: MessageParam[] = []
+  currentOpts: LlmCompletionOpts|null = null
+  currentUsage: Usage|null = null
   toolCall: LlmToolCall|null = null
   computerInfo: AnthropicComputerToolInfo|null = null
 
- constructor(config: EngineCreateOpts, computerInfo: AnthropicComputerToolInfo = null) {
+ constructor(config: EngineCreateOpts, computerInfo: AnthropicComputerToolInfo|null = null) {
     super(config)
     this.client = new Anthropic({
       apiKey: config.apiKey,
@@ -51,11 +51,11 @@ export default class extends LlmEngine {
     return 'claude-3-5-sonnet-20241022'
   }
 
-  async getModels(): Promise<any[]> {
+  async getModels(): Promise<Model[]> {
 
     // need an api key
     if (!this.client.apiKey) {
-      return null
+      return []
     }
 
     // do it
@@ -117,7 +117,7 @@ export default class extends LlmEngine {
   
     // add computer tools
     if (this.computerInfo && this.currentModel === 'computer-use') {
-      const computerUse = this.plugins.find((p) => p.getName() === this.computerInfo.plugin.getName())
+      const computerUse = this.plugins.find((p) => p.getName() === this.computerInfo!.plugin.getName())
       if (!computerUse) {
         this.plugins.push(this.computerInfo.plugin)
       }
@@ -128,7 +128,7 @@ export default class extends LlmEngine {
     this.currentThread = this.buildPayload(this.currentModel, thread) as MessageParam[]
 
     // save the opts and do it
-    this.currentOpts = opts
+    this.currentOpts = opts || null
     this.currentUsage = { input_tokens: 0, output_tokens: 0 }
     return await this.doStream()
 
@@ -153,7 +153,7 @@ export default class extends LlmEngine {
     })
 
     // add computer tools
-    if (this.currentModel === 'computer-use') {
+    if (this.computerInfo && this.currentModel === 'computer-use') {
       const scaledScreenSize = this.computerInfo.screenSize()
       tools.push({
         name: 'computer',
@@ -215,7 +215,7 @@ export default class extends LlmEngine {
 
     // usage
     const usage: Usage|MessageDeltaUsage = (chunk as RawMessageStartEvent).message?.usage ?? (chunk as RawMessageDeltaEvent).usage
-    if (usage) {
+    if (this.currentUsage && usage) {
       if ('input_tokens' in usage) {
         this.currentUsage.input_tokens += (usage as Usage).input_tokens ?? 0
       }
@@ -225,7 +225,7 @@ export default class extends LlmEngine {
     // done
     if (chunk.type == 'message_stop') {
       yield { type: 'content', text: '', done: true }
-      if (this.currentOpts?.usage) {
+      if (this.currentUsage && this.currentOpts?.usage) {
         yield { type: 'usage', usage: {
           prompt_tokens: this.currentUsage.input_tokens,
           completion_tokens: this.currentUsage.output_tokens,
@@ -348,43 +348,43 @@ export default class extends LlmEngine {
 
   }
 
-  addImageToPayload(message: Message, payload: MessageParam) {
+  addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
     payload.content = [
       { type: 'text', text: message.content },
       { type: 'image', source: {
         type: 'base64',
-        media_type: message.attachment.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-        data: message.attachment.contents,
+        media_type: message.attachment!.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+        data: message.attachment!.contents,
       }}
     ]
   }
 
-  buildPayload(model: string, thread: Message[]): Array<LLmCompletionPayload> {
+  buildPayload(model: string, thread: Message[]): LLmCompletionPayload[] {
     const payload: LLmCompletionPayload[] = super.buildPayload(model, thread)
-    return payload.filter((payload) => payload.role != 'system').map((payload): MessageParam => {
-      if (payload.role == 'system') return null
+    return payload.filter((payload) => payload.role != 'system').map((payload): LLmCompletionPayload => {
+      //if (payload.role == 'system') return null
       if (typeof payload.content == 'string') {
         return {
-          role: payload.role,
+          role: payload.role as 'user'|'assistant',
           content: payload.content
         }
       } else {
         return {
-          role: payload.role,
-          content: payload.content.map((content: LlmContentPayload): TextBlockParam|ImageBlockParam => {
+          role: payload.role as 'user'|'assistant',
+          content: payload.content!.map((content: LlmContentPayload): TextBlockParam|ImageBlockParam => {
             if (content.type == 'image') {
               return {
                 type: 'image',
                 source: {
                   type: 'base64',
-                  media_type: content.source.media_type,
-                  data: content.source.data,
+                  media_type: (content as LLmContentPayloadImageAnthropic).source!.media_type,
+                  data: (content as LLmContentPayloadImageAnthropic).source!.data,
                 }
               }
             } else {
               return {
                 type: 'text',
-                text: content.text
+                text: (content as LLmContentPayloadText).text
               }
             }
           })

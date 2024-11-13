@@ -1,5 +1,5 @@
 
-import { EngineCreateOpts } from 'types/index.d'
+import { EngineCreateOpts, Model } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
@@ -12,7 +12,7 @@ import { Stream } from 'groq-sdk/lib/streaming'
 export default class extends LlmEngine {
 
   client: Groq
-  currentOpts: LlmCompletionOpts
+  currentOpts: LlmCompletionOpts|null = null
 
   constructor(config: EngineCreateOpts) {
     super(config)
@@ -30,11 +30,11 @@ export default class extends LlmEngine {
     return []
   }
 
-  async getModels(): Promise<any[]> {
+  async getModels(): Promise<Model[]> {
 
     // need an api key
     if (!this.client.apiKey) {
-      return null
+      return []
     }
 
     // do it
@@ -66,7 +66,7 @@ export default class extends LlmEngine {
     // return an object
     return {
       type: 'text',
-      content: response.choices[0].message.content,
+      content: response.choices?.[0].message.content || '',
       ...(opts?.usage && response.usage ? { usage: response.usage } : {}),
     }
   }
@@ -77,7 +77,7 @@ export default class extends LlmEngine {
     model = this.selectModel(model, thread, opts)
   
     // save opts
-    this.currentOpts = opts
+    this.currentOpts = opts || null
 
     // call
     logger.log(`[Groq] prompting model ${model}`)
@@ -111,17 +111,17 @@ export default class extends LlmEngine {
     } else {
       yield {
         type: 'content',
-        text: chunk.choices[0].delta.content,
+        text: chunk.choices[0].delta.content || '',
         done: false
       }
     }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addImageToPayload(message: Message, payload: LLmCompletionPayload) {
+  addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
   }
 
-  buildPayload(model: string, thread: Message[]): Array<LLmCompletionPayload> {
+  buildPayload(model: string, thread: Message[]): LLmCompletionPayload[] {
     const payload: LLmCompletionPayload[] = super.buildPayload(model, thread)
     return payload.map((payload): LLmCompletionPayload => {
       return {

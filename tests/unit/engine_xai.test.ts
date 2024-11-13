@@ -56,7 +56,7 @@ beforeEach(() => {
 
 test('xAI Load Chat Models', async () => {
   const models = await loadXAIModels(config)
-  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
+  expect(models.chat).toStrictEqual([
     { id: 'grok-beta', name: 'Grok Beta' },
   ])
 })

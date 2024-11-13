@@ -1,5 +1,5 @@
 
-import { EngineCreateOpts } from 'types/index.d'
+import { EngineCreateOpts, Model } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall } from 'types/llm.d'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
@@ -12,15 +12,15 @@ import type { FunctionDeclaration } from '@google/generative-ai/dist/types'
 export default class extends LlmEngine {
 
   client: GoogleGenerativeAI
-  currentModel: GenerativeModel
-  currentContent: Content[]
-  currentOpts: LlmCompletionOpts
-  toolCalls: LlmToolCall[]
+  currentModel: GenerativeModel|null = null
+  currentContent: Content[] =[]
+  currentOpts: LlmCompletionOpts|null = null
+  toolCalls: LlmToolCall[] = []
 
   constructor(config: EngineCreateOpts) {
     super(config)
     this.client = new GoogleGenerativeAI(
-      config.apiKey,
+      config.apiKey!,
     )
   }
 
@@ -32,11 +32,11 @@ export default class extends LlmEngine {
     return ['gemini-1.5-flash-latest', 'models/gemini-1.5-pro-latest', 'models/gemini-pro-vision', '*vision*']
   }
 
-  async getModels(): Promise<any[]> {
+  async getModels(): Promise<Model[]> {
 
     // need an api key
     if (!this.client.apiKey) {
-      return null
+      return []
     }
 
     // do it
@@ -75,7 +75,7 @@ export default class extends LlmEngine {
     modelName = this.selectModel(modelName, thread, opts)
 
     // call
-    this.currentOpts = opts
+    this.currentOpts = opts || null
     this.currentModel = await this.getModel(modelName, thread[0].content)
     this.currentContent = this.threadToHistory(thread, modelName)
     return await this.doStream()
@@ -87,8 +87,8 @@ export default class extends LlmEngine {
     // reset
     this.toolCalls = []
 
-    logger.log(`[google] prompting model ${this.currentModel.model}`)
-    const response = await this.currentModel.generateContentStream({
+    logger.log(`[google] prompting model ${this.currentModel!.model}`)
+    const response = await this.currentModel!.generateContentStream({
       contents: this.currentContent
     })
 
@@ -172,7 +172,7 @@ export default class extends LlmEngine {
     })
   }
 
-  getPrompt(thread: Message[]): Array<string | Part> {
+  getPrompt(thread: Message[]): Array<string|Part> {
     
     // init
     const prompt = []
@@ -208,14 +208,14 @@ export default class extends LlmEngine {
       content.parts.push({
         inlineData: {
           mimeType: 'image/png',
-          data: payload.images[index],
+          data: payload.images[Number(index)],
         }
       })
     }
     return content
   }
 
-  addAttachment(parts: Array<string | Part>, attachment: Attachment) {
+  addAttachment(parts: Array<string|Part>, attachment: Attachment) {
 
     // load if no contents
     if (attachment.contents === null || attachment.contents === undefined) {
@@ -322,7 +322,7 @@ export default class extends LlmEngine {
     }
 
     // text chunk
-    const done = chunk.candidates[0].finishReason === 'STOP'
+    const done = chunk.candidates?.[0].finishReason === 'STOP'
     yield {
       type: 'content',
       text: chunk.text() || '',
@@ -339,8 +339,8 @@ export default class extends LlmEngine {
   }
 
    
-  addImageToPayload(message: Message, payload: LLmCompletionPayload) {
-    payload.images = [ message.attachment.contents ]
+  addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
+    payload.images = [ message.attachment!.contents ]
   }
 
 }

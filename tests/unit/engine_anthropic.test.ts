@@ -68,7 +68,7 @@ beforeEach(() => {
 
 test('Anthropic Load Models', async () => {
   const models = await loadAnthropicModels(config)
-  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
+  expect(models.chat).toStrictEqual([
     { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet' },
     { id: 'claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku' },
     { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
@@ -147,12 +147,12 @@ test('Anthropic stream', async () => {
   expect(stream.controller.abort).toHaveBeenCalled()
 })
 
-test('Anthropic addImageToPayload', async () => {
+test('Anthropic addAttachmentToPayload', async () => {
   const anthropic = new Anthropic(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
   const payload: MessageParam = { role: 'user', content: null }
-  anthropic.addImageToPayload(message, payload)
+  anthropic.addAttachmentToPayload(message, payload)
   expect(payload.content).toStrictEqual([
     { type: 'text', text: 'text' },
     { type: 'image', source: {

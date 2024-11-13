@@ -34,7 +34,7 @@ export default class LlmMock extends LlmEngine {
     return model == 'vision'
   }
 
-  async getModels(): Promise<any[]> {
+  async getModels(): Promise<Model[]> {
     return [
       { id: 'chat', name: 'Chat' },
       { id: 'image', name: 'Image' },
@@ -98,7 +98,7 @@ export default class LlmMock extends LlmEngine {
     }
   }
 
-  addImageToPayload(message: Message, payload: LLmCompletionPayload) {
+  addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
     payload.images = [ message.attachment.contents ]
   }
 

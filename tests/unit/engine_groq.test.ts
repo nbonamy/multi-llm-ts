@@ -43,7 +43,7 @@ beforeEach(() => {
 
 test('Groq Load Models', async () => {
   const models = await loadGroqModels(config)
-  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
+  expect(models.chat).toStrictEqual([
     { id: 'llama-3.2-1b-preview', name: 'Llama 3.2 1B Text (Preview)' },
     { id: 'llama-3.2-3b-preview', name: 'Llama 3.2 3B Text (Preview)' },
     { id: 'llama-3.2-11b-text-preview', name: 'Llama 3.2 11B Text (Preview)' },

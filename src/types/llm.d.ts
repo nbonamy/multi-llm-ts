@@ -1,24 +1,11 @@
 
 import { Model } from './index.d'
 
-export type LlmRole = 'system'|'user'|'assistant'
-
-export interface LlmUsage {
-  prompt_tokens: number
-  completion_tokens: number
-  prompt_tokens_details?: {
-    cached_tokens?: number
-    audio_tokens?: number
-  }
-  completion_tokens_details?: {
-    reasoning_tokens?: number
-    audio_tokens?: number
-  }
-}
+export type LlmRole = 'system'|'user'|'assistant'|'tool'
 
 export interface LlmResponse {
   type: 'text'|'image'
-  content: string
+  content?: string
   original_prompt?: string
   revised_prompt?: string
   usage?: LlmUsage
@@ -42,17 +29,24 @@ export interface LLmCompletionPayload {
   content?: string|LlmContentPayload[]
   images?: string[]
   tool_call_id?: string
+  tool_calls?: any[]
   name?: string
 }
 
-export interface LlmContentPayload {
-  type: string
-  text?: string
-  // openai
-  image_url?: {
+export interface LLmContentPayloadText {
+  type: 'text'
+  text: string
+}
+
+export interface LLmContentPayloadImageOpenai {
+  type: 'image_url'
+  image_url: {
     url: string
   }
-  // anthropic
+}
+
+export interface LLmContentPayloadImageAnthropic {
+  type: 'image'
   source?: {
     type: string
     media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
@@ -60,9 +54,11 @@ export interface LlmContentPayload {
   }
 }
 
+export type LlmContentPayload = LLmContentPayloadText | LLmContentPayloadImageOpenai | LLmContentPayloadImageAnthropic
+
 export type LlmChunkContent = {
   type: 'content'
-  text: string|null
+  text: string
   done: boolean
 }
 
@@ -117,4 +113,17 @@ export interface LlmToolCall {
   message: any
   function: string
   args: string
+}
+
+export interface LlmUsage {
+  prompt_tokens: number
+  completion_tokens: number
+  prompt_tokens_details?: {
+    cached_tokens?: number
+    audio_tokens?: number
+  }
+  completion_tokens_details?: {
+    reasoning_tokens?: number
+    audio_tokens?: number
+  }
 }

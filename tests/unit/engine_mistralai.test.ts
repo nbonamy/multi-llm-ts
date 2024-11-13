@@ -63,9 +63,9 @@ beforeEach(() => {
 
 test('MistralAI Load Models', async () => {
   const models = await loadMistralAIModels(config)
-  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
-    { id: 'model1', name: 'model1' },
-    { id: 'model2', name: 'model2' },
+  expect(models.chat).toStrictEqual([
+    { id: 'model1', name: 'model1', meta: { id: 'model1', name: 'model1' }, },
+    { id: 'model2', name: 'model2', meta: { id: 'model2', name: 'model2' }, },
   ])
 })
 
@@ -138,11 +138,11 @@ test('MistralAI  stream', async () => {
   //expect(Mistral.prototype.abort).toHaveBeenCalled()
 })
 
-test('MistralAI addImageToPayload', async () => {
+test('MistralAI addAttachmentToPayload', async () => {
   const mistralai = new MistralAI(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
   const payload: LLmCompletionPayload = { role: 'user', content: message }
-  mistralai.addImageToPayload(message, payload)
+  mistralai.addAttachmentToPayload(message, payload)
   expect(payload.images).toStrictEqual([ 'image' ])
 })

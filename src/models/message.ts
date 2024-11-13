@@ -6,13 +6,13 @@ export default class Message {
 
   role: LlmRole
   content: string
-  attachment: Attachment
+  attachment: Attachment|null
   transient: boolean
 
-  constructor(role: LlmRole, content?: string, attachment: Attachment = null) {
+  constructor(role: LlmRole, content: string|null = null, attachment?: Attachment) {
     this.role = role
-    this.content = content
-    this.attachment = attachment
+    this.content = (content !== null) ? content : ''
+    this.attachment = attachment || null
     this.transient = (content == null)
   }
 
@@ -22,7 +22,7 @@ export default class Message {
 
   appendText(chunk: LlmChunkContent) {
     if (chunk?.text) {
-      this.content = (this.content||'') + chunk.text
+      this.content += chunk.text
     }
     if (chunk?.done) {
       this.transient = false

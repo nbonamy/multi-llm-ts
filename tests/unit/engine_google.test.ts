@@ -49,7 +49,7 @@ beforeEach(() => {
 
 test('Google Load Models', async () => {
   const models = await loadGoogleModels(config)
-  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
+  expect(models.chat).toStrictEqual([
     { id: 'models/gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
     { id: 'gemini-1.5-flash-latest', name: 'Gemini  1.5 Flash' },
     { id: 'models/gemini-pro', name: 'Gemini 1.0 Pro' },

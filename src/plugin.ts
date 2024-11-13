@@ -24,7 +24,7 @@ export default class Plugin {
   }
 
   getPreparationDescription(): string {
-    return null
+    return ''
   }
 
   getRunningDescription(): string {
@@ -35,7 +35,7 @@ export default class Plugin {
     throw new Error('Not implemented')
   }
 
-  async getTools(): Promise<any|Array<any>> {
+  async getTools(): Promise<any|any[]> {
     throw new Error('Not implemented')
   }
 

@@ -2,14 +2,12 @@
 import { beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import OpenAI from '../../src/providers/openai'
-import { EngineCreateOpts } from 'types'
+import { EngineCreateOpts } from '../../src/types/index.d'
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
   config = {
     apiKey: '123',
-    models: { chat: [] },
-    model: { chat: '' },
   }
 })
 
@@ -18,7 +16,7 @@ test('Engine plugin descriptions', () => {
   llm.addPlugin(new Plugin1())
   llm.addPlugin(new Plugin2())
   llm.addPlugin(new Plugin3())
-  expect(llm.getToolPreparationDescription('plugin1')).toBeNull()
+  expect(llm.getToolPreparationDescription('plugin1')).toBe('')
   expect(llm.getToolRunningDescription('plugin1')).toBe('run1')
   expect(llm.getToolPreparationDescription('plugin2')).toBe('prep2')
   expect(llm.getToolRunningDescription('plugin2')).toBe('run2')

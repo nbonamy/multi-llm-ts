@@ -13,5 +13,5 @@ export interface ModelsList {
 export interface Model {
   id: string
   name: string
-  meta: any
+  meta?: any
 }

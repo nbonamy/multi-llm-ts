@@ -1,12 +1,12 @@
 
-import { EngineCreateOpts } from 'types/index.d'
+import { EngineCreateOpts, Model } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
 import logger from '../logger'
 
 import OpenAI, { ClientOptions } from 'openai'
-import { ChatCompletionChunk } from 'openai/resources'
+import { ChatCompletionChunk, ChatCompletionMessageParam } from 'openai/resources'
 import { Stream } from 'openai/streaming'
 
 const defaultBaseUrl = 'https://api.openai.com/v1'
@@ -14,11 +14,11 @@ const defaultBaseUrl = 'https://api.openai.com/v1'
 export default class extends LlmEngine {
 
   client: OpenAI
-  currentModel: string
-  currentThread: Array<any>
-  currentOpts: LlmCompletionOpts
-  toolCalls: LlmToolCall[]
-  streamDone: boolean
+  currentModel: string = ''
+  currentThread: LLmCompletionPayload[] = []
+  currentOpts: LlmCompletionOpts|null = null
+  toolCalls: LlmToolCall[] = []
+  streamDone: boolean = false
 
   constructor(config: EngineCreateOpts, opts?: ClientOptions) {
     super(config)
@@ -37,19 +37,26 @@ export default class extends LlmEngine {
     return [ '*o1*', '*gpt-4o*', 'gpt-4-turbo', 'gpt-4-vision', '*vision*' ]
   }
 
-  async getModels(): Promise<any[]> {
+  async getModels(): Promise<Model[]> {
 
     // need an api key
     if (!this.client.apiKey) {
-      return null
+      return []
     }
 
     // do it
     try {
       const response = await this.client.models.list()
-      return response.data
+      return response.data.map((model: any) => {
+        return {
+          id: model.id,
+          name: model.id,
+          meta: model,
+        }
+      })
     } catch (error) {
       console.error('Error listing models:', error);
+      return []
     }
   }
 
@@ -74,7 +81,7 @@ export default class extends LlmEngine {
     // done
     return {
       type: 'text',
-      content: response.choices[0].message.content,
+      content: response.choices?.[0].message.content || '',
       ...(opts?.usage && response.usage ? { usage: response.usage } : {}),
     }
 
@@ -93,7 +100,7 @@ export default class extends LlmEngine {
 
     // save the opts and do it
     this.streamDone = false
-    this.currentOpts = opts
+    this.currentOpts = opts || null
     return await this.doStream()
 
   }
@@ -110,9 +117,14 @@ export default class extends LlmEngine {
     logger.log(`[${this.getName()}] prompting model ${this.currentModel}`)
     const stream = this.client.chat.completions.create({
       model: this.currentModel,
+      // @ts-expect-error strange error
+      // LlmRole overlap the different roles ChatCompletionMessageParam
+      // but tsc says Type 'LlmRole' is not assignable to type '"assistant"'
       messages: this.currentThread,
-      tools: tools.length ? tools : null,
-      tool_choice: tools.length ? 'auto' : null,
+      ...(tools.length ? {
+        tools: tools,
+        tool_choice: 'auto',
+      } : {}),
       stream_options: { include_usage: this.currentOpts?.usage || false },
       //max_tokens: this.currentOpts?.maxTokens,
       stream: true,
@@ -133,7 +145,7 @@ export default class extends LlmEngine {
     //logger.log('nativeChunkToLlmChunk', chunk)
 
     // tool calls
-    if (chunk.choices[0]?.delta?.tool_calls) {
+    if (chunk.choices[0]?.delta?.tool_calls?.[0].function) {
 
       // arguments or new tool?
       if (chunk.choices[0].delta.tool_calls[0].id) {
@@ -148,8 +160,8 @@ export default class extends LlmEngine {
             delete tc.index
             return tc
           }),
-          function: chunk.choices[0].delta.tool_calls[0].function.name,
-          args: chunk.choices[0].delta.tool_calls[0].function.arguments,
+          function: chunk.choices[0].delta.tool_calls[0].function.name || '',
+          args: chunk.choices[0].delta.tool_calls[0].function.arguments || '',
         }
         this.toolCalls.push(toolCall)
 
@@ -162,13 +174,13 @@ export default class extends LlmEngine {
         }
 
         // done
-        return null
+        return
       
       } else {
 
         const toolCall = this.toolCalls[this.toolCalls.length-1]
         toolCall.args += chunk.choices[0].delta.tool_calls[0].function.arguments
-        return null
+        return
 
       }
 
@@ -258,11 +270,13 @@ export default class extends LlmEngine {
 
   }
 
-  addImageToPayload(message: Message, payload: LLmCompletionPayload) {
-    payload.content = [
-      { type: 'text', text: message.content },
-      { type: 'image_url', image_url: { url: `data:${message.attachment.mimeType};base64,${message.attachment.contents}` } }
-    ]
+  addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
+    if (message.attachment) {
+      payload.content = [
+        { type: 'text', text: message.content },
+        { type: 'image_url', image_url: { url: `data:${message.attachment.mimeType};base64,${message.attachment.contents}` } }
+      ]
+    }
   }
 
 }

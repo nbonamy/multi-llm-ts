@@ -28,7 +28,7 @@ beforeEach(() => {
 
 test('Cerebras Load Chat Models', async () => {
   const models = await loadCerebrasModels(config)
-  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name }})).toStrictEqual([
+  expect(models.chat).toStrictEqual([
     { id: 'llama3.1-8b', name: 'Llama 3.1 8b' },
     { id: 'llama3.1-70b', name: 'Llama 3.1 70b' },
   ])
@@ -50,6 +50,6 @@ test('Cerebras stream', async () => {
     new Message('user', 'prompt'),
   ])
   expect(OpenAI.prototype.chat.completions.create).toHaveBeenCalled()
-  expect(OpenAI.prototype.chat.completions.create.mock.calls[0][0].tools).toBeNull()
-  expect(OpenAI.prototype.chat.completions.create.mock.calls[0][0].tool_choice).toBeNull()
+  expect(OpenAI.prototype.chat.completions.create.mock.calls[0][0].tools).toBeUndefined()
+  expect(OpenAI.prototype.chat.completions.create.mock.calls[0][0].tool_choice).toBeUndefined()
 })

@@ -21,10 +21,10 @@ vi.mock('openai', async () => {
     list: vi.fn(() => {
       return {
         data: [
-          { id: 'gpt-model2', name: 'model2' },
-          { id: 'gpt-model1', name: 'model1' },
-          { id: 'dall-e-model2', name: 'model2' },
-          { id: 'dall-e-model1', name: 'model1' },
+          { id: 'gpt-model2' },
+          { id: 'gpt-model1' },
+          { id: 'dall-e-model2' },
+          { id: 'dall-e-model1' },
         ]
       }
     })
@@ -79,18 +79,18 @@ beforeEach(() => {
 test('OpenAI Load Chat Models', async () => {
   const models = await loadOpenAIModels(config)
   expect(_OpenAI.default.prototype.models.list).toHaveBeenCalled()
-  expect(models.chat.map((m: Model) => { return { id: m.id, name: m.name } })).toStrictEqual([
-    { id: 'gpt-model1', name: 'gpt-model1' },
-    { id: 'gpt-model2', name: 'gpt-model2' },
+  expect(models.chat).toStrictEqual([
+    { id: 'gpt-model1', name: 'gpt-model1', meta: { id: 'gpt-model1' } },
+    { id: 'gpt-model2', name: 'gpt-model2', meta: { id: 'gpt-model2' } },
   ])
 })
 
 test('OpenAI Load Image Models', async () => {
   const models = await loadOpenAIModels(config)
   expect(_OpenAI.default.prototype.models.list).toHaveBeenCalled()
-  expect(models.image.map((m: Model) => { return { id: m.id, name: m.name } })).toStrictEqual([
-    { id: 'dall-e-model1', name: 'dall-e-model1' },
-    { id: 'dall-e-model2', name: 'dall-e-model2' },
+  expect(models.image).toStrictEqual([
+    { id: 'dall-e-model1', name: 'dall-e-model1', meta: { id: 'dall-e-model1' } },
+    { id: 'dall-e-model2', name: 'dall-e-model2', meta: { id: 'dall-e-model2' } },
   ])
 })
 
@@ -171,12 +171,12 @@ test('OpenAI stream', async () => {
   expect(stream.controller.abort).toHaveBeenCalled()
 })
 
-test('OpenAI addImageToPayload', async () => {
+test('OpenAI addAttachmentToPayload', async () => {
   const openai = new OpenAI(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
   const payload: LLmCompletionPayload = { role: 'user', content: message }
-  openai.addImageToPayload(message, payload)
+  openai.addAttachmentToPayload(message, payload)
   expect(payload.content).toStrictEqual([
     { type: 'text', text: 'text' },
     { type: 'image_url', image_url: { url: 'data:image/png;base64,image' } }

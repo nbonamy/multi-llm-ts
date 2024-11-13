@@ -1,5 +1,5 @@
 
-import { EngineCreateOpts } from 'types/index.d'
+import { EngineCreateOpts, Model } from 'types/index.d'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
@@ -8,7 +8,7 @@ import logger from '../logger'
 import { Mistral } from '@mistralai/mistralai'
 import { AssistantMessage, CompletionEvent, SystemMessage, ToolMessage, UserMessage } from '@mistralai/mistralai/models/components'
 
-type MistralNessages = Array<
+type MistralMessages = Array<
 | (SystemMessage & { role: "system" })
 | (UserMessage & { role: "user" })
 | (AssistantMessage & { role: "assistant" })
@@ -18,10 +18,10 @@ type MistralNessages = Array<
 export default class extends LlmEngine {
 
   client: Mistral
-  currentModel: string
-  currentThread: MistralNessages
-  currentOpts: LlmCompletionOpts
-  toolCalls: LlmToolCall[]
+  currentModel: string = ''
+  currentThread: MistralMessages = []
+  currentOpts: LlmCompletionOpts|null = null
+  toolCalls: LlmToolCall[] = []
 
   constructor(config: EngineCreateOpts) {
     super(config)
@@ -38,19 +38,26 @@ export default class extends LlmEngine {
     return []
   }
 
-  async getModels(): Promise<any[]> {
+  async getModels(): Promise<Model[]> {
 
     // need an api key
     if (!this.client.options$.apiKey) {
-      return null
+      return []
     }
 
     // do it
     try {
       const response = await this.client.models.list()
-      return response.data
+      return (response.data ?? []).map((model: any) => {
+        return {
+          id: model.id,
+          name: model.id,
+          meta: model,
+        }
+      })
     } catch (error) {
       console.error('Error listing models:', error);
+      return []
     }
   }
 
@@ -60,13 +67,13 @@ export default class extends LlmEngine {
     logger.log(`[mistralai] prompting model ${model}`)
     const response = await this.client.chat.complete({
       model: model,
-      messages: this.buildPayload(model, thread) as MistralNessages,
+      messages: this.buildPayload(model, thread) as MistralMessages,
     });
 
     // return an object
     return {
       type: 'text',
-      content: response.choices[0].message.content,
+      content: response.choices?.[0].message.content || '',
       ...(opts?.usage ? { usage: {
         prompt_tokens: response.usage.promptTokens,
         completion_tokens: response.usage.completionTokens,
@@ -80,10 +87,10 @@ export default class extends LlmEngine {
     this.currentModel = this.selectModel(model, thread, opts)
   
     // save the message thread
-    this.currentThread = this.buildPayload(this.currentModel, thread) as MistralNessages
+    this.currentThread = this.buildPayload(this.currentModel, thread) as MistralMessages
 
     // save opts and run
-    this.currentOpts = opts
+    this.currentOpts = opts || null
     return await this.doStream()
 
   }
@@ -150,13 +157,13 @@ export default class extends LlmEngine {
         }
 
         // done
-        return null
+        return
 
       } else {
 
         const toolCall = this.toolCalls[this.toolCalls.length-1]
         toolCall.args += chunk.data.choices[0].delta.toolCalls[0].function.arguments
-        return null
+        return
 
       }
 
@@ -241,8 +248,10 @@ export default class extends LlmEngine {
     }
   }
 
-  addImageToPayload(message: Message, payload: LLmCompletionPayload) {
-    payload.images = [ message.attachment.contents ]
+  addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
+    if (message.attachment) {
+      payload.images = [ message.attachment.contents ]
+    }
   }
 
    

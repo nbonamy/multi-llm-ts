@@ -1,5 +1,5 @@
 
-import { EngineCreateOpts, ModelsList } from 'types/index.d'
+import { EngineCreateOpts, Model, ModelsList } from 'types/index.d'
 import LlmEngine from 'engine'
 import Anthropic, { AnthropicComputerToolInfo } from './providers/anthropic'
 import Cerebreas from './providers/cerebras'
@@ -60,11 +60,6 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
 
   // xform
   models = models
-    .map(model => { return {
-      id: model.id,
-      name: model.id,
-      meta: model
-    }})
     .sort((a, b) => a.name.localeCompare(b.name))
 
   // report unknown models (o1 watch)
@@ -90,44 +85,33 @@ export const loadOllamaModels = async (engineConfig: EngineCreateOpts): Promise<
   const ollama = new Ollama(engineConfig)
 
   // load
-  let models: any[] = null
+  let models: Model[] = []
   try {
     models = await ollama.getModels()
   } catch (error) {
     console.error('Error listing Ollama models:', error);
   }
-  if (!models) {
+  if (!models.length) {
     return null
   }
 
   // get info
   const modelInfo: { [key: string]: any } = {}
   for (const model of models) {
-    const info = await ollama.getModelInfo(model.model)
-    modelInfo[model.model] = {
+    const info = await ollama.getModelInfo(model.id)
+    modelInfo[model.id] = {
       ...info.details,
       ...info.model_info,
-    }
-  }
-
-  // needed
-  const ollamaModelMapper = (model: any) => {
-    return {
-      id: model.model,
-      name: model.name,
-      meta: model
     }
   }
 
   // done
   return {
     chat: models
-      .filter(model => modelInfo[model.model].family.includes('bert') === false)
-      .map(ollamaModelMapper)
+      .filter(model => modelInfo[model.id].family.includes('bert') === false)
       .sort((a, b) => a.name.localeCompare(b.name)),
     embedding: models
-      .filter(model => modelInfo[model.model].family.includes('bert') === true)
-      .map(ollamaModelMapper)
+      .filter(model => modelInfo[model.id].family.includes('bert') === true)
       .sort((a, b) => a.name.localeCompare(b.name)),
   }
 
@@ -136,33 +120,28 @@ export const loadOllamaModels = async (engineConfig: EngineCreateOpts): Promise<
 export const loadMistralAIModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
 
   // load
-  let models: any[] = null
+  let models: Model[] = []
   try {
     const mistralai = new MistralAI(engineConfig)
     models = await mistralai.getModels()
   } catch (error) {
     console.error('Error listing MistralAI models:', error);
   }
-  if (!models) {
+  if (!models.length) {
     return null
   }
 
   // done
   return {
     chat: models
-    .map(model => { return {
-      id: model.id,
-      name: model.id,
-      meta: model
-    }})
     .sort((a, b) => a.name.localeCompare(b.name))
   }
 
 }
 
-export const loadAnthropicModels = async (engineConfig: EngineCreateOpts, computerInfo: AnthropicComputerToolInfo = null): Promise<ModelsList|null> => {
+export const loadAnthropicModels = async (engineConfig: EngineCreateOpts, computerInfo: AnthropicComputerToolInfo|null = null): Promise<ModelsList|null> => {
   
-  let models = []
+  let models: Model[] = []
 
   try {
     const anthropic = new Anthropic(engineConfig, computerInfo)
@@ -177,11 +156,6 @@ export const loadAnthropicModels = async (engineConfig: EngineCreateOpts, comput
   // done
   return {
     chat: models
-    .map(model => { return {
-      id: model.id,
-      name: model.name,
-      meta: model
-    }})
     //.sort((a, b) => a.name.localeCompare(b.name))
   }
 
@@ -189,7 +163,7 @@ export const loadAnthropicModels = async (engineConfig: EngineCreateOpts, comput
 
 export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
   
-  let models = []
+  let models: Model[] = []
 
   try {
     const google = new Google(engineConfig)
@@ -204,11 +178,6 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
   // done
   return {
     chat: models
-    .map(model => { return {
-      id: model.id,
-      name: model.name,
-      meta: model
-    }})
     //.sort((a, b) => a.name.localeCompare(b.name))
   }
 
@@ -216,7 +185,7 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
 
 export const loadGroqModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
   
-  let models = []
+  let models: Model[] = []
 
   try {
     const groq = new Groq(engineConfig)
@@ -231,11 +200,6 @@ export const loadGroqModels = async (engineConfig: EngineCreateOpts): Promise<Mo
   // done
   return {
     chat: models
-    .map(model => { return {
-      id: model.id,
-      name: model.name,
-      meta: model
-    }})
     //.sort((a, b) => a.name.localeCompare(b.name))
   }
 
@@ -243,7 +207,7 @@ export const loadGroqModels = async (engineConfig: EngineCreateOpts): Promise<Mo
 
 export const loadCerebrasModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
   
-  let models = []
+  let models: Model[] = []
 
   try {
     const cerebras = new Cerebreas(engineConfig)
@@ -258,11 +222,6 @@ export const loadCerebrasModels = async (engineConfig: EngineCreateOpts): Promis
   // done
   return {
     chat: models
-    .map(model => { return {
-      id: model.id,
-      name: model.name,
-      meta: model
-    }})
     //.sort((a, b) => a.name.localeCompare(b.name))
   }
 
@@ -270,7 +229,7 @@ export const loadCerebrasModels = async (engineConfig: EngineCreateOpts): Promis
 
 export const loadXAIModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
   
-  let models = []
+  let models: Model[] = []
 
   try {
     const xai = new XAI(engineConfig)
@@ -285,11 +244,6 @@ export const loadXAIModels = async (engineConfig: EngineCreateOpts): Promise<Mod
   // done
   return {
     chat: models
-    .map(model => { return {
-      id: model.id,
-      name: model.name,
-      meta: model
-    }})
     //.sort((a, b) => a.name.localeCompare(b.name))
   }
 
