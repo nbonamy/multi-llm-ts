@@ -6,7 +6,7 @@ import LlmEngine from '../engine'
 import logger from '../logger'
 
 import OpenAI, { ClientOptions } from 'openai'
-import { ChatCompletionChunk, ChatCompletionMessageParam } from 'openai/resources'
+import { ChatCompletionChunk } from 'openai/resources'
 import { Stream } from 'openai/streaming'
 
 const defaultBaseUrl = 'https://api.openai.com/v1'

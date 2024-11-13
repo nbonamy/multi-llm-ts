@@ -8,7 +8,7 @@ import MistralAI from '../../src/providers/mistralai'
 import { Mistral } from '@mistralai/mistralai'
 import { CompletionEvent } from '@mistralai/mistralai/models/components'
 import { loadMistralAIModels } from '../../src/llm'
-import { EngineCreateOpts, Model } from '../../src/types/index.d'
+import { EngineCreateOpts } from '../../src/types/index.d'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 

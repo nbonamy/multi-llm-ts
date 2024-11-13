@@ -8,7 +8,7 @@ import OpenAI from '../../src/providers/openai'
 import * as _OpenAI from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
 import { loadOpenAIModels } from '../../src/llm'
-import { EngineCreateOpts, Model } from '../../src/types/index.d'
+import { EngineCreateOpts } from '../../src/types/index.d'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 

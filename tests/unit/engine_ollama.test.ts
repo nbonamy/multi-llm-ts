@@ -6,7 +6,7 @@ import Attachment from '../../src/models/attachment'
 import Ollama from '../../src/providers/ollama'
 import * as _ollama from 'ollama/dist/browser.cjs'
 import { loadOllamaModels } from '../../src/llm'
-import { EngineCreateOpts, Model } from '../../src/types/index.d'
+import { EngineCreateOpts } from '../../src/types/index.d'
 
 vi.mock('ollama/dist/browser.cjs', async() => {
   const Ollama = vi.fn()
