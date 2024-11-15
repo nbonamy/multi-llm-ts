@@ -115,12 +115,18 @@ export default class LlmEngine {
   protected selectModel(model: string, thread: Message[], opts?: LlmCompletionOpts): string {
 
     // init
-    if (!opts || !opts.autoSwitchVision || !opts.models) {
+    if (!opts || !opts.autoSwitchVision) {
       return model
     }
 
     // if we need to switch to vision
     if (this.requiresVisionModelSwitch(thread, model)) {
+
+      // check
+      if (!opts.models) {
+        console.debug('Cannot switch to vision model as no models provided in LlmCompletionOpts')
+        return model
+      }
 
       // find the vision model
       const visionModel = this.findModel(opts.models, this.getVisionModels())

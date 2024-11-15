@@ -227,6 +227,22 @@ test('Does not switch vision by default', async () => {
   })
 })
 
+test('Cannot switch to vision if not models provided', async () => {
+  const openai = new OpenAI(config)
+  const messages = [
+    new Message('system', 'instructions'),
+    new Message('user', 'prompt1'),
+  ]
+  messages[1].attach(new Attachment('image', 'image/png'))
+  const stream = await openai.generate('model-no-tool', messages, { autoSwitchVision: true })
+  // eslint-disable-next-line no-empty,@typescript-eslint/no-unused-vars
+  for await (const chunk of stream) { }
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'model-no-tool', stream: true, stream_options: { include_usage: false },
+    messages: [ { role: 'system', content: 'instructions' }, { role: 'user', content: 'prompt1' } ]
+  })
+})
+
 test('Switches to vision when asked', async () => {
   const openai = new OpenAI(config)
   const messages = [
