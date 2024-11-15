@@ -56,6 +56,10 @@ test('Ollama Load Models', async () => {
 test('Ollama Basic', async () => {
   const ollama = new Ollama(config)
   expect(ollama.getName()).toBe('ollama')
+})
+
+test('Ollama Vision Models', async () => {
+  const ollama = new Ollama(config)
   expect(ollama.isVisionModel('llava:latest')).toBe(true)
   expect(ollama.isVisionModel('llama2:latest')).toBe(false)
 })

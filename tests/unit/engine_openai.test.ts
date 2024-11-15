@@ -99,12 +99,17 @@ test('OpenAI Basic', async () => {
   expect(openai.getName()).toBe('openai')
   expect(openai.client.apiKey).toBe('123')
   expect(openai.client.baseURL).toBe('https://api.openai.com/v1')
+})
+
+test('OpenAI Vision Model', async () => {
+  const openai = new OpenAI(config)
   expect(openai.isVisionModel('gpt-3.5')).toBe(false)
-  expect(openai.isVisionModel('gpt-3.5-turbo')).toBe(false)
-  expect(openai.isVisionModel('gpt-4')).toBe(false)
-  expect(openai.isVisionModel('gpt-4-turbo')).toBe(true)
-  expect(openai.isVisionModel('gpt-4-vision')).toBe(true)
-  expect(openai.isVisionModel('gpt-4-vision-preview')).toBe(true)
+  expect(openai.isVisionModel('gpt-4-turbo')).toBe(false)
+  expect(openai.isVisionModel('gpt-vision')).toBe(true)
+  expect(openai.isVisionModel('gpt-4o')).toBe(true)
+  expect(openai.isVisionModel('gpt-4o-mini')).toBe(false)
+  expect(openai.isVisionModel('o1-preview')).toBe(false)
+  expect(openai.isVisionModel('o1-mini')).toBe(false)
 })
 
 test('OpenAI completion', async () => {

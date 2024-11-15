@@ -80,9 +80,14 @@ test('Anthropic Load Models', async () => {
 test('Anthropic Basic', async () => {
   const anthropic = new Anthropic(config)
   expect(anthropic.getName()).toBe('anthropic')
+})
+
+test('Anthropic Vision Model', async () => {
+  const anthropic = new Anthropic(config)
   expect(anthropic.isVisionModel('claude-3-5-sonnet-latest')).toBe(true)
-  expect(anthropic.isVisionModel('claude-3-sonnet-latest')).toBe(true)
-  expect(anthropic.isVisionModel('claude-3-opus-latest')).toBe(true)
+  expect(anthropic.isVisionModel('claude-3-5-haiku-latest')).toBe(false)
+  expect(anthropic.isVisionModel('claude-3-sonnet-20240229')).toBe(true)
+  expect(anthropic.isVisionModel('claude-3-opus-20240229')).toBe(true)
   expect(anthropic.isVisionModel('claude-3-haiku-20240307')).toBe(true)
 })
 

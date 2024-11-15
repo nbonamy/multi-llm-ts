@@ -28,8 +28,12 @@ export default class extends LlmEngine {
     return 'google'
   }
 
+  // https://ai.google.dev/gemini-api/docs/models/gemini
   getVisionModels(): string[] {
-    return ['gemini-1.5-flash-latest', 'models/gemini-1.5-pro-latest', 'models/gemini-pro-vision', '*vision*']
+    return [
+      'models/gemini-1.5-pro-latest',
+      'gemini-1.5-flash-latest'
+    ]
   }
 
   async getModels(): Promise<Model[]> {
@@ -44,10 +48,8 @@ export default class extends LlmEngine {
       { id: 'models/gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
       { id: 'gemini-1.5-flash-latest', name: 'Gemini  1.5 Flash' },
       { id: 'models/gemini-pro', name: 'Gemini 1.0 Pro' },
-      //{ id: 'models/gemini-pro-vision', name: 'Gemini Pro Vision' },
     ]
   }
-
 
   async complete(modelName: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 

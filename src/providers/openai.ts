@@ -33,8 +33,9 @@ export default class extends LlmEngine {
     return 'openai'
   }
 
+  // https://openai.com/api/pricing/
   getVisionModels(): string[] {
-    return [ '*o1*', '*gpt-4o*', 'gpt-4-turbo', 'gpt-4-vision', '*vision*' ]
+    return [ '*gpt-4o', '*vision*' ]
   }
 
   async getModels(): Promise<Model[]> {

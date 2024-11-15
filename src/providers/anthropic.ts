@@ -42,9 +42,15 @@ export default class extends LlmEngine {
   getName(): string {
     return 'anthropic'
   }
-
+  
+  // https://docs.anthropic.com/en/docs/about-claude/models
   getVisionModels(): string[] {
-    return ['*']
+    return [
+      'claude-3-5-sonnet-latest',
+      'claude-3-sonnet-20240229',
+      'claude-3-opus-20240229',
+      'claude-3-haiku-20240307'
+    ]
   }
 
   getComputerUseRealModel(): string {

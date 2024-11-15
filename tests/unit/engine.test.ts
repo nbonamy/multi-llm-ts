@@ -1,7 +1,7 @@
 
 import { LlmChunk } from '../../src/types/llm.d'
 import { vi, expect, test } from 'vitest'
-import { igniteEngine, isVisionModel, hasVisionModels } from '../../src/llm'
+import { igniteEngine, hasVisionModels } from '../../src/llm'
 import { Plugin2 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
@@ -111,13 +111,6 @@ test('Has Vision Models', async () => {
   expect(hasVisionModels('xai', config)).toBe(false)
   expect(hasVisionModels('groq', config)).toBe(false)
   expect(hasVisionModels('cerebras', config)).toBe(false)
-})
-
-test('Is Vision Model', async () => {
-  expect(isVisionModel('openai', 'gpt-3.5', config)).toBe(false)
-  expect(isVisionModel('openai', 'gpt-4-turbo', config)).toBe(true)
-  expect(isVisionModel('openai', 'gpt-vision', config)).toBe(true)
-  expect(isVisionModel('anthropic', 'claude-sonnet-35-latest', config)).toBe(true)
 })
 
 test('Find Models', async () => {

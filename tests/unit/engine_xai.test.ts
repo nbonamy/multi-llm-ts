@@ -66,6 +66,10 @@ test('xAI Basic', async () => {
   expect(xai.getName()).toBe('xai')
   expect(xai.client.apiKey).toBe('123')
   expect(xai.client.baseURL).toBe('https://api.x.ai/v1')
+})
+
+test('xAI Vision Models', async () => {
+  const xai = new XAI(config)
   expect(xai.isVisionModel('grok-beta')).toBe(false)
 })
 

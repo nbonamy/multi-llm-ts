@@ -62,6 +62,10 @@ test('Groq Load Models', async () => {
 test('Groq Basic', async () => {
   const groq = new Groq(config)
   expect(groq.getName()).toBe('groq')
+})
+
+test('Groq Vision Models', async () => {
+  const groq = new Groq(config)
   expect(groq.isVisionModel('llama2-70b-4096')).toBe(false)
   expect(groq.isVisionModel('llama3-70b-8192')).toBe(false)
 })

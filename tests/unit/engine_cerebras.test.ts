@@ -39,6 +39,10 @@ test('Cerebras Basic', async () => {
   expect(cerebras.getName()).toBe('cerebras')
   expect(cerebras.client.apiKey).toBe('123')
   expect(cerebras.client.baseURL).toBe('https://api.cerebras.ai/v1')
+})
+
+test('Cerebras Vision Models', async () => {
+  const cerebras = new Cerebras(config)
   expect(cerebras.isVisionModel('llama3.1-8b')).toBe(false)
   expect(cerebras.isVisionModel('llama3.1-70b')).toBe(false)
 })

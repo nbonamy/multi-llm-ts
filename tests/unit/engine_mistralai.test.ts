@@ -72,6 +72,10 @@ test('MistralAI Load Models', async () => {
 test('MistralAI Basic', async () => {
   const mistralai = new MistralAI(config)
   expect(mistralai.getName()).toBe('mistralai')
+})
+
+test('MistralAI Vision Models', async () => {
+  const mistralai = new MistralAI(config)
   expect(mistralai.isVisionModel('mistral-medium')).toBe(false)
   expect(mistralai.isVisionModel('mistral-large')).toBe(false)
 })
