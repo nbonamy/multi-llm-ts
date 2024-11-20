@@ -22,11 +22,12 @@ Not all providers support a "get models" end point. Those who do are listed as `
 |**Google**|`google`|static|yes|yes|yes|yes|yes|
 |**Groq**|`groq`|static|yes|yes|yes|yes|yes|
 |**MistralAI**|`mistralai`|dynamic|yes|yes|yes|yes|yes|
-|**Ollama**|`ollama`|dynamic|yes|yes|yes|no<sup>1</sup>|yes|
-|**OpenAI**|`openai`|dynamic|yes|yes|yes|yes|yes|
+|**Ollama**|`ollama`|dynamic|yes|yes|yes|no<sup>2</sup>|yes|
+|**OpenAI**|`openai`|dynamic|yes|yes|yes<sup>1</sup>|yes<sup>1</sup>|yes|
 |**xAI**|`xai`|static|yes|yes|no|yes|yes|
 
-<sup>1</sup> pending https://github.com/ollama/ollama-js/issues/123
+<div><sup>1</sup> not supported for o1 family</div>
+<div><sup>2</sup> pending https://github.com/ollama/ollama-js/issues/123</div>
 
 ## See it in action
 
