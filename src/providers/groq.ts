@@ -26,8 +26,9 @@ export default class extends LlmEngine {
     return 'groq'
   }
 
+  // https://console.groq.com/docs/models
   getVisionModels(): string[] {
-    return []
+    return [ 'llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview' ]
   }
 
   async getModels(): Promise<Model[]> {
@@ -39,15 +40,14 @@ export default class extends LlmEngine {
 
     // do it
     return [
-      { id: 'llama-3.2-1b-preview', name: 'Llama 3.2 1B Text (Preview)' },
+      { id: 'llama-3.2-90b-vision-preview', name: 'Llama 3.2 90B Vision (Preview)' },
+      { id: 'llama-3.2-11b-vision-preview', name: 'Llama 3.2 11B Vision (Preview)' },
       { id: 'llama-3.2-3b-preview', name: 'Llama 3.2 3B Text (Preview)' },
-      { id: 'llama-3.2-11b-text-preview', name: 'Llama 3.2 11B Text (Preview)' },
-      { id: 'llama-3.2-90b-text-preview', name: 'Llama 3.2 90B Text (Preview)' },
-      { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8b' },
+      { id: 'llama-3.2-1b-preview', name: 'Llama 3.2 1B Text (Preview)' },
       { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70b' },
-      { id: 'llama3-8b-8192', name: 'Llama 3 8b' },
+      { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8b' },
       { id: 'llama3-70b-8192', name: 'Llama 3 70b' },
-      { id: 'llava-v1.5-7b-4096-preview', name: 'LLaVa v1.5 7b' },
+      { id: 'llama3-8b-8192', name: 'Llama 3 8b' },
       { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7b' },
       { id: 'gemma2-9b-it', name: 'Gemma 2 9b' },
       { id: 'gemma-7b-it', name: 'Gemma 7b' },
@@ -117,12 +117,39 @@ export default class extends LlmEngine {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
+    if (message.attachment) {
+      payload.content = [
+        { type: 'text', text: message.content },
+        { type: 'image_url', image_url: { url: `data:${message.attachment.mimeType};base64,${message.attachment.contents}` } }
+      ]
+    }
   }
 
   buildPayload(model: string, thread: Message[]): LLmCompletionPayload[] {
-    const payload: LLmCompletionPayload[] = super.buildPayload(model, thread)
+
+    // default
+    let payload: LLmCompletionPayload[] = super.buildPayload(model, thread)
+    
+    // when using vision models, we cannot use a system prompt (!!)
+    let hasImages = false
+    for (const p of payload) {
+      if (Array.isArray(p.content)) {
+        for (const m of p.content) {
+          if (m.type == 'image_url') {
+            hasImages = true
+            break
+          }
+        }
+      }
+    }
+
+    // remove system prompt
+    if (hasImages) {
+      payload = payload.filter((p) => p.role != 'system')
+    }
+
+    // now return
     return payload.map((payload): LLmCompletionPayload => {
       return {
         role: payload.role,

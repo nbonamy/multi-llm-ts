@@ -109,7 +109,7 @@ test('Has Vision Models', async () => {
   expect(hasVisionModels('anthropic', config)).toBe(true)
   expect(hasVisionModels('google', config)).toBe(true)
   expect(hasVisionModels('xai', config)).toBe(false)
-  expect(hasVisionModels('groq', config)).toBe(false)
+  expect(hasVisionModels('groq', config)).toBe(true)
   expect(hasVisionModels('cerebras', config)).toBe(false)
 })
 

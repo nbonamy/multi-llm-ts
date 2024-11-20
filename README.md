@@ -15,16 +15,16 @@ Features include:
 
 Not all providers support a "get models" end point. Those who do are listed as `dynamic` in the table below. For those who are listed as `static`, the list of models is hardcoded.
 
-|Provider|id|Models|Completion|Streaming|Function calling|Usage reporting|
-|---|---|---|---|---|---|--|
-|**Anthropic**|`anthropic`|static|yes|yes|yes|yes|
-|**Cerebras**|`cerebras`|static|yes|yes|no|yes|
-|**Google**|`google`|static|yes|yes|yes|yes|
-|**Groq**|`groq`|static|yes|yes|no|yes|
-|**MistralAI**|`mistralai`|dynamic|yes|yes|yes|yes|
-|**Ollama**|`ollama`|dynamic|yes|yes|no<sup>1</sup>|yes|
-|**OpenAI**|`openai`|dynamic|yes|yes|yes|yes|
-|**xAI**|`xai`|static|yes|yes|yes|yes|
+|Provider|id|Models|Completion|Streaming|Vision|Function calling|Usage reporting|
+|---|---|---|---|---|---|--|--|
+|**Anthropic**|`anthropic`|static|yes|yes|yes|yes|yes|
+|**Cerebras**|`cerebras`|static|yes|yes|no|no|yes|
+|**Google**|`google`|static|yes|yes|yes|yes|yes|
+|**Groq**|`groq`|static|yes|yes|yes|yes|yes|
+|**MistralAI**|`mistralai`|dynamic|yes|yes|yes|yes|yes|
+|**Ollama**|`ollama`|dynamic|yes|yes|yes|no<sup>1</sup>|yes|
+|**OpenAI**|`openai`|dynamic|yes|yes|yes|yes|yes|
+|**xAI**|`xai`|static|yes|yes|no|yes|yes|
 
 <sup>1</sup> pending https://github.com/ollama/ollama-js/issues/123
 

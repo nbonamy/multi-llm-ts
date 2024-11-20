@@ -44,18 +44,18 @@ beforeEach(() => {
 test('Groq Load Models', async () => {
   const models = await loadGroqModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'llama-3.2-1b-preview', name: 'Llama 3.2 1B Text (Preview)' },
+    { id: 'llama-3.2-90b-vision-preview', name: 'Llama 3.2 90B Vision (Preview)' },
+    { id: 'llama-3.2-11b-vision-preview', name: 'Llama 3.2 11B Vision (Preview)' },
     { id: 'llama-3.2-3b-preview', name: 'Llama 3.2 3B Text (Preview)' },
-    { id: 'llama-3.2-11b-text-preview', name: 'Llama 3.2 11B Text (Preview)' },
-    { id: 'llama-3.2-90b-text-preview', name: 'Llama 3.2 90B Text (Preview)' },
-    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8b', },
-    { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70b', },
-    { id: 'llama3-8b-8192', name: 'Llama 3 8b', },
-    { id: 'llama3-70b-8192', name: 'Llama 3 70b', },
-    { id: 'llava-v1.5-7b-4096-preview', name: 'LLaVa v1.5 7b', },
-    { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7b', },
-    { id: 'gemma2-9b-it', name: 'Gemma 2 9b', },
-    { id: 'gemma-7b-it', name: 'Gemma 7b', }
+    { id: 'llama-3.2-1b-preview', name: 'Llama 3.2 1B Text (Preview)' },
+    { id: 'llama-3.1-70b-versatile', name: 'Llama 3.1 70b' },
+    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8b' },
+    { id: 'llama3-70b-8192', name: 'Llama 3 70b' },
+    { id: 'llama3-8b-8192', name: 'Llama 3 8b' },
+    { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7b' },
+    { id: 'gemma2-9b-it', name: 'Gemma 2 9b' },
+    { id: 'gemma-7b-it', name: 'Gemma 7b' },
+
   ])
 })
 
@@ -66,8 +66,11 @@ test('Groq Basic', async () => {
 
 test('Groq Vision Models', async () => {
   const groq = new Groq(config)
-  expect(groq.isVisionModel('llama2-70b-4096')).toBe(false)
-  expect(groq.isVisionModel('llama3-70b-8192')).toBe(false)
+  const models = await groq.getModels()
+  const vision = [ 'llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview' ]
+  for (const model of models) {
+    expect(groq.isVisionModel(model.id)).toBe(vision.includes(model.id))
+  }
 })
 
 test('Groq  completion', async () => {
