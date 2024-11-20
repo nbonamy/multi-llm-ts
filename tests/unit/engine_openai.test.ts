@@ -37,9 +37,11 @@ vi.mock('openai', async () => {
             async * [Symbol.asyncIterator]() {
               
               // first we yield tool call chunks
-              yield { choices: [{ delta: { tool_calls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "ar' }} ] }, finish_reason: 'none' } ] }
-              yield { choices: [{ delta: { tool_calls: [ { function: { arguments: [ 'g" ]' ] } }] }, finish_reason: 'none' } ] }
-              yield { choices: [{ finish_reason: 'tool_calls' } ] }
+              if (!opts.model.startsWith('o1-')) {
+                yield { choices: [{ delta: { tool_calls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "ar' }} ] }, finish_reason: 'none' } ] }
+                yield { choices: [{ delta: { tool_calls: [ { function: { arguments: [ 'g" ]' ] } }] }, finish_reason: 'none' } ] }
+                yield { choices: [{ finish_reason: 'tool_calls' } ] }
+              }
               
               // now the text response
               const content = 'response'
@@ -71,6 +73,7 @@ vi.mock('openai', async () => {
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
+  vi.clearAllMocks();
   config = {
     apiKey: '123',
   }
@@ -110,6 +113,31 @@ test('OpenAI Vision Model', async () => {
   expect(openai.isVisionModel('gpt-4o-mini')).toBe(false)
   expect(openai.isVisionModel('o1-preview')).toBe(false)
   expect(openai.isVisionModel('o1-mini')).toBe(false)
+})
+
+test('OpenAI system prompt for most models', async () => {
+  const openai = new OpenAI(config)
+  // @ts-expect-error testing private method
+  const payload = openai.buildPayload('model', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+  expect(payload).toStrictEqual([
+    { role: 'system', content: 'instruction' },
+    { role: 'user', content: 'prompt' },
+  ])
+})
+
+test('OpenAI no system prompt for most o1 models', async () => {
+  const openai = new OpenAI(config)
+  // @ts-expect-error testing private method
+  const payload = openai.buildPayload('o1-mini', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+  expect(payload).toStrictEqual([
+    { role: 'user', content: 'prompt' },
+  ])
 })
 
 test('OpenAI completion', async () => {
@@ -153,7 +181,19 @@ test('OpenAI stream', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
-  expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalled()
+  expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    tool_choice: 'auto',
+    tools: expect.any(Array),
+    stream: true,
+    stream_options: {
+      include_usage: false
+    }
+  })
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
@@ -176,11 +216,32 @@ test('OpenAI stream', async () => {
   expect(stream.controller.abort).toHaveBeenCalled()
 })
 
+test('OpenAI stream no tools for o1', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin1())
+  openai.addPlugin(new Plugin2())
+  openai.addPlugin(new Plugin3())
+  const stream = await openai.stream('o1-mini', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+  expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'o1-mini',
+    messages: [ { role: 'user', content: 'prompt' } ],
+    stream: true,
+    stream_options: {
+      include_usage: false
+    }
+  })
+  expect(stream).toBeDefined()
+  expect(stream.controller).toBeDefined()
+})
+
 test('OpenAI addAttachmentToPayload', async () => {
   const openai = new OpenAI(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  const payload: LLmCompletionPayload = { role: 'user', content: message }
+  const payload: LLmCompletionPayload = { role: 'user', content: '' }
   openai.addAttachmentToPayload(message, payload)
   expect(payload.content).toStrictEqual([
     { type: 'text', text: 'text' },

@@ -38,6 +38,14 @@ export default class extends LlmEngine {
     return [ '*gpt-4o', '*vision*' ]
   }
 
+  modelAcceptsSystemRole(model: string): boolean {
+    return !model.startsWith('o1-')
+  }
+
+  modelSupportsTools(model: string): boolean {
+    return !model.startsWith('o1-')
+  }
+
   async getModels(): Promise<Model[]> {
 
     // need an api key
@@ -65,6 +73,14 @@ export default class extends LlmEngine {
     if (this.client) {
       this.client.baseURL = this.config.baseURL || defaultBaseUrl
     }
+  }
+
+  protected buildPayload(model: string, thread: Message[] | string): LLmCompletionPayload[] {
+    let payload = super.buildPayload(model, thread)
+    if (!this.modelAcceptsSystemRole(model)) {
+      payload = payload.filter((msg: LLmCompletionPayload) => msg.role !== 'system')
+    }
+    return payload
   }
 
   async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
@@ -122,7 +138,7 @@ export default class extends LlmEngine {
       // LlmRole overlap the different roles ChatCompletionMessageParam
       // but tsc says Type 'LlmRole' is not assignable to type '"assistant"'
       messages: this.currentThread,
-      ...(tools.length ? {
+      ...(this.modelSupportsTools(this.currentModel) && tools.length ? {
         tools: tools,
         tool_choice: 'auto',
       } : {}),
