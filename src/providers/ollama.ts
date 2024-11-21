@@ -140,7 +140,7 @@ export default class extends LlmEngine {
 
   addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
     if (message.attachment) {
-      payload.images = [ message.attachment.contents ]
+      payload.images = [ message.attachment.content ]
     }
   }
 

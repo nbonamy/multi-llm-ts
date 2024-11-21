@@ -150,8 +150,8 @@ export default class LlmEngine {
       // and then reverse the array
 
       let imageAttached = false
-      return thread.toReversed().filter((msg) => msg.content !== null).map((msg): LLmCompletionPayload => {
-        const payload: LLmCompletionPayload = { role: msg.role, content: msg.content }
+      return thread.toReversed().filter((msg) => msg.contentForModel !== null).map((msg): LLmCompletionPayload => {
+        const payload: LLmCompletionPayload = { role: msg.role, content: msg.contentForModel }
         
         // if there is no attachment, return
         if (!msg.attachment) {
@@ -159,14 +159,14 @@ export default class LlmEngine {
         }
 
         // this can be a loaded chat where contents is not present
-        if (msg.attachment.contents === null || msg.attachment.contents === undefined) {
+        if (msg.attachment.content === null || msg.attachment.content === undefined) {
           console.warn('Attachment contents not available. Skipping attachment.')
           return payload
         }
 
         // text formats
         if (msg.attachment.isText()) {
-          payload.content += `\n\n${msg.attachment.contents}`
+          payload.content += `\n\n${msg.attachment.content}`
         }
 
         // image formats

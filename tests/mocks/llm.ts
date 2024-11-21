@@ -73,7 +73,7 @@ export default class LlmMock extends LlmEngine {
 
     // now stream
     return new RandomChunkStream(JSON.stringify([
-      ...thread.map(m => { return { role: m.role, content: m.content }}),
+      ...thread.map(m => { return { role: m.role, content: m.contentForModel }}),
       { role: 'assistant', content: 'Be kind. Don\'t mock me' }
     ]))
   }
@@ -99,7 +99,7 @@ export default class LlmMock extends LlmEngine {
   }
 
   addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
-    payload.images = [ message.attachment.contents ]
+    payload.images = [ message.attachment!.content ]
   }
 
    

@@ -55,7 +55,7 @@ export default class extends LlmEngine {
 
     // call
     logger.log(`[google] prompting model ${modelName}`)
-    const model = await this.getModel(modelName, thread[0].content)
+    const model = await this.getModel(modelName, thread[0].contentForModel)
     const response = await model.generateContent({
       contents: this.threadToHistory(thread, modelName),
     })
@@ -78,7 +78,7 @@ export default class extends LlmEngine {
 
     // call
     this.currentOpts = opts || null
-    this.currentModel = await this.getModel(modelName, thread[0].content)
+    this.currentModel = await this.getModel(modelName, thread[0].contentForModel)
     this.currentContent = this.threadToHistory(thread, modelName)
     return await this.doStream()
 
@@ -181,7 +181,7 @@ export default class extends LlmEngine {
     const lastMessage = thread[thread.length-1]
 
     // content
-    prompt.push(lastMessage.content)
+    prompt.push(lastMessage.contentForModel)
 
     // attachment
     if (lastMessage.attachment) {
@@ -220,7 +220,7 @@ export default class extends LlmEngine {
   addAttachment(parts: Array<string|Part>, attachment: Attachment) {
 
     // load if no contents
-    if (attachment.contents === null || attachment.contents === undefined) {
+    if (attachment.content === null || attachment.content === undefined) {
       console.warn('[google] attachment contents not available. Skipping attachment.')
     }
   
@@ -229,11 +229,11 @@ export default class extends LlmEngine {
       parts.push({
         inlineData: {
           mimeType: attachment.mimeType,
-          data: attachment.contents,
+          data: attachment.content,
         }
       })
     } else if (attachment.isText()) {
-      parts.push(attachment.contents)
+      parts.push(attachment.content)
     }
 
   }
@@ -342,7 +342,7 @@ export default class extends LlmEngine {
 
    
   addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
-    payload.images = [ message.attachment!.contents ]
+    payload.images = [ message.attachment!.content ]
   }
 
 }

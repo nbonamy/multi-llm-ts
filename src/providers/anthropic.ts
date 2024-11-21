@@ -99,7 +99,7 @@ export default class extends LlmEngine {
     logger.log(`[anthropic] prompting model ${model}`)
     const response = await this.client.messages.create({
       model: model,
-      system: thread[0].content,
+      system: thread[0].contentForModel,
       max_tokens: this.getMaxTokens(model),
       messages: this.buildPayload(model, thread) as MessageParam[],
     });
@@ -130,7 +130,7 @@ export default class extends LlmEngine {
     }
 
     // save the message thread
-    this.currentSystem = thread[0].content
+    this.currentSystem = thread[0].contentForModel
     this.currentThread = this.buildPayload(this.currentModel, thread) as MessageParam[]
 
     // save the opts and do it
@@ -356,11 +356,11 @@ export default class extends LlmEngine {
 
   addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
     payload.content = [
-      { type: 'text', text: message.content },
+      { type: 'text', text: message.contentForModel },
       { type: 'image', source: {
         type: 'base64',
         media_type: message.attachment!.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-        data: message.attachment!.contents,
+        data: message.attachment!.content,
       }}
     ]
   }

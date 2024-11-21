@@ -9,6 +9,10 @@ export default class Message {
   attachment: Attachment|null
   transient: boolean
 
+  get contentForModel(): string {
+    return this.content
+  }
+
   constructor(role: LlmRole, content: string|null = null, attachment?: Attachment) {
     this.role = role
     this.content = (content !== null) ? content : ''

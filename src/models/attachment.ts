@@ -4,11 +4,11 @@ export const imageFormats = [ 'jpeg', 'jpg', 'png', 'webp' ]
 
 export default class Attachment {
 
-  contents: string
+  content: string
   mimeType: string
 
-  constructor(contents = '', mimeType = '') {
-    this.contents = contents
+  constructor(content = '', mimeType = '') {
+    this.content = content
     this.mimeType = mimeType
   }
 
