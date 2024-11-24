@@ -2,7 +2,7 @@
 import { LlmChunk } from '../../src/types/llm.d'
 import { vi, expect, test } from 'vitest'
 import { igniteEngine, hasVisionModels } from '../../src/llm'
-import { Plugin2 } from '../mocks/plugins'
+import { Plugin1, Plugin2 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import OpenAI from '../../src/providers/openai'
@@ -260,4 +260,12 @@ test('Switches to vision when asked', async () => {
       { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,image' } },
     ]}]
   })
+})
+
+test('Does not add the same plugin twice', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin1())
+  openai.addPlugin(new Plugin2())
+  openai.addPlugin(new Plugin2())
+  expect(openai.plugins.length).toBe(2)
 })

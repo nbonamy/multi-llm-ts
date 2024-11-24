@@ -47,6 +47,7 @@ export default class LlmEngine {
   }
 
   addPlugin(plugin: Plugin): void {
+    this.plugins = this.plugins.filter((p) => p.getName() !== plugin.getName())
     this.plugins.push(plugin)
   }
 
