@@ -8,7 +8,7 @@ export default class Answer extends Plugin {
   }
   
   getName(): string {
-    return 'Answer'
+    return 'answer'
   }
 
   getDescription(): string {

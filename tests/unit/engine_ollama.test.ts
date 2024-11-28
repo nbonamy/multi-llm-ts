@@ -7,6 +7,9 @@ import Ollama from '../../src/providers/ollama'
 import * as _ollama from 'ollama/dist/browser.cjs'
 import { loadOllamaModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index.d'
+import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
+
+Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
 vi.mock('ollama/dist/browser.cjs', async() => {
   const Ollama = vi.fn()
@@ -25,6 +28,21 @@ vi.mock('ollama/dist/browser.cjs', async() => {
   Ollama.prototype.chat = vi.fn((opts) => {
     if (opts.stream) {
       return {
+        async * [Symbol.asyncIterator]() {
+              
+          // first we yield tool call chunks
+            yield { message: { role: 'assistant', content: '', tool_calls: [{
+              function: { name: 'plugin2', arguments: ['arg'] },
+            }], done: false }
+          }
+          
+          // now the text response
+          const content = 'response'
+          for (let i = 0; i < content.length; i++) {
+            yield { message: { role: 'assistant', content: content[i] }, done: false }
+          }
+          yield { message: { role: 'assistant', content: '' }, done: true }
+        },
         controller: {
           abort: vi.fn()
         }
@@ -79,12 +97,42 @@ test('Ollama completion', async () => {
 
 test('Ollama stream', async () => {
   const ollama = new Ollama(config)
-  const response = await ollama.stream('model', [
+  ollama.addPlugin(new Plugin1())
+  ollama.addPlugin(new Plugin2())
+  ollama.addPlugin(new Plugin3())
+  const stream = await ollama.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
-  expect(_ollama.Ollama.prototype.chat).toHaveBeenCalled()
-  expect(response.controller).toBeDefined()
+  expect(_ollama.Ollama.prototype.chat).toHaveBeenCalledWith({
+    model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    tool_choice: 'auto',
+    tools: expect.any(Array),
+    stream: true,
+  })
+  expect(stream).toBeDefined()
+  expect(stream.controller).toBeDefined()
+  let response = ''
+  let lastMsg = null
+  const toolCalls = []
+  console.log(stream)
+  for await (const chunk of stream) {
+    for await (const msg of ollama.nativeChunkToLlmChunk(chunk)) {
+      lastMsg = msg
+      if (msg.type === 'content') response += msg.text || ''
+      if (msg.type === 'tool') toolCalls.push(msg)
+    }
+  }
+  expect(lastMsg.done).toBe(true)
+  expect(response).toBe('response')
+  expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'prep2', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'run2', done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await ollama.stop()
   expect(_ollama.Ollama.prototype.abort).toHaveBeenCalled()
 })

@@ -55,7 +55,7 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
   const answer = new Answer()
   llm.addPlugin(answer)
   messages[1].content = 'What is the answer to life, the universe and everything?'
-  const stream = llm.generate(model, messages)
+  const stream = llm.generate(model, messages, { usage: true })
   let response = ''
   for await (const chunk of stream) {
     console.log(chunk)

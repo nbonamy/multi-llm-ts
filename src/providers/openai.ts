@@ -124,7 +124,7 @@ export default class extends LlmEngine {
 
   async doStream(): Promise<LlmStream> {
 
-      // reset
+    // reset
     this.toolCalls = []
 
     // tools
