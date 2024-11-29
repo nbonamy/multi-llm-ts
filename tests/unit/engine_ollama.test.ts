@@ -175,15 +175,12 @@ test('Ollama stream with tools', async () => {
   expect(_ollama.Ollama.prototype.abort).toHaveBeenCalled()
 })
 
-test('Ollama stream with tools disabled', async () => {
+test('Ollama stream without tools', async () => {
   const ollama = new Ollama(config)
-  ollama.addPlugin(new Plugin1())
-  ollama.addPlugin(new Plugin2())
-  ollama.addPlugin(new Plugin3())
   const stream = await ollama.stream('llama3-groq-tool-use', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], { disableTools: true })
+  ])
   expect(_ollama.Ollama.prototype.chat).toHaveBeenCalledWith({
     model: 'llama3-groq-tool-use',
     messages: [

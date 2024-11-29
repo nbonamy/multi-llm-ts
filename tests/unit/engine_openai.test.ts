@@ -237,15 +237,12 @@ test('OpenAI stream no tools for o1', async () => {
   expect(stream.controller).toBeDefined()
 })
 
-test('OpenAI stream with tools disabled', async () => {
+test('OpenAI stream without tools', async () => {
   const openai = new OpenAI(config)
-  openai.addPlugin(new Plugin1())
-  openai.addPlugin(new Plugin2())
-  openai.addPlugin(new Plugin3())
   const stream = await openai.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], { disableTools: true })
+  ])
   expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [

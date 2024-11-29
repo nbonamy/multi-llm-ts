@@ -130,7 +130,7 @@ export default class extends LlmEngine {
     }
 
     // add tools
-    if (!opts?.disableTools && this.supportsTools(model)) {
+    if (this.supportsTools(model)) {
 
       const tools = await this.getAvailableTools();
       if (tools.length) {

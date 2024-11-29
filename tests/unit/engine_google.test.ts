@@ -148,15 +148,12 @@ test('Google stream', async () => {
   //expect(response.controller.abort).toHaveBeenCalled()
 })
 
-test('Google stream with tools disabled', async () => {
+test('Google stream without tools', async () => {
   const google = new Google(config)
-  google.addPlugin(new Plugin1())
-  google.addPlugin(new Plugin2())
-  google.addPlugin(new Plugin3())
   await google.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], { disableTools: true })
+  ])
   expect(_Google.GoogleGenerativeAI).toHaveBeenCalled()
   expect(_Google.GoogleGenerativeAI.prototype.getGenerativeModel).toHaveBeenCalledWith({
     model: 'model',

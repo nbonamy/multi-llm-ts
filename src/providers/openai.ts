@@ -138,7 +138,7 @@ export default class extends LlmEngine {
       // LlmRole overlap the different roles ChatCompletionMessageParam
       // but tsc says Type 'LlmRole' is not assignable to type '"assistant"'
       messages: this.currentThread,
-      ...(!this.currentOpts?.disableTools && this.modelSupportsTools(this.currentModel) && tools.length ? {
+      ...(this.modelSupportsTools(this.currentModel) && tools.length ? {
         tools: tools,
         tool_choice: 'auto',
       } : {}),

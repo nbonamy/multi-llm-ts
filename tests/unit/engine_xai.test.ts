@@ -114,15 +114,12 @@ test('xAI stream', async () => {
   expect(stream.controller.abort).toHaveBeenCalled()
 })
 
-test('xAI stream with tools disabled', async () => {
+test('xAI stream without tools', async () => {
   const xai = new XAI(config)
-  xai.addPlugin(new Plugin1())
-  xai.addPlugin(new Plugin2())
-  xai.addPlugin(new Plugin3())
   const stream = await xai.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], { disableTools: true })
+  ])
   expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [

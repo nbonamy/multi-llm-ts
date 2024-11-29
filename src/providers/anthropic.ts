@@ -187,7 +187,7 @@ export default class extends LlmEngine {
       system: this.currentSystem,
       max_tokens: this.getMaxTokens(this.currentModel),
       messages: this.currentThread,
-      ...(!this.currentOpts?.disableTools && tools?.length ? {
+      ...(tools?.length ? {
         tool_choice: { type: 'auto' },
         tools: tools as Tool[]
       } : {}),

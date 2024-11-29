@@ -163,15 +163,12 @@ test('MistralAI  stream without tools', async () => {
   expect(stream).toBeDefined()
 })
 
-test('MistralAI  stream with tools disabled', async () => {
+test('MistralAI  stream without tools', async () => {
   const mistralai = new MistralAI(config)
-  mistralai.addPlugin(new Plugin1())
-  mistralai.addPlugin(new Plugin2())
-  mistralai.addPlugin(new Plugin3())
   const stream = await mistralai.stream('mistral-large', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], { disableTools: true })
+  ])
   expect(Mistral.prototype.chat.stream).toHaveBeenCalledWith({
     model: 'mistral-large',
     messages: [ { role: 'system', content: 'instruction' }, { role: 'user', content: 'prompt' } ],
