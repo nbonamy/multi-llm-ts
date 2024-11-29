@@ -40,6 +40,33 @@ export default class extends LlmEngine {
     return [ 'llama3.2-vision*', 'llava-llama3:latest', 'llava:latest', '*llava*' ]
   }
 
+  modelSupportsTools(model: string): boolean {
+    return [
+      'athene-v2',
+      'aya-expanse',
+      'command-r-plus',
+      'command-r',
+      'firefunction-v2',
+      'granite3-dense',
+      'hermes3',
+      'llama3-groq-tool-use',
+      'llama3.1',
+      'llama3.2',
+      'mistral-large',
+      'mistral-nemo',
+      'mistral-small',
+      'mistral',
+      'mixtral',
+      'nemotron-mini',
+      'nemotron',
+      'qwen2.5-coder',
+      'qwen2.5',
+      'qwen2',
+      'qwq',
+      'smollm2',
+    ].includes(model.split(':')[0])
+  }
+
   async getModels(): Promise<Model[]> {
     try {
       const response = await this.client.list()
@@ -126,7 +153,7 @@ export default class extends LlmEngine {
     const stream = this.client.chat({
       model: this.currentModel,
       messages: this.currentThread,
-      ...(tools.length ? {
+      ...(this.modelSupportsTools(this.currentModel) && tools.length ? {
         tools: tools,
         tool_choice: 'auto',
       } : {}),

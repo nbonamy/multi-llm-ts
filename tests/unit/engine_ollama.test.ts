@@ -31,9 +31,11 @@ vi.mock('ollama/dist/browser.cjs', async() => {
         async * [Symbol.asyncIterator]() {
               
           // first we yield tool call chunks
+          if (opts.model.includes('tool')) {
             yield { message: { role: 'assistant', content: '', tool_calls: [{
-              function: { name: 'plugin2', arguments: ['arg'] },
-            }], done: false }
+                function: { name: 'plugin2', arguments: ['arg'] },
+              }], done: false }
+            }
           }
           
           // now the text response
@@ -58,6 +60,7 @@ vi.mock('ollama/dist/browser.cjs', async() => {
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
+  vi.clearAllMocks();
   config = {
     apiKey: '123',
   }
@@ -95,7 +98,7 @@ test('Ollama completion', async () => {
   })
 })
 
-test('Ollama stream', async () => {
+test('Ollama stream without tools', async () => {
   const ollama = new Ollama(config)
   ollama.addPlugin(new Plugin1())
   ollama.addPlugin(new Plugin2())
@@ -106,6 +109,43 @@ test('Ollama stream', async () => {
   ])
   expect(_ollama.Ollama.prototype.chat).toHaveBeenCalledWith({
     model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    stream: true,
+  })
+  expect(stream).toBeDefined()
+  expect(stream.controller).toBeDefined()
+  let response = ''
+  let lastMsg = null
+  const toolCalls = []
+  console.log(stream)
+  for await (const chunk of stream) {
+    for await (const msg of ollama.nativeChunkToLlmChunk(chunk)) {
+      lastMsg = msg
+      if (msg.type === 'content') response += msg.text || ''
+      if (msg.type === 'tool') toolCalls.push(msg)
+    }
+  }
+  expect(lastMsg.done).toBe(true)
+  expect(response).toBe('response')
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+  await ollama.stop()
+  expect(_ollama.Ollama.prototype.abort).toHaveBeenCalled()
+})
+
+test('Ollama stream with tools', async () => {
+  const ollama = new Ollama(config)
+  ollama.addPlugin(new Plugin1())
+  ollama.addPlugin(new Plugin2())
+  ollama.addPlugin(new Plugin3())
+  const stream = await ollama.stream('llama3-groq-tool-use', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+  expect(_ollama.Ollama.prototype.chat).toHaveBeenCalledWith({
+    model: 'llama3-groq-tool-use',
     messages: [
       { role: 'system', content: 'instruction' },
       { role: 'user', content: 'prompt' }
