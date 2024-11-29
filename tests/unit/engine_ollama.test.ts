@@ -120,7 +120,6 @@ test('Ollama stream without tools', async () => {
   let response = ''
   let lastMsg = null
   const toolCalls = []
-  console.log(stream)
   for await (const chunk of stream) {
     for await (const msg of ollama.nativeChunkToLlmChunk(chunk)) {
       lastMsg = msg
@@ -159,7 +158,6 @@ test('Ollama stream with tools', async () => {
   let response = ''
   let lastMsg = null
   const toolCalls = []
-  console.log(stream)
   for await (const chunk of stream) {
     for await (const msg of ollama.nativeChunkToLlmChunk(chunk)) {
       lastMsg = msg
@@ -175,6 +173,26 @@ test('Ollama stream with tools', async () => {
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await ollama.stop()
   expect(_ollama.Ollama.prototype.abort).toHaveBeenCalled()
+})
+
+test('Ollama stream with tools disabled', async () => {
+  const ollama = new Ollama(config)
+  ollama.addPlugin(new Plugin1())
+  ollama.addPlugin(new Plugin2())
+  ollama.addPlugin(new Plugin3())
+  const stream = await ollama.stream('llama3-groq-tool-use', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { disableTools: true })
+  expect(_ollama.Ollama.prototype.chat).toHaveBeenCalledWith({
+    model: 'llama3-groq-tool-use',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    stream: true,
+  })
+  expect(stream).toBeDefined()
 })
 
 test('Ollama addAttachmentToPayload', async () => {

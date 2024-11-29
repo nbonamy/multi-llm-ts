@@ -55,7 +55,7 @@ export default class extends LlmEngine {
 
     // call
     logger.log(`[google] prompting model ${modelName}`)
-    const model = await this.getModel(modelName, thread[0].contentForModel)
+    const model = await this.getModel(modelName, thread[0].contentForModel, opts)
     const response = await model.generateContent({
       contents: this.threadToHistory(thread, modelName),
     })
@@ -78,7 +78,7 @@ export default class extends LlmEngine {
 
     // call
     this.currentOpts = opts || null
-    this.currentModel = await this.getModel(modelName, thread[0].contentForModel)
+    this.currentModel = await this.getModel(modelName, thread[0].contentForModel, opts)
     this.currentContent = this.threadToHistory(thread, modelName)
     return await this.doStream()
 
@@ -117,7 +117,7 @@ export default class extends LlmEngine {
   }
 
    
-  async getModel(model: string, instructions: string): Promise<GenerativeModel> {
+  async getModel(model: string, instructions: string, opts?: LlmCompletionOpts): Promise<GenerativeModel> {
 
     // model params
     const modelParams: ModelParams = {
@@ -130,7 +130,7 @@ export default class extends LlmEngine {
     }
 
     // add tools
-    if (this.supportsTools(model)) {
+    if (!opts?.disableTools && this.supportsTools(model)) {
 
       const tools = await this.getAvailableTools();
       if (tools.length) {

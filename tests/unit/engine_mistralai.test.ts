@@ -34,14 +34,13 @@ vi.mock('@mistralai/mistralai', async() => {
         async * [Symbol.asyncIterator]() {
           
           // first we yield tool call chunks
-          yield { data: { choices: [{ delta: { toolCalls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "ar' }} ] }, finish_reason: 'none' } ] } }
-          yield { data: { choices: [{ delta: { toolCalls: [ { function: { arguments: [ 'g" ]' ] } }] }, finish_reason: 'none' } ] } }
-          yield { data: { choices: [{ finishReason: 'tool_calls' } ] } }
+          yield { data: { choices: [{ delta: { toolCalls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "ar' }} ] }, finishReason: 'none' } ] } }
+          yield { data: { choices: [{ delta: { toolCalls: [ { function: { arguments: [ 'g" ]' ] } }] }, finishReason: 'tool_calls' } ] } }
           
           // now the text response
           const content = 'response'
           for (let i = 0; i < content.length; i++) {
-            yield { data: { choices: [{ delta: { content: content[i], }, finish_reason: 'none' }] } }
+            yield { data: { choices: [{ delta: { content: content[i], }, finishReason: 'none' }] } }
           }
           yield { data: { choices: [{ delta: { content: '' }, finishReason: 'done' }] } }
         },
@@ -56,6 +55,7 @@ vi.mock('@mistralai/mistralai', async() => {
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
+  vi.clearAllMocks();
   config = {
     apiKey: '123',
   }
@@ -111,16 +111,21 @@ test('MistralAI nativeChunkToLlmChunk Text', async () => {
   }
 })
 
-test('MistralAI  stream', async () => {
+test('MistralAI  stream with tools', async () => {
   const mistralai = new MistralAI(config)
   mistralai.addPlugin(new Plugin1())
   mistralai.addPlugin(new Plugin2())
   mistralai.addPlugin(new Plugin3())
-  const stream = await mistralai.stream('model', [
+  const stream = await mistralai.stream('mistral-large', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
-  expect(Mistral.prototype.chat.stream).toHaveBeenCalled()
+  expect(Mistral.prototype.chat.stream).toHaveBeenCalledWith({
+    model: 'mistral-large',
+    messages: [ { role: 'system', content: 'instruction' }, { role: 'user', content: 'prompt' } ],
+    toolChoice: 'auto',
+    tools: expect.any(Array),
+  })
   expect(stream.controller).toBeDefined()
   let response = ''
   let lastMsg: LlmChunkContent|null = null
@@ -140,6 +145,38 @@ test('MistralAI  stream', async () => {
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await mistralai.stop()
   //expect(Mistral.prototype.abort).toHaveBeenCalled()
+})
+
+test('MistralAI  stream without tools', async () => {
+  const mistralai = new MistralAI(config)
+  mistralai.addPlugin(new Plugin1())
+  mistralai.addPlugin(new Plugin2())
+  mistralai.addPlugin(new Plugin3())
+  const stream = await mistralai.stream('model', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+  expect(Mistral.prototype.chat.stream).toHaveBeenCalledWith({
+    model: 'model',
+    messages: [ { role: 'system', content: 'instruction' }, { role: 'user', content: 'prompt' } ],
+  })
+  expect(stream).toBeDefined()
+})
+
+test('MistralAI  stream with tools disabled', async () => {
+  const mistralai = new MistralAI(config)
+  mistralai.addPlugin(new Plugin1())
+  mistralai.addPlugin(new Plugin2())
+  mistralai.addPlugin(new Plugin3())
+  const stream = await mistralai.stream('mistral-large', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { disableTools: true })
+  expect(Mistral.prototype.chat.stream).toHaveBeenCalledWith({
+    model: 'mistral-large',
+    messages: [ { role: 'system', content: 'instruction' }, { role: 'user', content: 'prompt' } ],
+  })
+  expect(stream).toBeDefined()
 })
 
 test('MistralAI addAttachmentToPayload', async () => {

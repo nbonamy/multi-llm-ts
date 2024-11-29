@@ -108,7 +108,7 @@ export default class extends LlmEngine {
     const stream = this.client.chat.stream({
       model: this.currentModel,
       messages: this.currentThread,
-      ...(tools && {
+      ...(!this.currentOpts?.disableTools && tools.length && {
         tools: tools,
         toolChoice: 'auto',
       }),
@@ -125,6 +125,9 @@ export default class extends LlmEngine {
 
    
   async *nativeChunkToLlmChunk(chunk: CompletionEvent): AsyncGenerator<LlmChunk, void, void> {
+
+    // debug
+    //console.log('[mistralai] chunk:', JSON.stringify(chunk))
 
     // tool calls
     if (chunk.data.choices[0]?.delta?.toolCalls) {
@@ -145,7 +148,6 @@ export default class extends LlmEngine {
           function: chunk.data.choices[0].delta.toolCalls[0].function.name,
           args: chunk.data.choices[0].delta.toolCalls[0].function.arguments as string,
         }
-        logger.log('[mistralai] tool call:', toolCall)
         this.toolCalls.push(toolCall)
 
         // first notify
@@ -156,14 +158,10 @@ export default class extends LlmEngine {
           done: false
         }
 
-        // done
-        return
-
       } else {
 
         const toolCall = this.toolCalls[this.toolCalls.length-1]
         toolCall.args += chunk.data.choices[0].delta.toolCalls[0].function.arguments
-        return
 
       }
 

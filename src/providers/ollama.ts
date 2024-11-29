@@ -153,7 +153,7 @@ export default class extends LlmEngine {
     const stream = this.client.chat({
       model: this.currentModel,
       messages: this.currentThread,
-      ...(this.modelSupportsTools(this.currentModel) && tools.length ? {
+      ...(!this.currentOpts?.disableTools && this.modelSupportsTools(this.currentModel) && tools.length ? {
         tools: tools,
         tool_choice: 'auto',
       } : {}),

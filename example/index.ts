@@ -81,8 +81,8 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
   // load models
   console.log('\n** Load models')
   const models = await loadModels(engine, config)
-  console.log(`${models.chat.length} chat models found`)
-  console.log(`${models.image?.length ?? 0} image models found`)
+  console.log(`${models!.chat.length} chat models found`)
+  console.log(`${models!.image?.length ?? 0} image models found`)
 
   // each demo
   await completion(llm, model, messages)

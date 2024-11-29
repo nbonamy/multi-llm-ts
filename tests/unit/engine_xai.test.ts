@@ -82,7 +82,19 @@ test('xAI stream', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
-  expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalled()
+  expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    tool_choice: 'auto',
+    tools: expect.any(Array),
+    stream: true,
+    stream_options: {
+      include_usage: false
+    }
+  })
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
@@ -100,4 +112,27 @@ test('xAI stream', async () => {
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await xai.stop(stream)
   expect(stream.controller.abort).toHaveBeenCalled()
+})
+
+test('xAI stream with tools disabled', async () => {
+  const xai = new XAI(config)
+  xai.addPlugin(new Plugin1())
+  xai.addPlugin(new Plugin2())
+  xai.addPlugin(new Plugin3())
+  const stream = await xai.stream('model', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { disableTools: true })
+  expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    stream: true,
+    stream_options: {
+      include_usage: false
+    }
+  })
+  expect(stream).toBeDefined()
 })

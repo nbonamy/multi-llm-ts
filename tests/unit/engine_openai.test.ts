@@ -237,6 +237,29 @@ test('OpenAI stream no tools for o1', async () => {
   expect(stream.controller).toBeDefined()
 })
 
+test('OpenAI stream with tools disabled', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin1())
+  openai.addPlugin(new Plugin2())
+  openai.addPlugin(new Plugin3())
+  const stream = await openai.stream('model', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { disableTools: true })
+  expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    stream: true,
+    stream_options: {
+      include_usage: false
+    }
+  })
+  expect(stream).toBeDefined()
+})
+
 test('OpenAI addAttachmentToPayload', async () => {
   const openai = new OpenAI(config)
   const message = new Message('user', 'text')

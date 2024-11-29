@@ -96,7 +96,7 @@ test('Google nativeChunkToLlmChunk Text', async () => {
     } ],
     text: vi.fn(() => 'response'),
     functionCalls: vi.fn((): FunctionCall[] => []),
-    functionCall: null,
+    functionCall: () => undefined,
   }
   for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
@@ -118,7 +118,12 @@ test('Google stream', async () => {
     new Message('user', 'prompt'),
   ])
   expect(_Google.GoogleGenerativeAI).toHaveBeenCalled()
-  expect(_Google.GoogleGenerativeAI.prototype.getGenerativeModel).toHaveBeenCalled()
+  expect(_Google.GoogleGenerativeAI.prototype.getGenerativeModel).toHaveBeenCalledWith({
+    model: 'model',
+    systemInstruction: 'instruction',
+    toolConfig: { functionCallingConfig: { mode: 'auto' } },
+    tools: expect.any(Array),
+  }, { 'apiVersion': 'v1beta', })
   expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({ contents: [{
     role: 'user',
     parts: [ { text: 'prompt' } ]
@@ -141,6 +146,26 @@ test('Google stream', async () => {
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await google.stop(stream)
   //expect(response.controller.abort).toHaveBeenCalled()
+})
+
+test('Google stream with tools disabled', async () => {
+  const google = new Google(config)
+  google.addPlugin(new Plugin1())
+  google.addPlugin(new Plugin2())
+  google.addPlugin(new Plugin3())
+  await google.stream('model', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { disableTools: true })
+  expect(_Google.GoogleGenerativeAI).toHaveBeenCalled()
+  expect(_Google.GoogleGenerativeAI.prototype.getGenerativeModel).toHaveBeenCalledWith({
+    model: 'model',
+    systemInstruction: 'instruction',
+  }, { 'apiVersion': 'v1beta', })
+  expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({ contents: [{
+    role: 'user',
+    parts: [ { text: 'prompt' } ]
+  }]})
 })
 
 test('Google Text Attachments', async () => {
