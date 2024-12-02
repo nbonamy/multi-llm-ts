@@ -1,16 +1,16 @@
 
-export interface EngineCreateOpts {
+export type EngineCreateOpts = {
   apiKey?: string
   baseURL?: string
 }
 
-export interface ModelsList {
+export type ModelsList = {
   chat: Model[]
   image?: Model[]
   embedding?: Model[]
 }
 
-export interface Model {
+export type Model = {
   id: string
   name: string
   meta?: any

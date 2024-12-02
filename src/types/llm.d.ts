@@ -3,7 +3,7 @@ import { Model } from './index.d'
 
 export type LlmRole = 'system'|'user'|'assistant'|'tool'
 
-export interface LlmResponse {
+export type LlmResponse = {
   type: 'text'|'image'
   content?: string
   original_prompt?: string
@@ -14,7 +14,7 @@ export interface LlmResponse {
 
 export type LlmStream = AsyncIterable<any>
 
-export interface LlmCompletionOpts {
+export type LlmCompletionOpts = {
   models?: Model[]
   autoSwitchVision?: boolean
   size?: '256x256' | '512x512' | '1024x1024' | '1792x1024' | '1024x1792' | null
@@ -24,7 +24,7 @@ export interface LlmCompletionOpts {
   n?: number
 }
 
-export interface LLmCompletionPayload {
+export type LLmCompletionPayload = {
   role: LlmRole
   content?: string|LlmContentPayload[]
   images?: string[]
@@ -33,19 +33,19 @@ export interface LLmCompletionPayload {
   name?: string
 }
 
-export interface LLmContentPayloadText {
+export type LLmContentPayloadText = {
   type: 'text'
   text: string
 }
 
-export interface LLmContentPayloadImageOpenai {
+export type LLmContentPayloadImageOpenai ={
   type: 'image_url'
   image_url: {
     url: string
   }
 }
 
-export interface LLmContentPayloadImageAnthropic {
+export type LLmContentPayloadImageAnthropic = {
   type: 'image'
   source?: {
     type: string
@@ -85,7 +85,7 @@ export type LlmChunkUsage = {
 
 export type LlmChunk = LlmChunkContent | LlmChunkStream | LlmChunkTool | LlmChunkUsage
 
-export interface LlmToolParameterOpenAI {
+export type LlmToolParameterOpenAI = {
   name: string
   description: string
   type: string
@@ -93,7 +93,7 @@ export interface LlmToolParameterOpenAI {
   required?: boolean
 }
 
-export interface LlmToolOpenAI {
+export type LlmToolOpenAI = {
   type: 'function'
   function: {
     name: string
@@ -108,14 +108,14 @@ export interface LlmToolOpenAI {
 
 export type LlmTool = LlmToolOpenAI
 
-export interface LlmToolCall {
+export type LlmToolCall = {
   id: string
   message: any
   function: string
   args: string
 }
 
-export interface LlmUsage {
+export type LlmUsage = {
   prompt_tokens: number
   completion_tokens: number
   prompt_tokens_details?: {
