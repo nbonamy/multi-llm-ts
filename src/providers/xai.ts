@@ -16,9 +16,13 @@ export default class extends OpenAI {
   }
 
   getVisionModels(): string[] {
-    return []
+    return [ '*vision*' ]
   }
   
+  modelSupportsTools(model: string): boolean {
+    return !model.includes('vision')
+  }
+
   async getModels(): Promise<Model[]> {
     // need an api key
     if (!this.client.apiKey) {
@@ -27,7 +31,8 @@ export default class extends OpenAI {
 
     // do it
     return [
-      { id: 'grok-beta', name: 'Grok Beta' },
+      { id: 'grok-beta', name: 'Grok 2' },
+      { id: 'grok-vision-beta', name: 'Grok Vision' },
     ]
 
   }

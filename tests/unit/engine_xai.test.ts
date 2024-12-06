@@ -57,7 +57,8 @@ beforeEach(() => {
 test('xAI Load Chat Models', async () => {
   const models = await loadXAIModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'grok-beta', name: 'Grok Beta' },
+    { id: 'grok-beta', name: 'Grok 2' },
+    { id: 'grok-vision-beta', name: 'Grok Vision' },
   ])
 })
 
@@ -71,6 +72,7 @@ test('xAI Basic', async () => {
 test('xAI Vision Models', async () => {
   const xai = new XAI(config)
   expect(xai.isVisionModel('grok-beta')).toBe(false)
+  expect(xai.isVisionModel('grok-vision-beta')).toBe(true)
 })
 
 test('xAI stream', async () => {
