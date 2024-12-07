@@ -52,6 +52,7 @@ export default class extends LlmEngine {
       'llama3-groq-tool-use',
       'llama3.1',
       'llama3.2',
+      'llama3.3',
       'mistral-large',
       'mistral-nemo',
       'mistral-small',
