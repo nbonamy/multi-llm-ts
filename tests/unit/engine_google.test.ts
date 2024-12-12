@@ -50,6 +50,7 @@ beforeEach(() => {
 test('Google Load Models', async () => {
   const models = await loadGoogleModels(config)
   expect(models.chat).toStrictEqual([
+    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
     { id: 'models/gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
     { id: 'gemini-1.5-flash-latest', name: 'Gemini  1.5 Flash' },
     { id: 'models/gemini-pro', name: 'Gemini 1.0 Pro' },
@@ -66,6 +67,7 @@ test('OpenAI Vision Model', async () => {
   expect(google.isVisionModel('models/gemini-pro')).toBe(false)
   expect(google.isVisionModel('gemini-1.5-flash-latest')).toBe(true)
   expect(google.isVisionModel('models/gemini-1.5-pro-latest')).toBe(true)
+  expect(google.isVisionModel('gemini-2.0-flash-exp')).toBe(true)
 })
 
 test('Google completion', async () => {

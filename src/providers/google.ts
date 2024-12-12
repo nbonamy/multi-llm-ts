@@ -32,7 +32,8 @@ export default class extends LlmEngine {
   getVisionModels(): string[] {
     return [
       'models/gemini-1.5-pro-latest',
-      'gemini-1.5-flash-latest'
+      'gemini-1.5-flash-latest',
+      'gemini-2.0-flash-exp'
     ]
   }
 
@@ -45,6 +46,7 @@ export default class extends LlmEngine {
 
     // do it
     return [
+      { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
       { id: 'models/gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
       { id: 'gemini-1.5-flash-latest', name: 'Gemini  1.5 Flash' },
       { id: 'models/gemini-pro', name: 'Gemini 1.0 Pro' },
