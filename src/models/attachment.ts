@@ -1,5 +1,9 @@
 
-export const textFormats = [ 'pdf', 'txt', 'docx', 'pptx', 'xlsx' ]
+export const textFormats = [
+  'txt', 'csv', 'pdf', 'docx', 'pptx', 'xlsx',
+  'json', 'js', 'html', 'css',
+  'xml', 'yaml', 'yml', 'md'
+]
 export const imageFormats = [ 'jpeg', 'jpg', 'png', 'webp' ]
 
 export default class Attachment {
@@ -59,6 +63,8 @@ export function extensionToMimeType(extension: string): string {
       return 'text/plain'
     case 'pdf':
       return 'application/pdf'
+    case 'md':
+      return 'text/markdown'
     case 'jpg':
       return 'image/jpeg'
     case 'jpeg':
@@ -78,6 +84,11 @@ export function extensionToMimeType(extension: string): string {
       return 'application/javascript'
     case 'csv':
       return 'text/csv'
+    case 'xml':
+      return 'application/xml'
+    case 'yml':
+    case 'yaml':
+      return 'application/x-yaml'
     default:
       return 'application/octet-stream'
   }
