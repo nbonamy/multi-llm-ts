@@ -56,7 +56,15 @@ export default class extends LlmEngine {
     // do it
     try {
       const response = await this.client.models.list()
-      return response.data.map((model: any) => {
+      let models = response.data
+      if (models === null || models.length === 0) {
+        // @ts-expect-error togetherai hack
+        if (response.body && Array.isArray(response.body)) {
+          // @ts-expect-error togetherai hack
+          models = response.body as OpenAI.Model[]
+        }
+      }
+      return models.map((model: any) => {
         return {
           id: model.id,
           name: model.id,

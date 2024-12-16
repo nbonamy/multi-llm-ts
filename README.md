@@ -24,9 +24,11 @@ Not all providers support a "get models" end point. Those who do are listed as `
 |**MistralAI**|`mistralai`|dynamic|yes|yes|yes|yes|yes|
 |**Ollama**|`ollama`|dynamic|yes|yes|yes|yes|yes|
 |**OpenAI**|`openai`|dynamic|yes|yes|yes<sup>1</sup>|yes<sup>1</sup>|yes|
+|**TogetherAI**<sup>2</sup>|`openai`|dynamic|yes|yes|yes<sup>1</sup>|yes<sup>1</sup>|yes|
 |**xAI**|`xai`|static|yes|yes|no|yes|yes|
 
 <div><sup>1</sup> not supported for o1 family</div>
+<div><sup>2</sup> using `openai` provider. use `https://api.together.xyz/v1` as `baseURL`
 
 ## See it in action
 
