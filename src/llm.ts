@@ -64,7 +64,7 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
 
   // report unknown models (o1 watch)
   for (const model of models) {
-    if (!model.meta?.type || !model.id.startsWith('babbage-') && !model.id.startsWith('chatgpt-') && !model.id.startsWith('gpt-') &&
+    if (!model.meta?.type && !model.id.startsWith('babbage-') && !model.id.startsWith('chatgpt-') && !model.id.startsWith('gpt-') &&
         !model.id.startsWith('dall-e-') && !model.id.startsWith('tts-') && !model.id.startsWith('whisper-') &&
         !model.id.startsWith('davinci-') && !model.id.startsWith('text-embedding-') && !model.id.startsWith('o1-')) {
       console.warn(`[openai] Unknown model type: ${model.id}`)
@@ -73,7 +73,7 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
 
   // done
   return {
-    chat: models.filter(model => model.id.startsWith('gpt-') || model.id.startsWith('o1-') || ['language', 'chat', 'code'].includes(model.meta?.type)),
+    chat: models.filter(model => model.id.startsWith('gpt-') || model.id.startsWith('o1') || ['language', 'chat', 'code'].includes(model.meta?.type)),
     image: models.filter(model => model.id.startsWith('dall-e-') || model.meta?.type === 'image')
   }
 
