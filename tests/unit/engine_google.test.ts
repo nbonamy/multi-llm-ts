@@ -64,13 +64,24 @@ test('Google Basic', async () => {
   expect(google.getName()).toBe('google')
 })
 
-test('OpenAI Vision Model', async () => {
+test('Google Vision Model', async () => {
   const google = new Google(config)
   expect(google.isVisionModel('models/gemini-pro')).toBe(false)
   expect(google.isVisionModel('gemini-1.5-flash-latest')).toBe(true)
   expect(google.isVisionModel('models/gemini-1.5-pro-latest')).toBe(true)
   expect(google.isVisionModel('gemini-2.0-flash-exp')).toBe(true)
   expect(google.isVisionModel('gemini-exp-1206')).toBe(true)
+  expect(google.isVisionModel('gemini-2.0-flash-thinking-exp-1219')).toBe(true)
+})
+
+test('Google Tools Support', async () => {
+  const google = new Google(config)
+  expect(google.supportsTools('models/gemini-pro')).toBe(true)
+  expect(google.supportsTools('gemini-1.5-flash-latest')).toBe(false)
+  expect(google.supportsTools('models/gemini-1.5-pro-latest')).toBe(true)
+  expect(google.supportsTools('gemini-2.0-flash-exp')).toBe(true)
+  expect(google.supportsTools('gemini-exp-1206')).toBe(true)
+  expect(google.supportsTools('gemini-2.0-flash-thinking-exp-1219')).toBe(false)
 })
 
 test('Google completion', async () => {

@@ -35,6 +35,7 @@ export default class extends LlmEngine {
       'gemini-1.5-flash-latest',
       'gemini-2.0-flash-exp',
       'gemini-exp-1206',
+      'gemini-2.0-flash-thinking-exp-1219'
     ]
   }
 
@@ -117,11 +118,10 @@ export default class extends LlmEngine {
     return this.modelStartsWith(model, ['models/gemini-pro']) == false
   }
 
-  private supportsTools(model: string): boolean {
-    return this.modelStartsWith(model, ['gemini-1.5-flash']) == false
+  supportsTools(model: string): boolean {
+    return this.modelStartsWith(model, ['gemini-1.5-flash']) == false && model.includes('thinking') == false
   }
 
-   
   async getModel(model: string, instructions: string): Promise<GenerativeModel> {
 
     // model params
