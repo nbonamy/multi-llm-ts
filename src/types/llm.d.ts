@@ -1,7 +1,7 @@
 
 import { Model } from './index.d'
 
-export type LlmRole = 'system'|'user'|'assistant'|'tool'
+export type LlmRole = 'system'|'developer'|'user'|'assistant'|'tool'
 
 export type LlmResponse = {
   type: 'text'|'image'

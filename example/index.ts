@@ -70,7 +70,7 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
 
   // initialize
   const engine = process.env.ENGINE ?? 'openai'
-  const model = process.env.MODEL ?? 'gpt-3.5-turbo'
+  const model = process.env.MODEL ?? 'gpt-4o-mini'
   const config: EngineCreateOpts = { apiKey: process.env.API_KEY }
   const llm = igniteEngine(engine, config)
   const messages = [

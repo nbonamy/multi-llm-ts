@@ -5,7 +5,7 @@ import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import OpenAI from '../../src/providers/openai'
-import * as _OpenAI from 'openai'
+import * as _openai from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
 import { loadOpenAIModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index.d'
@@ -13,7 +13,7 @@ import { EngineCreateOpts } from '../../src/types/index.d'
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
 vi.mock('openai', async () => {
-  const OpenAI = vi.fn((opts: _OpenAI.ClientOptions) => {
+  const OpenAI = vi.fn((opts: _openai.ClientOptions) => {
     OpenAI.prototype.apiKey = opts.apiKey
     OpenAI.prototype.baseURL = opts.baseURL
   })
@@ -81,7 +81,7 @@ beforeEach(() => {
 
 test('OpenAI Load Chat Models', async () => {
   const models = await loadOpenAIModels(config)
-  expect(_OpenAI.default.prototype.models.list).toHaveBeenCalled()
+  expect(_openai.default.prototype.models.list).toHaveBeenCalled()
   expect(models.chat).toStrictEqual([
     { id: 'gpt-model1', name: 'gpt-model1', meta: { id: 'gpt-model1' } },
     { id: 'gpt-model2', name: 'gpt-model2', meta: { id: 'gpt-model2' } },
@@ -90,7 +90,7 @@ test('OpenAI Load Chat Models', async () => {
 
 test('OpenAI Load Image Models', async () => {
   const models = await loadOpenAIModels(config)
-  expect(_OpenAI.default.prototype.models.list).toHaveBeenCalled()
+  expect(_openai.default.prototype.models.list).toHaveBeenCalled()
   expect(models.image).toStrictEqual([
     { id: 'dall-e-model1', name: 'dall-e-model1', meta: { id: 'dall-e-model1' } },
     { id: 'dall-e-model2', name: 'dall-e-model2', meta: { id: 'dall-e-model2' } },
@@ -123,7 +123,7 @@ test('OpenAI system prompt for most models', async () => {
     new Message('user', 'prompt'),
   ])
   expect(payload).toStrictEqual([
-    { role: 'system', content: 'instruction' },
+    { role: 'developer', content: 'instruction' },
     { role: 'user', content: 'prompt' },
   ])
 })
@@ -146,7 +146,7 @@ test('OpenAI completion', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
-  expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalled()
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalled()
   expect(response).toStrictEqual({
     type: 'text',
     content: 'response'
@@ -181,10 +181,10 @@ test('OpenAI stream', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
-  expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
-      { role: 'system', content: 'instruction' },
+      { role: 'developer', content: 'instruction' },
       { role: 'user', content: 'prompt' }
     ],
     tool_choice: 'auto',
@@ -225,7 +225,7 @@ test('OpenAI stream no tools for o1', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
-  expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'o1-mini',
     messages: [ { role: 'user', content: 'prompt' } ],
     stream: true,
@@ -243,10 +243,10 @@ test('OpenAI stream without tools', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
-  expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
-      { role: 'system', content: 'instruction' },
+      { role: 'developer', content: 'instruction' },
       { role: 'user', content: 'prompt' }
     ],
     stream: true,

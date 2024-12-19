@@ -1,5 +1,6 @@
 
 import { EngineCreateOpts, Model } from 'types/index.d'
+import { LlmRole } from 'types/llm'
 import OpenAI from './openai'
 
 export default class extends OpenAI {
@@ -21,6 +22,10 @@ export default class extends OpenAI {
   
   modelSupportsTools(model: string): boolean {
     return !model.includes('vision')
+  }
+
+  get systemRole(): LlmRole {
+    return 'system'
   }
 
   async getModels(): Promise<Model[]> {

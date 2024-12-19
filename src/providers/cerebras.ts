@@ -1,5 +1,6 @@
 
 import { EngineCreateOpts, Model } from 'types/index.d'
+import { LlmRole } from 'types/llm'
 import OpenAI from './openai'
 
 export default class extends OpenAI {
@@ -19,6 +20,10 @@ export default class extends OpenAI {
     return []
   }
   
+  get systemRole(): LlmRole {
+    return 'system'
+  }
+
   async getModels(): Promise<Model[]> {
     // need an api key
     if (!this.client.apiKey) {

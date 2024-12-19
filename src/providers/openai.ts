@@ -1,6 +1,6 @@
 
 import { EngineCreateOpts, Model } from 'types/index.d'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall } from 'types/llm.d'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmToolCall } from 'types/llm.d'
 import Message from '../models/message'
 import LlmEngine from '../engine'
 import logger from '../logger'
@@ -46,6 +46,10 @@ export default class extends LlmEngine {
     return !model.startsWith('o1-')
   }
 
+  get systemRole(): LlmRole {
+    return 'developer'
+  }
+
   async getModels(): Promise<Model[]> {
 
     // need an api key
@@ -87,6 +91,13 @@ export default class extends LlmEngine {
     let payload = super.buildPayload(model, thread)
     if (!this.modelAcceptsSystemRole(model)) {
       payload = payload.filter((msg: LLmCompletionPayload) => msg.role !== 'system')
+    } else if (this.systemRole !== 'system') {
+      payload = payload.map((msg: LLmCompletionPayload) => {
+        if (msg.role === 'system') {
+          msg.role = this.systemRole
+        }
+        return msg
+      })
     }
     return payload
   }

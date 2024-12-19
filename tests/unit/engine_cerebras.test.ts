@@ -53,7 +53,15 @@ test('Cerebras stream', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
-  expect(OpenAI.prototype.chat.completions.create).toHaveBeenCalled()
-  expect(OpenAI.prototype.chat.completions.create.mock.calls[0][0].tools).toBeUndefined()
-  expect(OpenAI.prototype.chat.completions.create.mock.calls[0][0].tool_choice).toBeUndefined()
+  expect(OpenAI.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    stream: true,
+    stream_options: {
+      include_usage: false
+    }
+  })
 })

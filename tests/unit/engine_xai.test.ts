@@ -4,13 +4,13 @@ import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import XAI from '../../src/providers/xai'
 import Message from '../../src/models/message'
-import * as _OpenAI from 'openai'
+import OpenAI from 'openai'
 import { loadXAIModels } from '../../src/llm'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
 vi.mock('openai', async () => {
-  const OpenAI = vi.fn((opts: _OpenAI.ClientOptions) => {
+  const OpenAI = vi.fn((opts: OpenAI.prototype.ClientOptions) => {
     OpenAI.prototype.apiKey = opts.apiKey
     OpenAI.prototype.baseURL = opts.baseURL
   })
@@ -84,7 +84,7 @@ test('xAI stream', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
-  expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+  expect(OpenAI.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
@@ -122,7 +122,7 @@ test('xAI stream without tools', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
-  expect(_OpenAI.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+  expect(OpenAI.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
