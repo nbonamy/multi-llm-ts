@@ -52,6 +52,7 @@ test('Google Load Models', async () => {
   expect(models.chat).toStrictEqual([
     { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
     { id: 'gemini-exp-1206', name: 'Gemini 2.0 Experimental (1206)' },
+    { id: 'gemini-2.0-flash-thinking-exp-1219', name: 'Gemini 2.0 Flash Thinking (1219)' },
     { id: 'models/gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
     { id: 'gemini-1.5-flash-latest', name: 'Gemini  1.5 Flash' },
     { id: 'models/gemini-pro', name: 'Gemini 1.0 Pro' },

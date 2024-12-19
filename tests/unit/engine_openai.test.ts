@@ -123,7 +123,7 @@ test('OpenAI system prompt for most models', async () => {
     new Message('user', 'prompt'),
   ])
   expect(payload).toStrictEqual([
-    { role: 'developer', content: 'instruction' },
+    { role: 'system', content: 'instruction' },
     { role: 'user', content: 'prompt' },
   ])
 })
@@ -184,7 +184,7 @@ test('OpenAI stream', async () => {
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
-      { role: 'developer', content: 'instruction' },
+      { role: 'system', content: 'instruction' },
       { role: 'user', content: 'prompt' }
     ],
     tool_choice: 'auto',
@@ -246,7 +246,7 @@ test('OpenAI stream without tools', async () => {
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
-      { role: 'developer', content: 'instruction' },
+      { role: 'system', content: 'instruction' },
       { role: 'user', content: 'prompt' }
     ],
     stream: true,

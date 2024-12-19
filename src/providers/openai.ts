@@ -47,7 +47,7 @@ export default class extends LlmEngine {
   }
 
   get systemRole(): LlmRole {
-    return 'developer'
+    return 'system'//'developer'
   }
 
   async getModels(): Promise<Model[]> {

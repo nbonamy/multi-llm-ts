@@ -138,7 +138,7 @@ test('Build payload no attachment', async () => {
     new Message('user', 'prompt2'),
     new Message('assistant', 'response2'),
   ])).toStrictEqual([
-    { role: 'developer', content: 'instructions' },
+    { role: 'system', content: 'instructions' },
     { role: 'user', content: 'prompt1' },
     { role: 'assistant', content: 'response1' },
     { role: 'user', content: 'prompt2' },
@@ -154,7 +154,7 @@ test('Build payload with text attachment', async () => {
   ]
   messages[1].attach(new Attachment('text', 'text/plain'))
   expect(openai.buildPayload('gpt-model1', messages)).toStrictEqual([
-    { role: 'developer', content: 'instructions' },
+    { role: 'system', content: 'instructions' },
     { role: 'user', content: 'prompt1\n\ntext' },
   ])
 })
@@ -167,11 +167,11 @@ test('Build payload with image attachment', async () => {
   ]
   messages[1].attach(new Attachment('image', 'image/png'))
   expect(openai.buildPayload('gpt-model1', messages)).toStrictEqual([
-    { role: 'developer', content: 'instructions' },
+    { role: 'system', content: 'instructions' },
     { role: 'user', content: 'prompt1' },
   ])
   expect(openai.buildPayload('gpt-4-vision', messages)).toStrictEqual([
-    { role: 'developer', content: 'instructions' },
+    { role: 'system', content: 'instructions' },
     { role: 'user', content: [
       { type: 'text', text: 'prompt1' },
       { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,image' } },
@@ -223,7 +223,7 @@ test('Does not switch vision by default', async () => {
   for await (const chunk of stream) { }
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model-no-tool', stream: true, stream_options: { include_usage: false },
-    messages: [ { role: 'developer', content: 'instructions' }, { role: 'user', content: 'prompt1' } ]
+    messages: [ { role: 'system', content: 'instructions' }, { role: 'user', content: 'prompt1' } ]
   })
 })
 
@@ -239,7 +239,7 @@ test('Cannot switch to vision if not models provided', async () => {
   for await (const chunk of stream) { }
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model-no-tool', stream: true, stream_options: { include_usage: false },
-    messages: [ { role: 'developer', content: 'instructions' }, { role: 'user', content: 'prompt1' } ]
+    messages: [ { role: 'system', content: 'instructions' }, { role: 'user', content: 'prompt1' } ]
   })
 })
 
@@ -255,7 +255,7 @@ test('Switches to vision when asked', async () => {
   for await (const chunk of stream) { }
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model-vision', stream: true, stream_options: { include_usage: false },
-    messages: [ { role: 'developer', content: 'instructions' }, { role: 'user', content: [
+    messages: [ { role: 'system', content: 'instructions' }, { role: 'user', content: [
       { type: 'text', text: 'prompt1' },
       { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,image' } },
     ]}]
