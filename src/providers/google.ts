@@ -97,7 +97,7 @@ export default class extends LlmEngine {
 
     logger.log(`[google] prompting model ${this.currentModel!.model}`)
     const response = await this.currentModel!.generateContentStream({
-      contents: this.currentContent
+      contents: this.currentContent,
     })
 
     // done

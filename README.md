@@ -19,13 +19,14 @@ Not all providers support a "get models" end point. Those who do are listed as `
 |---|---|---|---|---|---|--|--|
 |**Anthropic**|`anthropic`|static|yes|yes|yes|yes|yes|
 |**Cerebras**|`cerebras`|static|yes|yes|no|no|yes|
+|**DeepSeek**|`deepseek`|static|yes|yes|no|yes|yes|
 |**Google**|`google`|static|yes|yes|yes|yes|yes|
 |**Groq**|`groq`|static|yes|yes|yes|yes|yes|
 |**MistralAI**|`mistralai`|dynamic|yes|yes|yes|yes|yes|
 |**Ollama**|`ollama`|dynamic|yes|yes|yes|yes|yes|
 |**OpenAI**|`openai`|dynamic|yes|yes|yes<sup>1</sup>|yes<sup>1</sup>|yes|
 |**TogetherAI**<sup>2</sup>|`openai`|dynamic|yes|yes|yes<sup>1</sup>|yes<sup>1</sup>|yes|
-|**xAI**|`xai`|static|yes|yes|no|yes|yes|
+|**xAI**|`xai`|static|yes|yes|yes|yes|yes|
 
 <div><sup>1</sup> not supported for o1 family</div>
 <div><sup>2</sup> using `openai` provider. use `https://api.together.xyz/v1` as `baseURL`

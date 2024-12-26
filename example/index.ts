@@ -82,6 +82,9 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
   console.log('\n** Load models')
   const models = await loadModels(engine, config)
   console.log(`${models!.chat.length} chat models found`)
+  // for (const model of models!.chat) {
+  //   console.log(`- ${model.id}: ${model.name}`)
+  // }
   console.log(`${models!.image?.length ?? 0} image models found`)
 
   // each demo

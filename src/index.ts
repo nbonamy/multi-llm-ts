@@ -11,6 +11,7 @@ import LlmEngine from './engine'
 
 import Anthropic from './providers/anthropic'
 import Cerebras from './providers/cerebras'
+import DeepSeek from './providers/deepseek'
 import Google from './providers/google'
 import Groq from './providers/groq'
 import MistralAI from './providers/mistralai'
@@ -34,6 +35,7 @@ export {
   LlmEngine,
   Anthropic,
   Cerebras,
+  DeepSeek,
   Google,
   Groq,
   MistralAI,

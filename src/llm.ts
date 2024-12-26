@@ -3,6 +3,7 @@ import { EngineCreateOpts, Model, ModelsList } from 'types/index.d'
 import LlmEngine from 'engine'
 import Anthropic, { AnthropicComputerToolInfo } from './providers/anthropic'
 import Cerebreas from './providers/cerebras'
+import DeepSeek from './providers/deepseek'
 import Google from './providers/google'
 import Groq from './providers/groq'
 import MistralAI from './providers/mistralai'
@@ -13,6 +14,7 @@ import XAI from './providers/xai'
 export const igniteEngine = (engine: string, config: EngineCreateOpts): LlmEngine => {
   if (engine === 'anthropic') return new Anthropic(config)
   if (engine === 'cerebras') return new Cerebreas(config)
+  if (engine === 'deepseek') return new DeepSeek(config)
   if (engine === 'google') return new Google(config)
   if (engine === 'groq') return new Groq(config)
   if (engine === 'mistralai') return new MistralAI(config)
@@ -25,6 +27,7 @@ export const igniteEngine = (engine: string, config: EngineCreateOpts): LlmEngin
 export const loadModels = async (engine: string, config: EngineCreateOpts): Promise<ModelsList|null> => {
   if (engine === 'anthropic') return await loadAnthropicModels(config)
   if (engine === 'cerebras') return await loadCerebrasModels(config)
+  if (engine === 'deepseek') return await loadDeepSeekModels(config)
   if (engine === 'google') return await loadGoogleModels(config)
   if (engine === 'groq') return await loadGroqModels(config)
   if (engine === 'mistralai') return await loadMistralAIModels(config)
@@ -63,6 +66,9 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
     .sort((a, b) => a.name.localeCompare(b.name))
 
   // report unknown models (o1 watch)
+  // for (const model of models) {
+  //   console.log(model.id)
+  // }
   for (const model of models) {
     if (!model.meta?.type && !model.id.startsWith('babbage-') && !model.id.startsWith('chatgpt-') && !model.id.startsWith('gpt-') &&
         !model.id.startsWith('dall-e-') && !model.id.startsWith('tts-') && !model.id.startsWith('whisper-') &&
@@ -235,6 +241,28 @@ export const loadXAIModels = async (engineConfig: EngineCreateOpts): Promise<Mod
 
   try {
     const xai = new XAI(engineConfig)
+    models = await xai.getModels()
+  } catch (error) {
+    console.error('Error listing xAI models:', error);
+  }
+  if (!models) {
+    return null
+  }
+
+  // done
+  return {
+    chat: models
+    //.sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+}
+
+export const loadDeepSeekModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
+  
+  let models: Model[] = []
+
+  try {
+    const xai = new DeepSeek(engineConfig)
     models = await xai.getModels()
   } catch (error) {
     console.error('Error listing xAI models:', error);
