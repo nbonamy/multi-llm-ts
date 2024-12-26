@@ -1,5 +1,5 @@
 
-import { EngineCreateOpts, Model } from 'types/index.d'
+import { EngineCreateOpts, Model } from 'types/index'
 import { LlmRole } from 'types/llm'
 import OpenAI from './openai'
 

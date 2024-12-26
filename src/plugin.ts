@@ -1,5 +1,5 @@
 
-import { PluginParameter } from 'types/plugin.d'
+import { PluginParameter } from 'types/plugin'
 
 export default class Plugin {
 

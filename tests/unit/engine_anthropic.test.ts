@@ -7,7 +7,7 @@ import Anthropic from '../../src/providers/anthropic'
 import * as _Anthropic from '@anthropic-ai/sdk'
 import { MessageParam } from '@anthropic-ai/sdk/resources'
 import { loadAnthropicModels } from '../../src/llm'
-import { EngineCreateOpts } from '../../src/types/index.d'
+import { EngineCreateOpts } from '../../src/types/index'
 import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))

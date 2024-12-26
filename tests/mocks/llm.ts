@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import Message from '../../src/models/message'
-import { EngineCreateOpts } from '../../src/types/index.d'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from '../../src/types/llm.d'
+import { EngineCreateOpts } from '../../src/types/index'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from '../../src/types/llm'
 import LlmEngine from '../../src/engine'
 import RandomChunkStream from './stream'
 

@@ -1,7 +1,7 @@
 
-export * from './types/index.d'
-export * from './types/plugin.d'
-export * from './types/llm.d'
+export * from './types/index'
+export * from './types/plugin'
+export * from './types/llm'
 
 import Attachment, { textFormats, imageFormats, extensionToMimeType, mimeTypeToExtension } from './models/attachment'
 import Message from './models/message'

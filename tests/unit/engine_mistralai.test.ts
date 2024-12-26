@@ -1,5 +1,5 @@
 
-import { LlmChunkContent, LLmCompletionPayload } from '../../src/types/llm.d'
+import { LlmChunkContent, LLmCompletionPayload } from '../../src/types/llm'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
@@ -8,7 +8,7 @@ import MistralAI from '../../src/providers/mistralai'
 import { Mistral } from '@mistralai/mistralai'
 import { CompletionEvent } from '@mistralai/mistralai/models/components'
 import { loadMistralAIModels } from '../../src/llm'
-import { EngineCreateOpts } from '../../src/types/index.d'
+import { EngineCreateOpts } from '../../src/types/index'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 

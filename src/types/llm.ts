@@ -1,5 +1,5 @@
 
-import { Model } from './index.d'
+import { Model } from './index'
 
 export type LlmRole = 'system'|'developer'|'user'|'assistant'|'tool'
 

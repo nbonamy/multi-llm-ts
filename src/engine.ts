@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { EngineCreateOpts, Model, ModelsList } from 'types/index.d'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmStream, LlmChunk, LlmTool } from 'types/llm.d'
-import { PluginParameter } from 'types/plugin.d'
+import { EngineCreateOpts, Model, ModelsList } from 'types/index'
+import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmStream, LlmChunk, LlmTool } from 'types/llm'
+import { PluginParameter } from 'types/plugin'
 import { minimatch } from 'minimatch'
 import Message from './models/message'
 import Plugin from './plugin'

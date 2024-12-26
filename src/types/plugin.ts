@@ -1,4 +1,4 @@
 
-import { LlmToolParameterOpenAI } from './llm.d'
+import { LlmToolParameterOpenAI } from './llm'
 
 export type PluginParameter = LlmToolParameterOpenAI

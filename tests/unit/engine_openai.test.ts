@@ -1,5 +1,5 @@
 
-import { LLmCompletionPayload } from '../../src/types/llm.d'
+import { LLmCompletionPayload } from '../../src/types/llm'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
@@ -8,7 +8,7 @@ import OpenAI from '../../src/providers/openai'
 import * as _openai from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
 import { loadOpenAIModels } from '../../src/llm'
-import { EngineCreateOpts } from '../../src/types/index.d'
+import { EngineCreateOpts } from '../../src/types/index'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 

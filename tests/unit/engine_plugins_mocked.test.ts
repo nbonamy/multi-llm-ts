@@ -2,7 +2,7 @@
 import { beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import OpenAI from '../../src/providers/openai'
-import { EngineCreateOpts } from '../../src/types/index.d'
+import { EngineCreateOpts } from '../../src/types/index'
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {

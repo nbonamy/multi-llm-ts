@@ -1,5 +1,5 @@
 
-import { LlmChunk } from '../../src/types/llm.d'
+import { LlmChunk } from '../../src/types/llm'
 import { vi, expect, test } from 'vitest'
 import { igniteEngine, hasVisionModels } from '../../src/llm'
 import { Plugin1, Plugin2 } from '../mocks/plugins'

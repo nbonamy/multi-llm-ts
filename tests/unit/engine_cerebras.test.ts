@@ -4,7 +4,7 @@ import Cerebras from '../../src/providers/cerebras'
 import Message from '../../src/models/message'
 import OpenAI, { ClientOptions } from 'openai'
 import { loadCerebrasModels } from '../../src/llm'
-import { EngineCreateOpts } from '../../src/types/index.d'
+import { EngineCreateOpts } from '../../src/types/index'
 
 vi.mock('openai', async () => {
   const OpenAI = vi.fn((opts: ClientOptions) => {

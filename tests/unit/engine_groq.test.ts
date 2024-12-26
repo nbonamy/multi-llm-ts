@@ -4,7 +4,7 @@ import Message from '../../src/models/message'
 import Groq from '../../src/providers/groq'
 import { ChatCompletionChunk } from 'groq-sdk/resources/chat'
 import { loadGroqModels } from '../../src/llm'
-import { EngineCreateOpts } from '../../src/types/index.d'
+import { EngineCreateOpts } from '../../src/types/index'
 
 vi.mock('groq-sdk', async() => {
   const Groq = vi.fn()

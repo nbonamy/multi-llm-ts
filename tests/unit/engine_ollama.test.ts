@@ -1,12 +1,12 @@
 
-import { LLmCompletionPayload } from '../../src/types/llm.d'
+import { LLmCompletionPayload } from '../../src/types/llm'
 import { vi, beforeEach, expect, test } from 'vitest'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import Ollama from '../../src/providers/ollama'
 import * as _ollama from 'ollama/dist/browser.cjs'
 import { loadOllamaModels } from '../../src/llm'
-import { EngineCreateOpts } from '../../src/types/index.d'
+import { EngineCreateOpts } from '../../src/types/index'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))

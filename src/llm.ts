@@ -1,5 +1,5 @@
 
-import { EngineCreateOpts, Model, ModelsList } from 'types/index.d'
+import { EngineCreateOpts, Model, ModelsList } from 'types/index'
 import LlmEngine from 'engine'
 import Anthropic, { AnthropicComputerToolInfo } from './providers/anthropic'
 import Cerebreas from './providers/cerebras'

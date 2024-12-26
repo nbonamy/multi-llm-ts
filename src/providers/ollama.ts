@@ -1,6 +1,6 @@
 
-import { EngineCreateOpts, Model, ModelsList } from 'types/index.d'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LlmUsage } from 'types/llm.d'
+import { EngineCreateOpts, Model, ModelsList } from 'types/index'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LlmUsage } from 'types/llm'
 import Message from '../models/message'
 import LlmEngine from '../engine'
 import logger from '../logger'
