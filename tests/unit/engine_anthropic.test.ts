@@ -4,11 +4,11 @@ import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import Anthropic from '../../src/providers/anthropic'
-import * as _Anthropic from '@anthropic-ai/sdk'
-import { MessageParam } from '@anthropic-ai/sdk/resources'
 import { loadAnthropicModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
 import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
+import { MessageParam } from '@anthropic-ai/sdk/resources'
+import * as _Anthropic from '@anthropic-ai/sdk'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 

@@ -9,6 +9,7 @@ import Groq from './providers/groq'
 import MistralAI from './providers/mistralai'
 import Ollama from './providers/ollama'
 import OpenAI from './providers/openai'
+import OpenRouter from './providers/openrouter'
 import XAI from './providers/xai'
 
 export const igniteEngine = (engine: string, config: EngineCreateOpts): LlmEngine => {
@@ -20,6 +21,7 @@ export const igniteEngine = (engine: string, config: EngineCreateOpts): LlmEngin
   if (engine === 'mistralai') return new MistralAI(config)
   if (engine === 'ollama') return new Ollama(config)
   if (engine === 'openai') return new OpenAI(config)
+  if (engine === 'openrouter') return new OpenRouter(config)
   if (engine === 'xai') return new XAI(config)
   throw new Error('Unknown engine: ' + engine)
 }
@@ -33,6 +35,7 @@ export const loadModels = async (engine: string, config: EngineCreateOpts): Prom
   if (engine === 'mistralai') return await loadMistralAIModels(config)
   if (engine === 'ollama') return await loadOllamaModels(config)
   if (engine === 'openai') return await loadOpenAIModels(config)
+  if (engine === 'openrouter') return await loadOpenRouterModels(config)
   if (engine === 'xai') return await loadXAIModels(config)
   throw new Error('Unknown engine: ' + engine)
 }
@@ -262,10 +265,10 @@ export const loadDeepSeekModels = async (engineConfig: EngineCreateOpts): Promis
   let models: Model[] = []
 
   try {
-    const xai = new DeepSeek(engineConfig)
-    models = await xai.getModels()
+    const deepseek = new DeepSeek(engineConfig)
+    models = await deepseek.getModels()
   } catch (error) {
-    console.error('Error listing xAI models:', error);
+    console.error('Error listing DeepSeek models:', error);
   }
   if (!models) {
     return null
@@ -275,6 +278,29 @@ export const loadDeepSeekModels = async (engineConfig: EngineCreateOpts): Promis
   return {
     chat: models
     //.sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+}
+
+
+export const loadOpenRouterModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
+  
+  let models: Model[] = []
+
+  try {
+    const openrouter = new OpenRouter(engineConfig)
+    models = await openrouter.getModels()
+  } catch (error) {
+    console.error('Error listing OpenRouter models:', error);
+  }
+  if (!models) {
+    return null
+  }
+
+  // done
+  return {
+    chat: models.filter((m) => m.meta?.architecture?.modality.split('>').pop().includes('text')).sort((a, b) => a.name.localeCompare(b.name)),
+    image: models.filter((m) => m.meta?.architecture?.modality.split('>').pop().includes('image')).sort((a, b) => a.name.localeCompare(b.name))
   }
 
 }

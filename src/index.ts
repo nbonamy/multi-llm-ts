@@ -17,6 +17,7 @@ import Groq from './providers/groq'
 import MistralAI from './providers/mistralai'
 import Ollama from './providers/ollama'
 import OpenAI from './providers/openai'
+import OpenRouter from './providers/openrouter'
 import XAI from './providers/xai'
 
 export * from './llm'
@@ -41,6 +42,7 @@ export {
   MistralAI,
   Ollama,
   OpenAI,
+  OpenRouter,
   XAI,
   textFormats,
   imageFormats,

@@ -2,9 +2,9 @@
 import { EngineCreateOpts } from '../../src/types/index'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
-import { loadXAIModels } from '../../src/llm'
+import { loadOpenRouterModels } from '../../src/llm'
+import OpenRouter from '../../src/providers/openrouter'
 import Message from '../../src/models/message'
-import XAI from '../../src/providers/xai'
 import OpenAI from 'openai'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
@@ -14,6 +14,17 @@ vi.mock('openai', async () => {
     OpenAI.prototype.apiKey = opts.apiKey
     OpenAI.prototype.baseURL = opts.baseURL
   })
+  OpenAI.prototype.models = {
+    list: vi.fn(() => {
+      return {
+        data: [
+          { id: 'chat1', name: 'chat1', architecture: { modality: 'text-->text' } },
+          { id: 'chat2', name: 'chat2', architecture: { modality: 'text+image-->text' } },
+          { id: 'image', name: 'image', architecture: { modality: 'text-->image' } },
+        ]
+      }
+    })
+  }
   OpenAI.prototype.chat = {
     completions: {
       create: vi.fn((opts) => {
@@ -54,33 +65,38 @@ beforeEach(() => {
   }
 })
 
-test('xAI Load Chat Models', async () => {
-  const models = await loadXAIModels(config)
+test('OpenRouter Load Chat Models', async () => {
+  const models = await loadOpenRouterModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'grok-beta', name: 'Grok 2' },
-    { id: 'grok-vision-beta', name: 'Grok Vision' },
+    { id: 'chat1', name: 'chat1', meta: { id: 'chat1', name: 'chat1', architecture: { modality: 'text-->text' } } },
+    { id: 'chat2', name: 'chat2', meta: { id: 'chat2', name: 'chat2', architecture: { modality: 'text+image-->text' } } },
+  ])
+  expect(models.image).toStrictEqual([
+    { id: 'image', name: 'image', meta: { id: 'image', name: 'image', architecture: { modality: 'text-->image' } } },
   ])
 })
 
-test('xAI Basic', async () => {
-  const xai = new XAI(config)
-  expect(xai.getName()).toBe('xai')
-  expect(xai.client.apiKey).toBe('123')
-  expect(xai.client.baseURL).toBe('https://api.x.ai/v1')
+test('OpenRouter Basic', async () => {
+  const openrouter = new OpenRouter(config)
+  expect(openrouter.getName()).toBe('openrouter')
+  expect(openrouter.client.apiKey).toBe('123')
+  expect(openrouter.client.baseURL).toBe('https://openrouter.ai/api/v1')
 })
 
-test('xAI Vision Models', async () => {
-  const xai = new XAI(config)
-  expect(xai.isVisionModel('grok-beta')).toBe(false)
-  expect(xai.isVisionModel('grok-vision-beta')).toBe(true)
+test('OpenRouter Vision Models', async () => {
+  const openrouter = new OpenRouter(config)
+  await openrouter.initVisionModels()
+  expect(openrouter.isVisionModel('chat1')).toBe(false)
+  expect(openrouter.isVisionModel('chat2')).toBe(true)
+  expect(openrouter.isVisionModel('image')).toBe(false)
 })
 
-test('xAI stream', async () => {
-  const xai = new XAI(config)
-  xai.addPlugin(new Plugin1())
-  xai.addPlugin(new Plugin2())
-  xai.addPlugin(new Plugin3())
-  const stream = await xai.stream('model', [
+test('OpenRouter stream', async () => {
+  const openrouter = new OpenRouter(config)
+  openrouter.addPlugin(new Plugin1())
+  openrouter.addPlugin(new Plugin2())
+  openrouter.addPlugin(new Plugin3())
+  const stream = await openrouter.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
@@ -102,7 +118,7 @@ test('xAI stream', async () => {
   let response = ''
   const toolCalls = []
   for await (const chunk of stream) {
-    for await (const msg of xai.nativeChunkToLlmChunk(chunk)) {
+    for await (const msg of openrouter.nativeChunkToLlmChunk(chunk)) {
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
     }
@@ -112,13 +128,13 @@ test('xAI stream', async () => {
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'prep2', done: false })
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'run2', done: false })
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
-  await xai.stop(stream)
+  await openrouter.stop(stream)
   expect(stream.controller.abort).toHaveBeenCalled()
 })
 
-test('xAI stream without tools', async () => {
-  const xai = new XAI(config)
-  const stream = await xai.stream('model', [
+test('OpenRouter stream without tools', async () => {
+  const openrouter = new OpenRouter(config)
+  const stream = await openrouter.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
