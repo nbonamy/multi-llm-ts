@@ -135,7 +135,7 @@ export default class extends LlmEngine {
 
     // save the opts and do it
     this.currentOpts = opts || null
-    this.currentUsage = { input_tokens: 0, output_tokens: 0 }
+    this.currentUsage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
     return await this.doStream()
 
   }

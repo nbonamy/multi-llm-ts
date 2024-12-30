@@ -41,9 +41,9 @@ export default class extends LlmEngine {
   async getModels(): Promise<Model[]> {
 
     // need an api key
-    if (!this.client.options$.apiKey) {
-      return []
-    }
+    // if (!this.client.options$.apiKey) {
+    //   return []
+    // }
 
     // do it
     try {
@@ -73,7 +73,7 @@ export default class extends LlmEngine {
     // return an object
     return {
       type: 'text',
-      content: response.choices?.[0].message.content || '',
+      content: response.choices?.[0].message.content as string || '',
       ...(opts?.usage ? { usage: {
         prompt_tokens: response.usage.promptTokens,
         completion_tokens: response.usage.completionTokens,
@@ -230,7 +230,7 @@ export default class extends LlmEngine {
     // default
     yield {
       type: 'content',
-      text: chunk.data.choices[0].delta.content || '',
+      text: chunk.data.choices[0].delta.content as string || '',
       done: chunk.data.choices[0].finishReason != null
     }
 
