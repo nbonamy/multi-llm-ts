@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { EngineCreateOpts, Model, ModelsList } from 'types/index'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmStream, LlmChunk, LlmTool } from 'types/llm'
-import { PluginParameter } from 'types/plugin'
 import { minimatch } from 'minimatch'
+import { EngineCreateOpts, Model, ModelsList } from 'types/index'
+import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmTool } from 'types/llm'
+import { PluginParameter } from 'types/plugin'
 import Message from './models/message'
 import Plugin from './plugin'
 
@@ -91,7 +91,6 @@ export default class LlmEngine {
 
   protected async *nativeChunkToLlmChunk(chunk: any): AsyncGenerator<LlmChunk, void, void> {
     throw new Error('Not implemented')
-    yield { type: 'content', text: '', done: true }
   }
 
   protected requiresVisionModelSwitch(thread: Message[], currentModel: string): boolean {
@@ -224,6 +223,25 @@ export default class LlmEngine {
   // it is now almost a de facto standard and other providers
   // are following it such as MistralAI and others
   protected getPluginAsTool(plugin: Plugin): LlmTool {
+
+    const emptyProperty = {
+      type: "object",
+      properties: {},
+      required: [],
+    }
+
+    const pluginParameters = plugin.getParameters()
+    const properties = pluginParameters?.length ? pluginParameters.reduce((obj: any, param: PluginParameter) => {
+      obj[param.name] = {
+        type: param.type,
+        enum: param.enum,
+        description: param.description,
+      }
+      return obj
+    }, {}) : emptyProperty
+
+    const required = pluginParameters?.length ? plugin.getParameters().filter(param => param.required).map(param => param.name) : []
+
     return {
       type: 'function',
       function: {
@@ -231,15 +249,8 @@ export default class LlmEngine {
         description: plugin.getDescription(),
         parameters: {
           type: 'object',
-          properties: plugin.getParameters().reduce((obj: any, param: PluginParameter) => {
-            obj[param.name] = {
-              type: param.type,
-              enum: param.enum,
-              description: param.description,
-            }
-            return obj
-          }, {}),
-          required: plugin.getParameters().filter(param => param.required).map(param => param.name),
+          properties,
+          required,
         },
       },
     }
