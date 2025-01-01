@@ -2,7 +2,7 @@
 
 import { minimatch } from 'minimatch'
 import { EngineCreateOpts, Model, ModelsList } from 'types/index'
-import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmTool } from 'types/llm'
+import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmTool, LlmToolOpenAI } from 'types/llm'
 import { PluginParameter } from 'types/plugin'
 import Message from './models/message'
 import Plugin from './plugin'
@@ -223,37 +223,34 @@ export default class LlmEngine {
   // it is now almost a de facto standard and other providers
   // are following it such as MistralAI and others
   protected getPluginAsTool(plugin: Plugin): LlmTool {
-
-    const emptyProperty = {
-      type: "object",
-      properties: {},
-      required: [],
-    }
-
     const pluginParameters = plugin.getParameters()
-    const properties = pluginParameters?.length ? pluginParameters.reduce((obj: any, param: PluginParameter) => {
-      obj[param.name] = {
-        type: param.type,
-        enum: param.enum,
-        description: param.description,
-      }
-      return obj
-    }, {}) : emptyProperty
 
-    const required = pluginParameters?.length ? plugin.getParameters().filter(param => param.required).map(param => param.name) : []
-
-    return {
+    const toolSignature = {
       type: 'function',
       function: {
         name: plugin.getName(),
         description: plugin.getDescription(),
         parameters: {
           type: 'object',
-          properties,
-          required,
+          properties: pluginParameters.reduce((obj: any, param: PluginParameter) => {
+            obj[param.name] = {
+              type: param.type,
+              enum: param.enum,
+              description: param.description,
+            }
+            if (param.type === 'array') {
+              obj[param.name].items = param.items || { type: 'object' }
+            }
+            return obj
+          }, {}),
+          required: pluginParameters.filter(param => param.required).map(param => param.name),
         },
       },
     }
+
+    // console.warn(`tool ${plugin.getName()} signature`, JSON.stringify(toolSignature, null, 2))
+
+    return toolSignature as LlmToolOpenAI
   }
 
   protected getToolPreparationDescription(tool: string): string {

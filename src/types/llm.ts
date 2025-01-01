@@ -91,6 +91,7 @@ export type LlmToolParameterOpenAI = {
   type: string
   enum?: string[]
   required?: boolean
+  items?: any
 }
 
 export type LlmToolOpenAI = {
