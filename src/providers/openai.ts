@@ -184,10 +184,10 @@ export default class extends LlmEngine {
     if (chunk.choices[0]?.delta?.tool_calls?.[0].function) {
 
       // arguments or new tool?
-      if (chunk.choices[0].delta.tool_calls[0].id) {
+      if (chunk.choices[0].delta.tool_calls[0].id !== null && chunk.choices[0].delta.tool_calls[0].id !== undefined) {
 
         // debug
-        //logger.log('[${this.getName()}] tool call start:', chunk)
+        //logger.log(`[${this.getName()}] tool call start:`, chunk)
 
         // record the tool call
         const toolCall: LlmToolCall = {
@@ -210,13 +210,16 @@ export default class extends LlmEngine {
         }
 
         // done
-        return
+        //return
       
       } else {
 
+        // append arguments
         const toolCall = this.toolCalls[this.toolCalls.length-1]
         toolCall.args += chunk.choices[0].delta.tool_calls[0].function.arguments
-        return
+
+        // done
+        //return
 
       }
 
@@ -288,7 +291,7 @@ export default class extends LlmEngine {
     }
 
     // text chunk
-    if (chunk.choices?.length) {
+    if (chunk.choices?.length && (chunk.choices[0]?.delta?.content || done)) {
       yield {
         type: 'content',
         text: chunk.choices[0]?.delta?.content || '',
