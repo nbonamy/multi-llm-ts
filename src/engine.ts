@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { EngineCreateOpts, Model, ModelsList } from 'types/index'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmStream, LlmChunk, LlmTool } from 'types/llm'
+import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmStream, LlmChunk, LlmTool, LlmToolArrayItem } from 'types/llm'
 import { PluginParameter } from 'types/plugin'
 import { minimatch } from 'minimatch'
 import Message from './models/message'
@@ -89,9 +89,9 @@ export default class LlmEngine {
     throw new Error('Not implemented')
   }
 
+  // eslint-disable-next-line require-yield
   protected async *nativeChunkToLlmChunk(chunk: any): AsyncGenerator<LlmChunk, void, void> {
     throw new Error('Not implemented')
-    yield { type: 'content', text: '', done: true }
   }
 
   protected requiresVisionModelSwitch(thread: Message[], currentModel: string): boolean {
@@ -232,10 +232,39 @@ export default class LlmEngine {
         parameters: {
           type: 'object',
           properties: plugin.getParameters().reduce((obj: any, param: PluginParameter) => {
+
+            // basic stuff
             obj[param.name] = {
               type: param.type,
-              enum: param.enum,
               description: param.description,
+            }
+
+            // enum is optional
+            if (param.enum) {
+              obj[param.name].enum = param.enum
+            }
+
+            // array can have no items => object
+            // no properties => just a type
+            // or an object with properties
+            if (param.type === 'array') {
+              if (!param.items) {
+                obj[param.name].items = { type: 'object' }
+              } else if (!param.items.properties) {
+                obj[param.name].items = { type: param.items.type }
+              } else {
+                obj[param.name].items = {
+                  type: param.items.type || 'object',
+                  properties: param.items.properties.reduce((obj: any, prop: LlmToolArrayItem) => {
+                    obj[prop.name] = {
+                      type: prop.type,
+                      description: prop.description,
+                    }
+                    return obj
+                  }, {}),
+                  required: param.items.properties.filter((prop: LlmToolArrayItem) => prop.required).map(prop => prop.name),
+                }
+              }
             }
             return obj
           }, {}),

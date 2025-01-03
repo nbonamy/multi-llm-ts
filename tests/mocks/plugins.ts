@@ -1,4 +1,5 @@
 
+import { PluginParameter } from '../../src/types/plugin'
 import Plugin from '../../src/plugin'
 
 export class Plugin1 extends Plugin {
@@ -19,7 +20,7 @@ export class Plugin1 extends Plugin {
     return 'run1'
   }
 
-  getParameters(): any[] {
+  getParameters(): PluginParameter[] {
     return []
   }
 
@@ -51,7 +52,7 @@ export class Plugin2 extends Plugin {
     return 'run2'
   }
 
-  getParameters(): any[] {
+  getParameters(): PluginParameter[] {
     return [
       {
         name: 'param1',
@@ -63,6 +64,41 @@ export class Plugin2 extends Plugin {
         name: 'param2',
         type: 'number',
         description: 'Parameter 2',
+        required: false
+      },
+      {
+        name: 'param3',
+        type: 'array',
+        description: 'Parameter 3',
+        required: true
+      },
+      {
+        name: 'param4',
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Parameter 4',
+        required: false
+      },
+      {
+        name: 'param5',
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: [
+            {
+              name: 'key',
+              type: 'string',
+              description: 'Key',
+              required: true
+            },
+            {
+              name: 'value',
+              type: 'number',
+              description: 'Value',
+            },
+          ],
+        },
+        description: 'Parameter 5',
         required: false
       }
     ]
@@ -83,19 +119,19 @@ export class Plugin3 extends Plugin {
     return 'Plugin 3'
   }
 
-  getParameters(): any[] {
+  getParameters(): PluginParameter[] {
     return []
   }
 }
 
-export class Plugin4 extends Plugin {
+export class CustomPlugin extends Plugin {
 
   isEnabled(): boolean {
     return true
   }
   
   getName(): string {
-    return 'plugin4'
+    return 'custom'
   }
 
   isCustomTool(): boolean {
@@ -103,15 +139,15 @@ export class Plugin4 extends Plugin {
   }
 
   getDescription(): string {
-    return 'Plugin 4'
+    return 'Plugin Custom'
   }
 
   async getTools(): Promise<any|any[]> {
     return {
       type: 'function',
       function: {
-        name: 'plugin4',
-        description: 'Plugin 4',
+        name: 'custom',
+        description: 'Plugin Custom',
         parameters: {
           type: 'object',
           properties: { },

@@ -1,6 +1,6 @@
 
 import { beforeEach, expect, test } from 'vitest'
-import { Plugin1, Plugin2, Plugin3, Plugin4 } from '../mocks/plugins'
+import { Plugin1, Plugin2, Plugin3, CustomPlugin } from '../mocks/plugins'
 import OpenAI from '../../src/providers/openai'
 import { EngineCreateOpts } from '../../src/types/index'
 
@@ -59,16 +59,42 @@ test('OpenAI Functions', async () => {
           properties: {
             'param1': {
               type: 'string',
-              'enum': undefined,
               description: 'Parameter 1',
             },
             'param2': {
               type: 'number',
-              'enum': undefined,
               description: 'Parameter 2',
             },
+            'param3': {
+              type: 'array',
+              description: 'Parameter 3',
+              items: { type: 'object' },
+            },
+            'param4': {
+              type: 'array',
+              description: 'Parameter 4',
+              items: { type: 'string' },
+            },
+            'param5': {
+              type: 'array',
+              description: 'Parameter 5',
+              items: {
+                type: 'object',
+                properties: {
+                  'key': {
+                    type: 'string',
+                    description: 'Key',
+                  },
+                  'value': {
+                    type: 'number',
+                    description: 'Value',
+                  },
+                },
+                required: ['key'],
+              }
+            },
           },
-          required: ['param1'],
+          required: ['param1', 'param3'],
         },
       },
     },
@@ -77,14 +103,14 @@ test('OpenAI Functions', async () => {
 
 test('Custom Tools', async () => {
   const llm = new OpenAI(config)
-  llm.addPlugin(new Plugin4())
+  llm.addPlugin(new CustomPlugin())
 
   expect(await llm.getAvailableTools()).toStrictEqual([
     {
       type: 'function',
       function: {
-        name: 'plugin4',
-        description: 'Plugin 4',
+        name: 'custom',
+        description: 'Plugin Custom',
         parameters: {
           type: 'object',
           properties: { },

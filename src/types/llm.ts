@@ -85,11 +85,24 @@ export type LlmChunkUsage = {
 
 export type LlmChunk = LlmChunkContent | LlmChunkStream | LlmChunkTool | LlmChunkUsage
 
+export type LlmToolArrayItem = {
+  name: string
+  type: string
+  description: string
+  required?: boolean
+}
+
+export type LlmToolArrayItems = {
+  type: string
+  properties?: LlmToolArrayItem[]
+}
+
 export type LlmToolParameterOpenAI = {
   name: string
-  description: string
   type: string
+  description: string
   enum?: string[]
+  items?: LlmToolArrayItems
   required?: boolean
 }
 
