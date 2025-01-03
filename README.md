@@ -25,6 +25,7 @@ Not all providers support a "get models" end point. Those who do are listed as `
 |**MistralAI**|`mistralai`|dynamic|yes|yes|yes|yes|yes|
 |**Ollama**|`ollama`|dynamic|yes|yes|yes|yes|yes|
 |**OpenAI**|`openai`|dynamic|yes|yes|yes<sup>1</sup>|yes<sup>1</sup>|yes|
+|**OpenRouter**|`openrouter`|dynamic|yes|yes|yes|yes|yes|
 |**TogetherAI**<sup>2</sup>|`openai`|dynamic|yes|yes|yes<sup>1</sup>|yes<sup>1</sup>|yes|
 |**xAI**|`xai`|static|yes|yes|yes|yes|yes|
 
