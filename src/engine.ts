@@ -206,7 +206,7 @@ export default class LlmEngine {
       }
 
       // others
-      if (plugin.isMultiTool()) {
+      if (plugin.isMultiTool() || plugin.isCustomTool()) {
         const pluginAsTool = await plugin.getTools()
         if (Array.isArray(pluginAsTool)) {
           tools.push(...pluginAsTool)

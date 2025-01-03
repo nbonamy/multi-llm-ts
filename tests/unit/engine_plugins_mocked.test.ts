@@ -1,6 +1,6 @@
 
 import { beforeEach, expect, test } from 'vitest'
-import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
+import { Plugin1, Plugin2, Plugin3, Plugin4 } from '../mocks/plugins'
 import OpenAI from '../../src/providers/openai'
 import { EngineCreateOpts } from '../../src/types/index'
 
@@ -73,4 +73,25 @@ test('OpenAI Functions', async () => {
       },
     },
   ])
+})
+
+test('Custom Tools', async () => {
+  const llm = new OpenAI(config)
+  llm.addPlugin(new Plugin4())
+
+  expect(await llm.getAvailableTools()).toStrictEqual([
+    {
+      type: 'function',
+      function: {
+        name: 'plugin4',
+        description: 'Plugin 4',
+        parameters: {
+          type: 'object',
+          properties: { },
+          required: [],
+        },
+      },
+    },
+  ])
+
 })

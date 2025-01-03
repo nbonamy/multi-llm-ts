@@ -11,6 +11,10 @@ export default class Plugin {
     return false
   }
 
+  isCustomTool(): boolean {
+    return false
+  }
+
   isMultiTool(): boolean {
     return false
   }

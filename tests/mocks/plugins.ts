@@ -87,3 +87,37 @@ export class Plugin3 extends Plugin {
     return []
   }
 }
+
+export class Plugin4 extends Plugin {
+
+  isEnabled(): boolean {
+    return true
+  }
+  
+  getName(): string {
+    return 'plugin4'
+  }
+
+  isCustomTool(): boolean {
+    return true
+  }
+
+  getDescription(): string {
+    return 'Plugin 4'
+  }
+
+  async getTools(): Promise<any|any[]> {
+    return {
+      type: 'function',
+      function: {
+        name: 'plugin4',
+        description: 'Plugin 4',
+        parameters: {
+          type: 'object',
+          properties: { },
+          required: [],
+        },
+      },
+    }
+  }
+}
