@@ -68,24 +68,51 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
   models = models
     .sort((a, b) => a.name.localeCompare(b.name))
 
-  // report unknown models (o1 watch)
-  // for (const model of models) {
-  //   console.log(model.id)
-  // }
-  for (const model of models) {
-    if (!model.meta?.type && !model.id.startsWith('babbage-') && !model.id.startsWith('chatgpt-') && !model.id.startsWith('gpt-') &&
-        !model.id.startsWith('dall-e-') && !model.id.startsWith('tts-') && !model.id.startsWith('whisper-') &&
-        !model.id.startsWith('davinci-') && !model.id.startsWith('text-embedding-') && !model.id.startsWith('o1-') &&
-        !model.id.includes('moderation')
-      ) {
-      console.warn(`[openai] Unknown model type: ${model.id}`)
-    }
-  }
+  // depends on the provider
+  if (!engineConfig.baseURL || engineConfig.baseURL.includes('api.openai.com')) {
 
-  // done
-  return {
-    chat: models.filter(model => model.id.startsWith('gpt-') || model.id.startsWith('o1') || ['language', 'chat', 'code'].includes(model.meta?.type)),
-    image: models.filter(model => model.id.startsWith('dall-e-') || model.meta?.type === 'image')
+    // debug
+    // for (const model of models) {
+    //   console.log(model.id)
+    // }
+
+    // check for unknown models
+    for (const model of models) {
+      if (!model.id.startsWith('babbage-') && !model.id.startsWith('chatgpt-') && !model.id.startsWith('gpt-') &&
+          !model.id.startsWith('dall-e-') && !model.id.startsWith('tts-') && !model.id.startsWith('whisper-') &&
+          !model.id.startsWith('davinci-') && !model.id.startsWith('text-embedding-') && !model.id.startsWith('o1-') &&
+          !model.id.includes('moderation')
+        ) {
+        console.warn(`[openai] Unknown model type: ${model.id}`)
+      }
+    }
+  
+    return {
+      chat: models.filter(model => model.id.startsWith('gpt-') || model.id.startsWith('o1')),
+      image: models.filter(model => model.id.startsWith('dall-e-')),
+      embedding: models.filter(model => model.id.startsWith('text-embedding-'))
+    }
+
+  } else if (engineConfig.baseURL.includes('api.together.xyz')) {
+  
+    // debug
+    // for (const model of models) {
+    //   console.log(`[${model.meta?.type}] ${model.id}`)
+    // }
+
+    return {
+      chat: models.filter(model => ['language', 'chat', 'code'].includes(model.meta?.type)),
+      image: models.filter(model => model.meta?.type === 'image'),
+      embedding: models.filter(model => model.meta?.type === 'embedding')
+    }
+
+  } else {
+
+    return {
+      chat: models,
+      image: []
+    }
+
   }
 
 }

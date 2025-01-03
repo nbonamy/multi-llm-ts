@@ -71,7 +71,11 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
   // initialize
   const engine = process.env.ENGINE ?? 'openai'
   const model = process.env.MODEL ?? 'gpt-4o-mini'
-  const config: EngineCreateOpts = { apiKey: process.env.API_KEY }
+  const baseURL = process.env.BASE_URL ?? undefined
+  const config: EngineCreateOpts = {
+    apiKey: process.env.API_KEY,
+    baseURL: baseURL
+  }
   const llm = igniteEngine(engine, config)
   const messages = [
     new Message('system', 'You are a helpful assistant'),
@@ -86,6 +90,7 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
   //   console.log(`- ${model.id}: ${model.name}`)
   // }
   console.log(`${models!.image?.length ?? 0} image models found`)
+  console.log(`${models!.embedding?.length ?? 0} embedding models found`)
 
   // each demo
   await completion(llm, model, messages)
