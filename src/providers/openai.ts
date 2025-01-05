@@ -52,10 +52,10 @@ export default class extends LlmEngine {
 
   async getModels(): Promise<Model[]> {
 
-    // need an api key
-    if (!this.client.apiKey) {
-      return []
-    }
+    // // need an api key
+    // if (!this.client.apiKey) {
+    //   return []
+    // }
 
     // do it
     try {
