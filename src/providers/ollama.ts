@@ -5,11 +5,14 @@ import Message from '../models/message'
 import LlmEngine from '../engine'
 import logger from '../logger'
 
-import { Ollama, ChatResponse, ProgressResponse } from 'ollama/dist/browser.cjs'
+import { Ollama, ChatRequest, ChatResponse, ProgressResponse } from 'ollama'
+
+// until https://github.com/ollama/ollama-js/issues/187
+import { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.6319775f'
 
 export default class extends LlmEngine {
 
-  client: any
+  client: Ollama
   currentModel: string = ''
   currentThread: LLmCompletionPayload[] = []
   currentOpts: LlmCompletionOpts|null = null
@@ -93,7 +96,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async pullModel(model: string): Promise<AsyncGenerator<ProgressResponse>|null> {
+  async pullModel(model: string): Promise<AbortableAsyncIterator<ProgressResponse>|null> {
     try {
       return this.client.pull({
         model: model,
@@ -110,10 +113,13 @@ export default class extends LlmEngine {
     // call
     logger.log(`[ollama] prompting model ${model}`)
     const response = await this.client.chat({
-      model: model,
-      messages: this.buildPayload(model, thread),
-      stream: false
-    });
+      ...this.buildChatOptions({
+        model: model,
+        messages: this.buildPayload(model, thread),
+        opts: opts || null,
+      }),
+      stream: false,
+    })
 
     // return an object
     return {
@@ -140,7 +146,6 @@ export default class extends LlmEngine {
     return await this.doStream()
   }
 
-
   async doStream(): Promise<LlmStream> {
 
     // reset
@@ -152,13 +157,16 @@ export default class extends LlmEngine {
     // call
     logger.log(`[ollama] prompting model ${this.currentModel}`)
     const stream = this.client.chat({
+      ...this.buildChatOptions({
       model: this.currentModel,
       messages: this.currentThread,
+      opts: this.currentOpts
+      }),
+      stream: true,
       ...(this.modelSupportsTools(this.currentModel) && tools.length ? {
         tools: tools,
         tool_choice: 'auto',
       } : {}),
-      stream: true,
     })
 
     // done
@@ -168,6 +176,21 @@ export default class extends LlmEngine {
 
   async stop() {
     await this.client.abort()
+  }
+
+  buildChatOptions({ model, messages, opts }: { model: string, messages: LLmCompletionPayload[], opts: LlmCompletionOpts|null }): ChatRequest {
+
+    const chatOptions: ChatRequest = {
+      model,
+      // @ts-expect-error typing
+      messages,
+    }
+    if (opts?.contextWindowSize) {
+      chatOptions['options'] = {
+        num_ctx: opts.contextWindowSize
+      }
+    }
+    return chatOptions
   }
 
   async *nativeChunkToLlmChunk(chunk: ChatResponse): AsyncGenerator<LlmChunk, void, void> {
