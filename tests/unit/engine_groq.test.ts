@@ -3,7 +3,7 @@ import { vi, beforeEach, expect, test } from 'vitest'
 import Message from '../../src/models/message'
 import Groq from '../../src/providers/groq'
 import { ChatCompletionChunk } from 'groq-sdk/resources/chat'
-import { loadGroqModels } from '../../src/llm'
+import { loadGroqModels, loadModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
 
 vi.mock('groq-sdk', async() => {
@@ -55,8 +55,8 @@ test('Groq Load Models', async () => {
     { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7b' },
     { id: 'gemma2-9b-it', name: 'Gemma 2 9b' },
     { id: 'gemma-7b-it', name: 'Gemma 7b' },
-
   ])
+  expect(await loadModels('groq', config)).toStrictEqual(models)
 })
 
 test('Groq Basic', async () => {

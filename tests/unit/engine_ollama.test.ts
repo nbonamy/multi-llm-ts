@@ -5,7 +5,7 @@ import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import Ollama from '../../src/providers/ollama'
 import * as _ollama from 'ollama'
-import { loadOllamaModels } from '../../src/llm'
+import { loadModels, loadOllamaModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 
@@ -72,6 +72,7 @@ test('Ollama Load Models', async () => {
     { id: 'model1', name: 'model1', meta: { model: 'model1', name: 'model1' }, },
     { id: 'model2', name: 'model2', meta: { model: 'model2', name: 'model2' }, },
   ])
+  expect(await loadModels('ollama', config)).toStrictEqual(models)
 })
 
 test('Ollama Basic', async () => {

@@ -2,7 +2,7 @@
 import { EngineCreateOpts } from '../../src/types/index'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
-import { loadOpenRouterModels } from '../../src/llm'
+import { loadModels, loadOpenRouterModels } from '../../src/llm'
 import OpenRouter from '../../src/providers/openrouter'
 import Message from '../../src/models/message'
 import OpenAI from 'openai'
@@ -74,6 +74,7 @@ test('OpenRouter Load Chat Models', async () => {
   expect(models.image).toStrictEqual([
     { id: 'image', name: 'image', meta: { id: 'image', name: 'image', architecture: { modality: 'text-->image' } } },
   ])
+  expect(await loadModels('openrouter', config)).toStrictEqual(models)
 })
 
 test('OpenRouter Basic', async () => {

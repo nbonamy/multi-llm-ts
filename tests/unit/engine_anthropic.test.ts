@@ -4,7 +4,7 @@ import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import Anthropic from '../../src/providers/anthropic'
-import { loadAnthropicModels } from '../../src/llm'
+import { loadAnthropicModels, loadModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
 import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
 import { MessageParam } from '@anthropic-ai/sdk/resources'
@@ -75,6 +75,7 @@ test('Anthropic Load Models', async () => {
     { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
     { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
   ])
+  expect(await loadModels('anthropic', config)).toStrictEqual(models)
 })
 
 test('Anthropic Basic', async () => {

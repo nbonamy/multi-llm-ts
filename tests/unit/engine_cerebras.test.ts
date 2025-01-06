@@ -2,7 +2,7 @@
 import { vi, beforeEach, expect, test } from 'vitest'
 import Cerebras from '../../src/providers/cerebras'
 import Message from '../../src/models/message'
-import { loadCerebrasModels } from '../../src/llm'
+import { loadCerebrasModels, loadModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
 import OpenAI, { ClientOptions } from 'openai'
 
@@ -32,6 +32,7 @@ test('Cerebras Load Chat Models', async () => {
     { id: 'llama3.1-8b', name: 'Llama 3.1 8b' },
     { id: 'llama3.1-70b', name: 'Llama 3.1 70b' },
   ])
+  expect(await loadModels('cerebras', config)).toStrictEqual(models)
 })
 
 test('Cerebras Basic', async () => {

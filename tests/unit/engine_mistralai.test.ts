@@ -7,7 +7,7 @@ import Attachment from '../../src/models/attachment'
 import MistralAI from '../../src/providers/mistralai'
 import { Mistral } from '@mistralai/mistralai'
 import { CompletionEvent } from '@mistralai/mistralai/models/components'
-import { loadMistralAIModels } from '../../src/llm'
+import { loadMistralAIModels, loadModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
@@ -67,6 +67,7 @@ test('MistralAI Load Models', async () => {
     { id: 'model1', name: 'model1', meta: { id: 'model1', name: 'model1' }, },
     { id: 'model2', name: 'model2', meta: { id: 'model2', name: 'model2' }, },
   ])
+  expect(await loadModels('mistralai', config)).toStrictEqual(models)
 })
 
 test('MistralAI Basic', async () => {

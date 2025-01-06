@@ -5,7 +5,7 @@ import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import DeepSeek from '../../src/providers/deepseek'
 import Message from '../../src/models/message'
 import OpenAI from 'openai'
-import { loadDeepSeekModels } from '../../src/llm'
+import { loadDeepSeekModels, loadModels } from '../../src/llm'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -59,6 +59,7 @@ test('DeepSeek Load Chat Models', async () => {
   expect(models.chat).toStrictEqual([
     { id: 'deepseek-chat', name: 'DeepSeek-V3' },
   ])
+  expect(await loadModels('deepseek', config)).toStrictEqual(models)
 })
 
 test('DeepSeek Basic', async () => {

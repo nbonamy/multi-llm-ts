@@ -2,7 +2,7 @@
 import { EngineCreateOpts } from '../../src/types/index'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
-import { loadXAIModels } from '../../src/llm'
+import { loadModels, loadXAIModels } from '../../src/llm'
 import Message from '../../src/models/message'
 import XAI from '../../src/providers/xai'
 import OpenAI from 'openai'
@@ -59,6 +59,7 @@ test('xAI Load Chat Models', async () => {
     { id: 'grok-beta', name: 'Grok 2' },
     { id: 'grok-vision-beta', name: 'Grok Vision' },
   ])
+  expect(await loadModels('xai', config)).toStrictEqual(models)
 })
 
 test('xAI Basic', async () => {

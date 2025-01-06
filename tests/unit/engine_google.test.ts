@@ -5,7 +5,7 @@ import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import Google from '../../src/providers/google'
-import { loadGoogleModels } from '../../src/llm'
+import { loadGoogleModels, loadModels } from '../../src/llm'
 import { EnhancedGenerateContentResponse, FunctionCall, FinishReason } from '@google/generative-ai'
 import * as _Google from '@google/generative-ai'
 import { LlmChunkContent } from '../../src/types/llm'
@@ -57,6 +57,7 @@ test('Google Load Models', async () => {
     { id: 'gemini-1.5-flash-latest', name: 'Gemini  1.5 Flash' },
     { id: 'models/gemini-pro', name: 'Gemini 1.0 Pro' },
   ])
+  expect(await loadModels('google', config)).toStrictEqual(models)
 })
 
 test('Google Basic', async () => {

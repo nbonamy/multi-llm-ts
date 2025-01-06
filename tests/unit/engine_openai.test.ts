@@ -7,7 +7,7 @@ import Attachment from '../../src/models/attachment'
 import OpenAI from '../../src/providers/openai'
 import * as _openai from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
-import { loadOpenAIModels } from '../../src/llm'
+import { loadModels, loadOpenAIModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
@@ -19,6 +19,17 @@ vi.mock('openai', async () => {
   })
   OpenAI.prototype.models = {
     list: vi.fn(() => {
+      if (OpenAI.prototype.baseURL == 'api.together.xyz' || OpenAI.prototype.baseURL == 'api.unknown.com') {
+        return {
+          data: [
+            { id: 'chat', type: 'chat' },
+            { id: 'language', type: 'language' },
+            { id: 'code', type: 'code' },
+            { id: 'image', type: 'image' },
+            { id: 'embedding', type: 'embedding' },
+          ]
+        }
+      }
       return {
         data: [
           { id: 'gpt-model2' },
@@ -79,21 +90,43 @@ beforeEach(() => {
   }
 })
 
-test('OpenAI Load Chat Models', async () => {
+test('OpenAI Load Models', async () => {
   const models = await loadOpenAIModels(config)
   expect(_openai.default.prototype.models.list).toHaveBeenCalled()
   expect(models.chat).toStrictEqual([
     { id: 'gpt-model1', name: 'gpt-model1', meta: { id: 'gpt-model1' } },
     { id: 'gpt-model2', name: 'gpt-model2', meta: { id: 'gpt-model2' } },
   ])
-})
-
-test('OpenAI Load Image Models', async () => {
-  const models = await loadOpenAIModels(config)
-  expect(_openai.default.prototype.models.list).toHaveBeenCalled()
   expect(models.image).toStrictEqual([
     { id: 'dall-e-model1', name: 'dall-e-model1', meta: { id: 'dall-e-model1' } },
     { id: 'dall-e-model2', name: 'dall-e-model2', meta: { id: 'dall-e-model2' } },
+  ])
+  expect(await loadModels('openai', config)).toStrictEqual(models)
+})
+
+test('OpenAI together load models', async () => {
+  const models = await loadOpenAIModels({ baseURL: 'api.together.xyz' })
+  expect(models.chat).toStrictEqual([
+    { id: 'chat', name: 'chat', meta: { id: 'chat', type: 'chat' } },
+    { id: 'code', name: 'code', meta: { id: 'code', type: 'code' } },
+    { id: 'language', name: 'language', meta: { id: 'language', type: 'language' } },
+  ])
+  expect(models.image).toStrictEqual([
+    { id: 'image', name: 'image', meta: { id: 'image', type: 'image' } },
+  ])
+  expect(models.embedding).toStrictEqual([
+    { id: 'embedding', name: 'embedding', meta: { id: 'embedding', type: 'embedding' } },
+  ])
+})
+
+test('OpenAI compatibility mode', async () => {
+  const models = await loadOpenAIModels({ baseURL: 'api.unknown.com' })
+  expect(models.chat).toStrictEqual([
+    { id: 'chat', name: 'chat', meta: { id: 'chat', type: 'chat' } },
+    { id: 'code', name: 'code', meta: { id: 'code', type: 'code' } },
+    { id: 'embedding', name: 'embedding', meta: { id: 'embedding', type: 'embedding' } },
+    { id: 'image', name: 'image', meta: { id: 'image', type: 'image' } },
+    { id: 'language', name: 'language', meta: { id: 'language', type: 'language' } },
   ])
 })
 

@@ -1,7 +1,6 @@
 
 import { LlmChunk } from '../../src/types/llm'
 import { vi, expect, test } from 'vitest'
-import { igniteEngine, hasVisionModels } from '../../src/llm'
 import { Plugin1, Plugin2 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
@@ -88,29 +87,6 @@ test('Valid Configuration', () => {
   expect(XAI.isConfigured(config)).toBe(true)
   expect(Groq.isConfigured(config)).toBe(true)
   expect(Cerebras.isConfigured(config)).toBe(true)
-})
-
-test('Ignite Engine', async () => {
-  expect(await igniteEngine('openai', config)).toBeInstanceOf(OpenAI)
-  expect(await igniteEngine('ollama', config)).toBeInstanceOf(Ollama)
-  expect(await igniteEngine('mistralai', config)).toBeInstanceOf(MistralAI)
-  expect(await igniteEngine('anthropic', config)).toBeInstanceOf(Anthropic)
-  expect(await igniteEngine('google', config)).toBeInstanceOf(Google)
-  expect(await igniteEngine('xai', config)).toBeInstanceOf(XAI)
-  expect(await igniteEngine('groq', config)).toBeInstanceOf(Groq)
-  expect(await igniteEngine('cerebras', config)).toBeInstanceOf(Cerebras)
-  expect(async() => await igniteEngine('aws', config)).rejects.toThrowError(/Unknown engine/)
-})
-
-test('Has Vision Models', async () => {
-  expect(hasVisionModels('openai', config)).toBe(true)
-  expect(hasVisionModels('ollama', config)).toBe(true)
-  expect(hasVisionModels('mistralai', config)).toBe(false)
-  expect(hasVisionModels('anthropic', config)).toBe(true)
-  expect(hasVisionModels('google', config)).toBe(true)
-  expect(hasVisionModels('xai', config)).toBe(true)
-  expect(hasVisionModels('groq', config)).toBe(true)
-  expect(hasVisionModels('cerebras', config)).toBe(false)
 })
 
 test('Find Models', async () => {
