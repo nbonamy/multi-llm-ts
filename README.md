@@ -1,5 +1,7 @@
 # llm-ts
 
+<img src="https://github.com/nbonamy/multi-llm-ts/actions/workflows/test.yml/badge.svg">
+
 A Typescript library to use LLM providers APIs in a unified way.
 
 Features include:
