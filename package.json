@@ -1,6 +1,6 @@
 {
   "name": "multi-llm-ts",
-  "version": "2.7.1",
+  "version": "2.7.2",
   "description": "Library to query multiple LLM providers in a consistent way",
   "repository": {
     "type": "git",
@@ -25,18 +25,18 @@
     "email": "nicolas@bonamy.fr"
   },
   "devDependencies": {
-    "@eslint/compat": "^1.2.1",
-    "@typescript-eslint/eslint-plugin": "^8.11.0",
-    "@typescript-eslint/parser": "^8.11.0",
-    "@vitest/coverage-v8": "^2.1.3",
-    "@vitest/ui": "^2.1.3",
-    "eslint": "^9.13.0",
-    "eslint-import-resolver-typescript": "^3.6.3",
+    "@eslint/compat": "^1.2.4",
+    "@typescript-eslint/eslint-plugin": "^8.19.0",
+    "@typescript-eslint/parser": "^8.19.0",
+    "@vitest/coverage-v8": "^2.1.8",
+    "@vitest/ui": "^2.1.8",
+    "eslint": "^9.17.0",
+    "eslint-import-resolver-typescript": "^3.7.0",
     "eslint-plugin-import": "^2.31.0",
-    "tsup": "^8.3.4",
-    "tsx": "^4.19.1",
-    "typescript": "^5.6.3",
-    "vitest": "^2.1.3"
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.33.1",
@@ -45,6 +45,6 @@
     "groq-sdk": "^0.9.1",
     "minimatch": "^10.0.1",
     "ollama": "^0.5.11",
-    "openai": "^4.77.0"
+    "openai": "^4.77.3"
   }
 }
