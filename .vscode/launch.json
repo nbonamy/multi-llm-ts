@@ -5,16 +5,21 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "type": "node",
+      "name": "Example",
       "request": "launch",
-      "name": "Launch Program",
+      "runtimeArgs": [
+        "run",
+        "example"
+      ],
+      "env": {
+        "ENGINE": "google",
+        "MODEL": "models/gemini-2.0-flash-exp"
+      },
+      "runtimeExecutable": "npm",
       "skipFiles": [
         "<node_internals>/**"
       ],
-      "program": "${workspaceFolder}/dist/index.js",
-      "outFiles": [
-        "${workspaceFolder}/**/*.js"
-      ]
+      "type": "node"
     },
     {
       "type": "node",

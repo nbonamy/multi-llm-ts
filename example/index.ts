@@ -1,11 +1,8 @@
 
 import { EngineCreateOpts, LlmEngine, Message, igniteEngine, loadModels } from '../src/index'
 import Answer from './answer'
-
-// we need an api key
-if (!process.env.API_KEY) {
-  throw new Error('API_KEY environment variable is not set')
-}
+import dotenv from 'dotenv';
+dotenv.config();
 
 const completion = async (llm: LlmEngine, model: string, messages: Message[]) => {
   console.log('\n** Chat completion')
@@ -72,8 +69,16 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
   const engine = process.env.ENGINE ?? 'openai'
   const model = process.env.MODEL ?? 'gpt-4o-mini'
   const baseURL = process.env.BASE_URL ?? undefined
+
+  // we need an api key
+  const apiKey = process.env.API_KEY || process.env[`${engine.toUpperCase()}_API_KEY`]
+  if (!apiKey) {
+    throw new Error('API_KEY environment variable is not set')
+  }
+
+  // start the engine
   const config: EngineCreateOpts = {
-    apiKey: process.env.API_KEY,
+    apiKey: apiKey,
     baseURL: baseURL
   }
   const llm = igniteEngine(engine, config)
