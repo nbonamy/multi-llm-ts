@@ -20,14 +20,14 @@ vi.mock('@google/generative-ai', async() => {
       async * [Symbol.asyncIterator]() {
         
         // first we yield tool call chunks
-        yield { functionCalls: () => [{ name: 'plugin2', args: ['arg'] }] }
+        yield { candidates: [ { content: { parts: [] } } ], functionCalls: () => [{ name: 'plugin2', args: ['arg'] }] }
         
         // now the text response
         const content = 'response'
         for (let i = 0; i < content.length; i++) {
-          yield { functionCalls: (): any[] => [], candidates: [ { finishReason: 'none' }], text: () => content[i] }
+          yield { candidates: [ { finishReason: 'none' }], text: () => content[i], functionCalls: (): any[] => [] }
         }
-        yield { functionCalls: (): any[] => [], candidates: [ { finishReason: 'STOP' }], text: vi.fn(() => null) }
+        yield { candidates: [ { finishReason: 'STOP' }], text: vi.fn(() => null), functionCalls: (): any[] => [] }
       }
     }}
   })
@@ -78,7 +78,7 @@ test('Google Vision Model', async () => {
 test('Google Tools Support', async () => {
   const google = new Google(config)
   expect(google.supportsTools('models/gemini-pro')).toBe(true)
-  expect(google.supportsTools('gemini-1.5-flash-latest')).toBe(false)
+  expect(google.supportsTools('gemini-1.5-flash-latest')).toBe(true)
   expect(google.supportsTools('models/gemini-1.5-pro-latest')).toBe(true)
   expect(google.supportsTools('gemini-2.0-flash-exp')).toBe(true)
   expect(google.supportsTools('gemini-exp-1206')).toBe(true)

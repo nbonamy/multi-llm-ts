@@ -119,7 +119,7 @@ export default class extends LlmEngine {
   }
 
   supportsTools(model: string): boolean {
-    return this.modelStartsWith(model, ['gemini-1.5-flash']) == false && model.includes('thinking') == false
+    return model.includes('thinking') == false
   }
 
   async getModel(model: string, instructions: string): Promise<GenerativeModel> {
@@ -251,6 +251,9 @@ export default class extends LlmEngine {
    
   async *nativeChunkToLlmChunk(chunk: EnhancedGenerateContentResponse): AsyncGenerator<LlmChunk, void, void> {
 
+    // debug
+    // logger.log('[google] chunk', JSON.stringify(chunk))
+
     // tool calls
     const toolCalls = chunk.functionCalls()
     if (toolCalls?.length) {
@@ -310,6 +313,12 @@ export default class extends LlmEngine {
         }
 
       }
+
+      // function call
+      this.currentContent.push({
+        role: 'assistant',
+        parts: chunk.candidates![0].content.parts,
+      })
 
       // send
       this.currentContent.push({
