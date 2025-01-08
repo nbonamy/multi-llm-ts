@@ -1,5 +1,5 @@
 
-import { LLmCompletionPayload } from '../../src/types/llm'
+import { LlmChunk, LlmChunkContent, LLmCompletionPayload } from '../../src/types/llm'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
@@ -230,8 +230,8 @@ test('OpenAI stream', async () => {
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
-  let lastMsg = null
-  const toolCalls = []
+  let lastMsg:LlmChunkContent|null  = null
+  const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
     for await (const msg of openai.nativeChunkToLlmChunk(chunk)) {
       lastMsg = msg
@@ -239,7 +239,7 @@ test('OpenAI stream', async () => {
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
-  expect(lastMsg.done).toBe(true)
+  expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'prep2', done: false })

@@ -6,6 +6,7 @@ import { loadModels, loadXAIModels } from '../../src/llm'
 import Message from '../../src/models/message'
 import XAI from '../../src/providers/xai'
 import OpenAI from 'openai'
+import { LlmChunk } from '../../src/types/llm'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -100,7 +101,7 @@ test('xAI stream', async () => {
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
-  const toolCalls = []
+  const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
     for await (const msg of xai.nativeChunkToLlmChunk(chunk)) {
       if (msg.type === 'content') response += msg.text

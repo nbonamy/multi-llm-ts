@@ -6,6 +6,7 @@ import DeepSeek from '../../src/providers/deepseek'
 import Message from '../../src/models/message'
 import OpenAI from 'openai'
 import { loadDeepSeekModels, loadModels } from '../../src/llm'
+import { LlmChunk } from '../../src/types/llm'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -99,7 +100,7 @@ test('DeepSeek stream', async () => {
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
-  const toolCalls = []
+  const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
     for await (const msg of deepseek.nativeChunkToLlmChunk(chunk)) {
       if (msg.type === 'content') response += msg.text

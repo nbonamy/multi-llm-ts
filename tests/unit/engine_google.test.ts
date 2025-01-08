@@ -8,7 +8,7 @@ import Google from '../../src/providers/google'
 import { loadGoogleModels, loadModels } from '../../src/llm'
 import { EnhancedGenerateContentResponse, FunctionCall, FinishReason } from '@google/generative-ai'
 import * as _Google from '@google/generative-ai'
-import { LlmChunkContent } from '../../src/types/llm'
+import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -147,7 +147,7 @@ test('Google stream', async () => {
   }]})
   let response = ''
   let lastMsg: LlmChunkContent|null = null
-  const toolCalls = []
+  const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
     for await (const msg of google.nativeChunkToLlmChunk(chunk)) {
       lastMsg = msg
