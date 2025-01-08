@@ -4,14 +4,14 @@ import { vi, beforeEach, expect, test } from 'vitest'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import Ollama from '../../src/providers/ollama'
-import * as _ollama from 'ollama'
+import * as _ollama from 'ollama/dist/browser.cjs'
 import { loadModels, loadOllamaModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
-vi.mock('ollama', async() => {
+vi.mock('ollama/dist/browser.cjs', async() => {
   const Ollama = vi.fn()
   Ollama.prototype.list = vi.fn(() => {
     return { models: [

@@ -5,10 +5,10 @@ import Message from '../models/message'
 import LlmEngine from '../engine'
 import logger from '../logger'
 
-import { Ollama, ChatRequest, ChatResponse, ProgressResponse } from 'ollama'
+import { Ollama, ChatRequest, ChatResponse, ProgressResponse } from 'ollama/dist/browser.cjs'
 
 // until https://github.com/ollama/ollama-js/issues/187
-import { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.6319775f'
+import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.6319775f.d.cts'
 
 export default class extends LlmEngine {
 
