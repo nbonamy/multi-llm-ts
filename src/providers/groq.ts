@@ -1,6 +1,6 @@
 
 import { EngineCreateOpts, Model } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from 'types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall } from 'types/llm'
 import Message from '../models/message'
 import LlmEngine from '../engine'
 import logger from '../logger'
@@ -12,7 +12,10 @@ import { Stream } from 'groq-sdk/lib/streaming'
 export default class extends LlmEngine {
 
   client: Groq
+  currentModel: string = ''
+  currentThread: LLmCompletionPayload[] = []
   currentOpts: LlmCompletionOpts|null = null
+  toolCalls: LlmToolCall[] = []
 
   constructor(config: EngineCreateOpts) {
     super(config)
@@ -74,16 +77,34 @@ export default class extends LlmEngine {
   async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
 
     // model: switch to vision if needed
-    model = this.selectModel(model, thread, opts)
+    this.currentModel = this.selectModel(model, thread, opts)
   
-    // save opts
+    // save the message thread
+    this.currentThread = this.buildPayload(model, thread)
+
+    // save opts and do it
     this.currentOpts = opts || null
+    return await this.doStream()
+
+  }
+
+  async doStream(): Promise<LlmStream> {
+
+    // reset
+    this.toolCalls = []
+
+    // tools
+    const tools = await this.getAvailableTools()
 
     // call
-    logger.log(`[Groq] prompting model ${model}`)
+    logger.log(`[Groq] prompting model ${this.currentModel}`)
     const stream = this.client.chat.completions.create({
-      model: model,
-      messages: this.buildPayload(model, thread) as ChatCompletionMessageParam[],
+      model: this.currentModel,
+      messages: this.currentThread as ChatCompletionMessageParam[],
+      ...(tools.length ? {
+        tools: tools,
+        tool_choice: 'auto',
+      } : {}),
       stream: true,
     })
 
@@ -97,6 +118,114 @@ export default class extends LlmEngine {
   }
 
   async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk): AsyncGenerator<LlmChunk, void, void> {
+
+    // debug
+    //logger.log('nativeChunkToLlmChunk', JSON.stringify(chunk))
+
+    // tool calls
+    if (chunk.choices[0]?.delta?.tool_calls?.[0].function) {
+
+      // arguments or new tool?
+      if (chunk.choices[0].delta.tool_calls[0].id !== null && chunk.choices[0].delta.tool_calls[0].id !== undefined) {
+
+        // debug
+        //logger.log(`[${this.getName()}] tool call start:`, chunk)
+
+        // record the tool call
+        const toolCall: LlmToolCall = {
+          id: chunk.choices[0].delta.tool_calls[0].id,
+          message: chunk.choices[0].delta.tool_calls.map((tc: any) => {
+            delete tc.index
+            return tc
+          }),
+          function: chunk.choices[0].delta.tool_calls[0].function.name || '',
+          args: chunk.choices[0].delta.tool_calls[0].function.arguments || '',
+        }
+        this.toolCalls.push(toolCall)
+
+        // first notify
+        yield {
+          type: 'tool',
+          name: toolCall.function,
+          status: this.getToolPreparationDescription(toolCall.function),
+          done: false
+        }
+
+        // done
+        //return
+      
+      } else {
+
+        // append arguments
+        const toolCall = this.toolCalls[this.toolCalls.length-1]
+        toolCall.args += chunk.choices[0].delta.tool_calls[0].function.arguments
+
+        // done
+        //return
+
+      }
+
+    }
+
+    // now tool calling
+    if (chunk.choices[0]?.finish_reason === 'tool_calls' || (chunk.choices[0]?.finish_reason === 'stop' && this.toolCalls?.length)) {
+
+      // iterate on tools
+      for (const toolCall of this.toolCalls) {
+
+        // first notify
+        yield {
+          type: 'tool',
+          name: toolCall.function,
+          status: this.getToolRunningDescription(toolCall.function),
+          done: false
+        }
+
+        // now execute
+        const args = JSON.parse(toolCall.args)
+        logger.log(`[${this.getName()}] tool call ${toolCall.function} with ${JSON.stringify(args)}`)
+        const content = await this.callTool(toolCall.function, args)
+        logger.log(`[${this.getName()}] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+
+        // add tool call message
+        this.currentThread.push({
+          role: 'assistant',
+          content: '',
+          tool_calls: toolCall.message
+        })
+
+        // add tool response message
+        this.currentThread.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          name: toolCall.function,
+          content: JSON.stringify(content)
+        })
+
+        // clear
+        yield {
+          type: 'tool',
+          name: toolCall.function,
+          done: true,
+          call: {
+            params: args,
+            result: content
+          },
+        }
+
+      }
+
+      // switch to new stream
+      yield {
+        type: 'stream',
+        stream: await this.doStream(),
+      }
+
+      // done
+      return
+
+    }
+
 
     if (chunk.choices[0].finish_reason == 'stop') {
 
