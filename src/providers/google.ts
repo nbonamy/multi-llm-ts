@@ -147,11 +147,12 @@ export default class extends LlmEngine {
           const googleProps: { [k: string]: FunctionDeclarationSchemaProperty } = {};
           for (const name of Object.keys(tool.function.parameters.properties)) {
             const props = tool.function.parameters.properties[name]
-            const type = props.type === 'string' ? SchemaType.STRING : props.type === 'number' ? SchemaType.NUMBER : SchemaType.OBJECT
+            const schema = this.typeToSchemaType(props.type)
             googleProps[name] = {
-              type: type,
-              enum: props.enum,
+              type: schema,
               description: props.description,
+              ...(props.enum ? { enum: props.enum } : {}),
+              ...(props.items ? { items: { type: this.typeToSchemaType(props.items.type) } } : {}),
             }
           }
 
@@ -177,6 +178,14 @@ export default class extends LlmEngine {
     return this.client.getGenerativeModel( modelParams, {
       apiVersion: 'v1beta'
     })
+  }
+
+  typeToSchemaType(type: string): SchemaType {
+    if (type === 'string') return SchemaType.STRING
+    if (type === 'number') return SchemaType.NUMBER
+    if (type === 'boolean') return SchemaType.BOOLEAN
+    if (type === 'array') return SchemaType.ARRAY
+    return SchemaType.OBJECT
   }
 
   getPrompt(thread: Message[]): Array<string|Part> {

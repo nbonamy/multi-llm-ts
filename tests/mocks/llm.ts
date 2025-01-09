@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import Message from '../../src/models/message'
-import { EngineCreateOpts } from '../../src/types/index'
+import { EngineCreateOpts, Model } from '../../src/types/index'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream } from '../../src/types/llm'
 import LlmEngine from '../../src/engine'
 import RandomChunkStream from './stream'
@@ -86,7 +86,7 @@ export default class LlmMock extends LlmEngine {
     if (chunk.toString('utf8') == '<DONE>') {
       yield {
         type: 'content',
-        text: null,
+        text: '',
         done: true
       }
     } else {
