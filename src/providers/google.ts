@@ -347,7 +347,7 @@ export default class extends LlmEngine {
     }
 
     // text chunk
-    const done = chunk.candidates?.[0].finishReason === 'STOP'
+    const done = !!chunk.candidates?.[0].finishReason
     yield {
       type: 'content',
       text: chunk.text() || '',

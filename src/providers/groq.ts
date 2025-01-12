@@ -168,7 +168,7 @@ export default class extends LlmEngine {
     }
 
     // now tool calling
-    if (chunk.choices[0]?.finish_reason === 'tool_calls' || (chunk.choices[0]?.finish_reason === 'stop' && this.toolCalls?.length)) {
+    if (['tool_calls', 'function_call', 'stop'].includes(chunk.choices[0]?.finish_reason|| '') && this.toolCalls?.length) {
 
       // iterate on tools
       for (const toolCall of this.toolCalls) {
@@ -226,8 +226,8 @@ export default class extends LlmEngine {
 
     }
 
-
-    if (chunk.choices[0].finish_reason == 'stop') {
+    // normal content
+    if (['stop', 'length'].includes(chunk.choices[0].finish_reason || '')) {
 
       // done
       yield { type: 'content', text: '', done: true }

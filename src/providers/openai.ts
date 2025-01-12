@@ -226,7 +226,7 @@ export default class extends LlmEngine {
     }
 
     // now tool calling
-    if (chunk.choices[0]?.finish_reason === 'tool_calls' || (chunk.choices[0]?.finish_reason === 'stop' && this.toolCalls?.length)) {
+    if (['tool_calls', 'function_call', 'stop'].includes(chunk.choices[0]?.finish_reason|| '') && this.toolCalls?.length) {
 
       // iterate on tools
       for (const toolCall of this.toolCalls) {
@@ -285,7 +285,7 @@ export default class extends LlmEngine {
     }
 
     // done?
-    const done = chunk.choices[0]?.finish_reason === 'stop'
+    const done = ['stop', 'length', 'content_filter', 'eos'].includes(chunk.choices[0]?.finish_reason || '')
     if (done) {
       this.streamDone = true
     }
