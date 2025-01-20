@@ -38,6 +38,7 @@ export default class extends OpenAI {
     // do it
     return [
       { id: 'deepseek-chat', name: 'DeepSeek-V3' },
+      { id: 'deepseek-reasoner', name: 'DeepSeek-R1' },
     ]
 
   }
