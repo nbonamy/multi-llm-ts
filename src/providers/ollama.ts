@@ -107,6 +107,14 @@ export default class extends LlmEngine {
       return null
     }
   }
+  
+  async deleteModel(model: string): Promise<void> {
+    try {
+      await this.client.delete({ model: model })
+    } catch (error) {
+      console.error('Error deleting model:', error);
+    }
+  }
 
   async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 

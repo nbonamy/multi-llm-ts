@@ -19,6 +19,8 @@ vi.mock('ollama/dist/browser.cjs', async() => {
       { model: 'model1', name: 'model1' },
     ] }
   })
+  Ollama.prototype.pull = vi.fn()
+  Ollama.prototype.delete = vi.fn()
   Ollama.prototype.show = vi.fn(() => {
     return {
       details: { family: 'llm' },
@@ -238,4 +240,16 @@ test('Build payload with image attachment', async () => {
     { role: 'system', content: 'instructions' },
     { role: 'user', content: 'prompt1', images: [ 'image' ] },
   ])
+})
+
+test('Ollama pull model', async () => {
+  const ollama = new Ollama(config)
+  await ollama.pullModel('model')
+  expect(_ollama.Ollama.prototype.pull).toHaveBeenCalledWith({ model: 'model', stream: true })
+})
+
+test('Ollama delete model', async () => {
+  const ollama = new Ollama(config)
+  await ollama.deleteModel('model')
+  expect(_ollama.Ollama.prototype.delete).toHaveBeenCalledWith({ model: 'model' })
 })
