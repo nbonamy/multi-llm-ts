@@ -35,7 +35,8 @@ export default class extends LlmEngine {
       'gemini-1.5-flash-latest',
       'gemini-2.0-flash-exp',
       'gemini-exp-1206',
-      'gemini-2.0-flash-thinking-exp-1219'
+      'gemini-2.0-flash-thinking-exp-1219',
+      'gemini-2.0-flash-thinking-exp-01-21'
     ]
   }
 
@@ -48,12 +49,15 @@ export default class extends LlmEngine {
 
     // do it
     return [
-      { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
       { id: 'gemini-exp-1206', name: 'Gemini 2.0 Experimental (1206)' },
+      { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
+      { id: 'gemini-2.0-flash-thinking-exp-01-21', name: 'Gemini 2.0 Flash Thinking (01-21)' },
       { id: 'gemini-2.0-flash-thinking-exp-1219', name: 'Gemini 2.0 Flash Thinking (1219)' },
-      { id: 'models/gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
+      { id: 'learnlm-1.5-pro-experimental', name: 'LearnLM 1.5 Pro Experimental' },
+      { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
       { id: 'gemini-1.5-flash-latest', name: 'Gemini  1.5 Flash' },
-      { id: 'models/gemini-pro', name: 'Gemini 1.0 Pro' },
+      { id: 'gemini-1.5-flash-8b-latest', name: 'Gemini 1.5 Flash 8B' },
+      { id: 'gemini-pro', name: 'Gemini 1.0 Pro' },
     ]
   }
 

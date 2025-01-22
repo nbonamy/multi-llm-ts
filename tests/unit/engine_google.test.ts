@@ -50,12 +50,15 @@ beforeEach(() => {
 test('Google Load Models', async () => {
   const models = await loadGoogleModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
     { id: 'gemini-exp-1206', name: 'Gemini 2.0 Experimental (1206)' },
+    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
+    { id: 'gemini-2.0-flash-thinking-exp-01-21', name: 'Gemini 2.0 Flash Thinking (01-21)' },
     { id: 'gemini-2.0-flash-thinking-exp-1219', name: 'Gemini 2.0 Flash Thinking (1219)' },
-    { id: 'models/gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
+    { id: 'learnlm-1.5-pro-experimental', name: 'LearnLM 1.5 Pro Experimental' },
+    { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
     { id: 'gemini-1.5-flash-latest', name: 'Gemini  1.5 Flash' },
-    { id: 'models/gemini-pro', name: 'Gemini 1.0 Pro' },
+    { id: 'gemini-1.5-flash-8b-latest', name: 'Gemini 1.5 Flash 8B' },
+    { id: 'gemini-pro', name: 'Gemini 1.0 Pro' },
   ])
   expect(await loadModels('google', config)).toStrictEqual(models)
 })
@@ -73,6 +76,7 @@ test('Google Vision Model', async () => {
   expect(google.isVisionModel('gemini-2.0-flash-exp')).toBe(true)
   expect(google.isVisionModel('gemini-exp-1206')).toBe(true)
   expect(google.isVisionModel('gemini-2.0-flash-thinking-exp-1219')).toBe(true)
+  expect(google.isVisionModel('gemini-2.0-flash-thinking-exp-01-21')).toBe(true)
 })
 
 test('Google Tools Support', async () => {
@@ -83,6 +87,7 @@ test('Google Tools Support', async () => {
   expect(google.supportsTools('gemini-2.0-flash-exp')).toBe(true)
   expect(google.supportsTools('gemini-exp-1206')).toBe(true)
   expect(google.supportsTools('gemini-2.0-flash-thinking-exp-1219')).toBe(false)
+  expect(google.supportsTools('gemini-2.0-flash-thinking-exp-01-21')).toBe(false)
 })
 
 test('Google completion', async () => {
