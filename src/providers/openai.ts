@@ -87,8 +87,8 @@ export default class extends LlmEngine {
     }
   }
 
-  protected buildPayload(model: string, thread: Message[] | string): LLmCompletionPayload[] {
-    let payload = super.buildPayload(model, thread)
+  protected buildPayload(model: string, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+    let payload = super.buildPayload(model, thread, opts)
     if (!this.modelAcceptsSystemRole(model)) {
       payload = payload.filter((msg: LLmCompletionPayload) => msg.role !== 'system')
     } else if (this.systemRole !== 'system') {
@@ -111,7 +111,11 @@ export default class extends LlmEngine {
     logger.log(`[${this.getName()}] prompting model ${model}`)
     const response = await this.client.chat.completions.create({
       model: model,
-      messages: this.buildPayload(model, thread) as Array<any>,
+      messages: this.buildPayload(model, thread, opts) as Array<any>,
+      max_completion_tokens: opts?.maxTokens,
+      temperature: opts?.temperature,
+      top_logprobs: opts?.top_k,
+      top_p: opts?.top_p,
     });
 
     // done
@@ -132,7 +136,7 @@ export default class extends LlmEngine {
     this.currentModel = this.selectModel(model, thread, opts)
 
     // save the message thread
-    this.currentThread = this.buildPayload(this.currentModel, thread)
+    this.currentThread = this.buildPayload(this.currentModel, thread, opts)
 
     // save the opts and do it
     this.streamDone = false
@@ -161,6 +165,10 @@ export default class extends LlmEngine {
         tools: tools,
         tool_choice: 'auto',
       } : {}),
+      max_completion_tokens: this.currentOpts?.maxTokens,
+      temperature: this.currentOpts?.temperature,
+      top_logprobs: this.currentOpts?.top_k,
+      top_p: this.currentOpts?.top_p,
       stream_options: { include_usage: this.currentOpts?.usage || false },
       //max_tokens: this.currentOpts?.maxTokens,
       stream: true,
@@ -309,7 +317,8 @@ export default class extends LlmEngine {
 
   }
 
-  addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  addImageToPayload(message: Message, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
     if (message.attachment) {
       payload.content = [
         { type: 'text', text: message.contentForModel },

@@ -1,5 +1,5 @@
 
-import { LlmChunkContent, LLmCompletionPayload } from '../../src/types/llm'
+import { LlmChunkContent } from '../../src/types/llm'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
@@ -81,13 +81,28 @@ test('MistralAI Vision Models', async () => {
   expect(mistralai.isVisionModel('mistral-large')).toBe(false)
 })
 
+test('MistralAI buildPayload', async () => {
+  const mistralai = new MistralAI(config)
+  const message = new Message('user', 'text')
+  message.attach(new Attachment('image', 'image/png'))
+  const payload = mistralai.buildPayload('mistral-large', [ message ])
+  expect(payload).toStrictEqual([{ role: 'user', content: 'text' }])
+})
+
 test('MistralAI  completion', async () => {
   const mistralai = new MistralAI(config)
   const response = await mistralai.complete('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
-  expect(Mistral.prototype.chat.complete).toHaveBeenCalled()
+  ], { temperature: 0.8 })
+  expect(Mistral.prototype.chat.complete).toHaveBeenCalledWith({
+    model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    temperature : 0.8
+  })
   expect(response).toStrictEqual({
     type: 'text',
     content: 'response'
@@ -120,7 +135,7 @@ test('MistralAI  stream with tools', async () => {
   const stream = await mistralai.stream('mistral-large', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { top_k: 4 })
   expect(Mistral.prototype.chat.stream).toHaveBeenCalledWith({
     model: 'mistral-large',
     messages: [ { role: 'system', content: 'instruction' }, { role: 'user', content: 'prompt' } ],
@@ -156,10 +171,11 @@ test('MistralAI  stream without tools', async () => {
   const stream = await mistralai.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { top_p: 4 })
   expect(Mistral.prototype.chat.stream).toHaveBeenCalledWith({
     model: 'model',
     messages: [ { role: 'system', content: 'instruction' }, { role: 'user', content: 'prompt' } ],
+    topP: 4,
   })
   expect(stream).toBeDefined()
 })
@@ -175,13 +191,4 @@ test('MistralAI  stream without tools', async () => {
     messages: [ { role: 'system', content: 'instruction' }, { role: 'user', content: 'prompt' } ],
   })
   expect(stream).toBeDefined()
-})
-
-test('MistralAI addAttachmentToPayload', async () => {
-  const mistralai = new MistralAI(config)
-  const message = new Message('user', 'text')
-  message.attach(new Attachment('image', 'image/png'))
-  const payload: LLmCompletionPayload = { role: 'user', content: message }
-  mistralai.addAttachmentToPayload(message, payload)
-  expect(payload.images).toStrictEqual([ 'image' ])
 })

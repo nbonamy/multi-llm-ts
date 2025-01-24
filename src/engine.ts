@@ -85,7 +85,11 @@ export default class LlmEngine {
     throw new Error('Not implemented')
   }
 
-  protected addAttachmentToPayload(message: Message, payload: LLmCompletionPayload): void {
+  protected addTextToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
+    payload.content += `\n\n${message.attachment!.content}`
+  }
+
+  protected addImageToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
     throw new Error('Not implemented')
   }
 
@@ -145,7 +149,7 @@ export default class LlmEngine {
 
   }
 
-  protected buildPayload(model: string, thread: Message[] | string): LLmCompletionPayload[] {
+  protected buildPayload(model: string, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
     if (typeof thread === 'string') {
       return [{ role: 'user', content: thread }]
     } else {
@@ -171,13 +175,13 @@ export default class LlmEngine {
 
         // text formats
         if (msg.attachment.isText()) {
-          payload.content += `\n\n${msg.attachment.content}`
+          this.addTextToPayload(msg, payload, opts)
         }
 
         // image formats
         if (msg.attachment.isImage()) {
           if (!imageAttached && this.isVisionModel(model)) {
-            this.addAttachmentToPayload(msg, payload)
+            this.addImageToPayload(msg, payload, opts)
             imageAttached = true
           }
         }

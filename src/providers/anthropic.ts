@@ -1,6 +1,6 @@
 
 import { EngineCreateOpts, Model } from 'types/index'
-import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmContentPayload, LlmToolCall, LLmCompletionPayload, LLmContentPayloadImageAnthropic, LLmContentPayloadText } from 'types/llm'
+import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload } from 'types/llm'
 import Message from '../models/message'
 import LlmEngine from '../engine'
 import Plugin from '../plugin'
@@ -8,7 +8,7 @@ import logger from '../logger'
 
 import Anthropic from '@anthropic-ai/sdk'
 import { Stream } from '@anthropic-ai/sdk/streaming'
-import { Tool, ImageBlockParam, MessageParam, MessageStreamEvent, TextBlockParam, TextBlock, TextDelta, InputJSONDelta, Usage, RawMessageStartEvent, RawMessageDeltaEvent, MessageDeltaUsage } from '@anthropic-ai/sdk/resources'
+import { Tool, MessageParam, MessageStreamEvent, TextBlock, TextDelta, InputJSONDelta, Usage, RawMessageStartEvent, RawMessageDeltaEvent, MessageDeltaUsage } from '@anthropic-ai/sdk/resources'
 import { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 
 type AnthropicTool = Tool|BetaToolUnion
@@ -100,8 +100,11 @@ export default class extends LlmEngine {
     const response = await this.client.messages.create({
       model: model,
       system: thread[0].contentForModel,
-      max_tokens: this.getMaxTokens(model),
-      messages: this.buildPayload(model, thread) as MessageParam[],
+      max_tokens: opts?.maxTokens ?? this.getMaxTokens(model),
+      messages: this.buildPayload(model, thread, opts) as MessageParam[],
+      temperature: opts?.temperature,
+      top_k: opts?.top_k,
+      top_p: opts?.top_p,
     });
 
     // return an object
@@ -131,7 +134,7 @@ export default class extends LlmEngine {
 
     // save the message thread
     this.currentSystem = thread[0].contentForModel
-    this.currentThread = this.buildPayload(this.currentModel, thread) as MessageParam[]
+    this.currentThread = this.buildPayload(this.currentModel, thread, opts) as MessageParam[]
 
     // save the opts and do it
     this.currentOpts = opts || null
@@ -185,12 +188,15 @@ export default class extends LlmEngine {
     return this.client.messages.create({
       model: this.currentModel,
       system: this.currentSystem,
-      max_tokens: this.getMaxTokens(this.currentModel),
+      max_tokens: this.currentOpts?.maxTokens ?? this.getMaxTokens(this.currentModel),
       messages: this.currentThread,
       ...(tools?.length ? {
         tool_choice: { type: 'auto' },
         tools: tools as Tool[]
       } : {}),
+      temperature: this.currentOpts?.temperature,
+      top_k: this.currentOpts?.top_k,
+      top_p: this.currentOpts?.top_p,
       stream: true,
     })
 
@@ -202,10 +208,13 @@ export default class extends LlmEngine {
       model: this.getComputerUseRealModel(),
       betas: [ 'computer-use-2024-10-22' ],
       system: this.currentSystem,
-      max_tokens: this.getMaxTokens(this.currentModel),
+      max_tokens: this.currentOpts?.maxTokens ?? this.getMaxTokens(this.currentModel),
       messages: this.currentThread,
       tool_choice: { type: 'auto' },
       tools: tools,
+      temperature: this.currentOpts?.temperature,
+      top_k: this.currentOpts?.top_k,
+      top_p: this.currentOpts?.top_p,
       stream: true,
     })
   }
@@ -354,7 +363,19 @@ export default class extends LlmEngine {
 
   }
 
-  addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
+  addTextToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
+    payload.content = [
+      { type: 'text', text: message.contentForModel },
+      { type: 'document', source: {
+        type: 'text',
+        media_type: 'text/plain',
+        data: message.attachment!.content,
+      }, ...(opts ? { citations: { enabled: opts?.citations ?? false } } : {}) }
+    ]
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  addImageToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
     payload.content = [
       { type: 'text', text: message.contentForModel },
       { type: 'image', source: {
@@ -365,8 +386,8 @@ export default class extends LlmEngine {
     ]
   }
 
-  buildPayload(model: string, thread: Message[]): LLmCompletionPayload[] {
-    const payload: LLmCompletionPayload[] = super.buildPayload(model, thread)
+  buildPayload(model: string, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+    const payload: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
     return payload.filter((payload) => payload.role != 'system').map((payload): LLmCompletionPayload => {
       //if (payload.role == 'system') return null
       if (typeof payload.content == 'string') {
@@ -377,7 +398,7 @@ export default class extends LlmEngine {
       } else {
         return {
           role: payload.role as 'user'|'assistant',
-          content: payload.content!.map((content: LlmContentPayload): TextBlockParam|ImageBlockParam => {
+          content: payload.content/*!.map((content: LlmContentPayload): TextBlockParam|ImageBlockParam => {
             if (content.type == 'image') {
               return {
                 type: 'image',
@@ -393,7 +414,7 @@ export default class extends LlmEngine {
                 text: (content as LLmContentPayloadText).text
               }
             }
-          })
+          })*/
         }
       }
     })

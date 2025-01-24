@@ -15,8 +15,8 @@ import Cerebras from '../../src/providers/cerebras'
 const config = { apiKey: '123' }
 
 test('Invalid engine', async () => {
-  expect(async() => await igniteEngine('invalid', config)).rejects.toThrowError(/Unknown engine/)
-  expect(async() => await loadModels('invalid', config)).rejects.toThrowError(/Unknown engine/)
+  await expect(async() => await igniteEngine('invalid', config)).rejects.toThrowError(/Unknown engine/)
+  await expect(async() => await loadModels('invalid', config)).rejects.toThrowError(/Unknown engine/)
 })
 
 test('Ignite Engine', async () => {
@@ -30,7 +30,7 @@ test('Ignite Engine', async () => {
   expect(await igniteEngine('openrouter', config)).toBeInstanceOf(OpenRouter)
   expect(await igniteEngine('groq', config)).toBeInstanceOf(Groq)
   expect(await igniteEngine('cerebras', config)).toBeInstanceOf(Cerebras)
-  expect(async() => await igniteEngine('aws', config)).rejects.toThrowError(/Unknown engine/)
+  await expect(async() => await igniteEngine('aws', config)).rejects.toThrowError(/Unknown engine/)
 })
 
 test('Has Vision Models', async () => {

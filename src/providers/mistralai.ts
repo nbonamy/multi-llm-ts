@@ -20,7 +20,7 @@ export default class extends LlmEngine {
   client: Mistral
   currentModel: string = ''
   currentThread: MistralMessages = []
-  currentOpts: LlmCompletionOpts|null = null
+  currentOpts: LlmCompletionOpts|undefined = undefined
   toolCalls: LlmToolCall[] = []
 
   constructor(config: EngineCreateOpts) {
@@ -67,7 +67,10 @@ export default class extends LlmEngine {
     logger.log(`[mistralai] prompting model ${model}`)
     const response = await this.client.chat.complete({
       model: model,
-      messages: this.buildPayload(model, thread) as MistralMessages,
+      messages: this.buildPayload(model, thread, opts) as MistralMessages,
+      maxTokens: opts?.maxTokens,
+      temperature: opts?.temperature,
+      topP: opts?.top_p,
     });
 
     // return an object
@@ -87,10 +90,10 @@ export default class extends LlmEngine {
     this.currentModel = this.selectModel(model, thread, opts)
   
     // save the message thread
-    this.currentThread = this.buildPayload(this.currentModel, thread) as MistralMessages
+    this.currentThread = this.buildPayload(this.currentModel, thread, opts) as MistralMessages
 
     // save opts and run
-    this.currentOpts = opts || null
+    this.currentOpts = opts
     return await this.doStream()
 
   }
@@ -112,6 +115,9 @@ export default class extends LlmEngine {
         tools: tools,
         toolChoice: 'auto',
       }),
+      maxTokens: this.currentOpts?.maxTokens,
+      temperature: this.currentOpts?.temperature,
+      topP: this.currentOpts?.top_p,
     })
 
     // done
@@ -246,7 +252,8 @@ export default class extends LlmEngine {
     }
   }
 
-  addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  addImageToPayload(message: Message, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
     if (message.attachment) {
       payload.images = [ message.attachment.content ]
     }

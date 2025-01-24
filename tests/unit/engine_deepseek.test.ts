@@ -76,6 +76,26 @@ test('DeepSeek Vision Models', async () => {
   expect(deepseek.isVisionModel('deepseek-chat')).toBe(false)
 })
 
+test('DeepSeek completion', async () => {
+  const deepseek = new DeepSeek(config)
+  const response = await deepseek.complete('model', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { temperature: 0.8 })
+  expect(OpenAI.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    temperature : 0.8
+  })
+  expect(response).toStrictEqual({
+    type: 'text',
+    content: 'response'
+  })
+})
+
 test('DeepSeek stream', async () => {
   const deepseek = new DeepSeek(config)
   deepseek.addPlugin(new Plugin1())
@@ -84,7 +104,7 @@ test('DeepSeek stream', async () => {
   const stream = await deepseek.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { top_k: 4 })
   expect(OpenAI.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
@@ -93,6 +113,7 @@ test('DeepSeek stream', async () => {
     ],
     tool_choice: 'auto',
     tools: expect.any(Array),
+    top_logprobs: 4,
     stream: true,
     stream_options: {
       include_usage: false
@@ -122,13 +143,14 @@ test('DeepSeek stream without tools', async () => {
   const stream = await deepseek.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { top_p: 4 })
   expect(OpenAI.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
       { role: 'user', content: 'prompt' }
     ],
+    top_p: 4,
     stream: true,
     stream_options: {
       include_usage: false

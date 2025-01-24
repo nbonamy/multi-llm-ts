@@ -69,7 +69,7 @@ export default class LlmMock extends LlmEngine {
     model = this.selectModel(model, thread, opts)
 
     // build payload
-    const payload = this.buildPayload(model, thread)
+    const payload = this.buildPayload(model, thread, opts)
 
     // now stream
     return new RandomChunkStream(JSON.stringify([
@@ -98,7 +98,7 @@ export default class LlmMock extends LlmEngine {
     }
   }
 
-  addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
+  addImageToPayload(message: Message, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
     payload.images = [ message.attachment!.content ]
   }
 

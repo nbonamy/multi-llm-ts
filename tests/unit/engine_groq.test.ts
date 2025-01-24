@@ -99,7 +99,15 @@ test('Groq  completion', async () => {
   const response = await groq.complete('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { temperature: 0.8 })
+  expect(_Groq.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    temperature : 0.8
+  })
   expect(response).toStrictEqual({
     type: 'text',
     content: 'response'
@@ -114,7 +122,7 @@ test('Groq stream', async () => {
   const stream = await groq.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { top_k: 4 })
   expect(_Groq.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
@@ -123,6 +131,7 @@ test('Groq stream', async () => {
     ],
     tool_choice: 'auto',
     tools: expect.any(Array),
+    top_logprobs: 4,
     stream: true,
   })
   expect(stream).toBeDefined()
@@ -152,13 +161,14 @@ test('Groq stream without tools', async () => {
   const stream = await groq.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { top_p: 4 })
   expect(_Groq.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
       { role: 'user', content: 'prompt' }
     ],
+    top_p: 4,
     stream: true,
   })
   expect(stream).toBeDefined()

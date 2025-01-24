@@ -1,5 +1,5 @@
 
-import { LlmChunkContent, LlmChunkTool, LLmCompletionPayload } from '../../src/types/llm'
+import { LlmChunkContent, LlmChunkTool } from '../../src/types/llm'
 import { vi, beforeEach, expect, test } from 'vitest'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
@@ -88,13 +88,29 @@ test('Ollama Vision Models', async () => {
   expect(ollama.isVisionModel('llama2:latest')).toBe(false)
 })
 
+test('Ollama buildPayload', async () => {
+  const ollama = new Ollama(config)
+  const message = new Message('user', 'text')
+  message.attach(new Attachment('image', 'image/png'))
+  expect(ollama.buildPayload('llama', [ message ])).toStrictEqual([ { role: 'user', content: 'text' } ])
+  expect(ollama.buildPayload('llava', [ message ])).toStrictEqual([ { role: 'user', content: 'text', images: [ 'image' ]} ])
+})
+
 test('Ollama completion', async () => {
   const ollama = new Ollama(config)
   const response = await ollama.complete('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
-  expect(_ollama.Ollama.prototype.chat).toHaveBeenCalled()
+  ], { temperature: 0.8 })
+  expect(_ollama.Ollama.prototype.chat).toHaveBeenCalledWith({
+    model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    options: { temperature : 0.8 },
+    stream: false,
+  })
   expect(response).toStrictEqual({
     type: 'text',
     content: 'response'
@@ -109,13 +125,14 @@ test('Ollama stream without tools', async () => {
   const stream = await ollama.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { top_k: 4 })
   expect(_ollama.Ollama.prototype.chat).toHaveBeenCalledWith({
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
       { role: 'user', content: 'prompt' }
     ],
+    options: { top_k: 4 },
     stream: true,
   })
   expect(stream).toBeDefined()
@@ -145,7 +162,7 @@ test('Ollama stream with tools', async () => {
   const stream = await ollama.stream('llama3-groq-tool-use', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { top_k: 4 })
   expect(_ollama.Ollama.prototype.chat).toHaveBeenCalledWith({
     model: 'llama3-groq-tool-use',
     messages: [
@@ -154,6 +171,7 @@ test('Ollama stream with tools', async () => {
     ],
     tool_choice: 'auto',
     tools: expect.any(Array),
+    options: { top_k: 4 },
     stream: true,
   })
   expect(stream).toBeDefined()
@@ -183,7 +201,7 @@ test('Ollama stream without tools and options', async () => {
   const stream = await ollama.stream('llama3-groq-tool-use', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], { contextWindowSize: 4096 })
+  ], { contextWindowSize: 4096, top_p: 4 })
   expect(_ollama.Ollama.prototype.chat).toHaveBeenCalledWith({
     model: 'llama3-groq-tool-use',
     messages: [
@@ -193,18 +211,10 @@ test('Ollama stream without tools and options', async () => {
     stream: true,
     options: {
       num_ctx: 4096,
+      top_p: 4,
     }
   })
   expect(stream).toBeDefined()
-})
-
-test('Ollama addAttachmentToPayload', async () => {
-  const ollama = new Ollama(config)
-  const message = new Message('user', 'text')
-  message.attach(new Attachment('image', 'image/png'))
-  const payload: LLmCompletionPayload = message
-  ollama.addAttachmentToPayload(message, payload)
-  expect(payload.images).toStrictEqual([ 'image' ])
 })
 
 test('Ollama nativeChunkToLlmChunk Text', async () => {
@@ -221,25 +231,6 @@ test('Ollama nativeChunkToLlmChunk Text', async () => {
   for await (const llmChunk of ollama.nativeChunkToLlmChunk(streamChunk)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
-})
-
-test('Build payload with image attachment', async () => {
-  const ollama = new Ollama(config)
-  const messages = [
-    new Message('system', 'instructions'),
-    new Message('user', 'prompt1'),
-  ]
-  messages[1].attach(new Attachment('image', 'image/png'))
-  // @ts-expect-error testing
-  expect(ollama.buildPayload('llama', messages)).toStrictEqual([
-    { role: 'system', content: 'instructions' },
-    { role: 'user', content: 'prompt1' },
-  ])
-  // @ts-expect-error testing
-  expect(ollama.buildPayload('llama3.2-vision:11b', messages)).toStrictEqual([
-    { role: 'system', content: 'instructions' },
-    { role: 'user', content: 'prompt1', images: [ 'image' ] },
-  ])
 })
 
 test('Ollama pull model', async () => {

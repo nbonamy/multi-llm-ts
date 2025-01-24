@@ -14,7 +14,7 @@ export default class extends LlmEngine {
   client: Groq
   currentModel: string = ''
   currentThread: LLmCompletionPayload[] = []
-  currentOpts: LlmCompletionOpts|null = null
+  currentOpts: LlmCompletionOpts|undefined = undefined
   toolCalls: LlmToolCall[] = []
 
   constructor(config: EngineCreateOpts) {
@@ -63,7 +63,11 @@ export default class extends LlmEngine {
     logger.log(`[Groq] prompting model ${model}`)
     const response = await this.client.chat.completions.create({
       model: model,
-      messages: this.buildPayload(model, thread) as ChatCompletionMessageParam[],
+      messages: this.buildPayload(model, thread, opts) as ChatCompletionMessageParam[],
+      max_tokens: opts?.maxTokens,
+      temperature: opts?.temperature,
+      top_logprobs: opts?.top_k,
+      top_p: opts?.top_p,
     });
 
     // return an object
@@ -80,10 +84,10 @@ export default class extends LlmEngine {
     this.currentModel = this.selectModel(model, thread, opts)
   
     // save the message thread
-    this.currentThread = this.buildPayload(model, thread)
+    this.currentThread = this.buildPayload(model, thread, this.currentOpts)
 
     // save opts and do it
-    this.currentOpts = opts || null
+    this.currentOpts = opts
     return await this.doStream()
 
   }
@@ -105,6 +109,10 @@ export default class extends LlmEngine {
         tools: tools,
         tool_choice: 'auto',
       } : {}),
+      max_tokens: this.currentOpts?.maxTokens,
+      temperature: this.currentOpts?.temperature,
+      top_logprobs: this.currentOpts?.top_k,
+      top_p: this.currentOpts?.top_p,
       stream: true,
     })
 
@@ -246,7 +254,8 @@ export default class extends LlmEngine {
     }
   }
 
-  addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  addImageToPayload(message: Message, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
     if (message.attachment) {
       payload.content = [
         { type: 'text', text: message.contentForModel },
@@ -255,10 +264,10 @@ export default class extends LlmEngine {
     }
   }
 
-  buildPayload(model: string, thread: Message[]): LLmCompletionPayload[] {
+  buildPayload(model: string, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {
 
     // default
-    let payload: LLmCompletionPayload[] = super.buildPayload(model, thread)
+    let payload: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
     
     // when using vision models, we cannot use a system prompt (!!)
     let hasImages = false

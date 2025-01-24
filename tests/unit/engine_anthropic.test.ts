@@ -7,7 +7,6 @@ import Anthropic from '../../src/providers/anthropic'
 import { loadAnthropicModels, loadModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
 import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
-import { MessageParam } from '@anthropic-ai/sdk/resources'
 import * as _Anthropic from '@anthropic-ai/sdk'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
@@ -61,6 +60,7 @@ vi.mock('@anthropic-ai/sdk', async() => {
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
+  vi.clearAllMocks()
   config = {
     apiKey: '123',
   }
@@ -92,13 +92,49 @@ test('Anthropic Vision Model', async () => {
   expect(anthropic.isVisionModel('claude-3-haiku-20240307')).toBe(true)
 })
 
+
+test('Anthropic buildPayload text', async () => {
+  const anthropic = new Anthropic(config)
+  const message = new Message('user', 'text')
+  message.attach(new Attachment('document', 'text/plain'))
+  expect(anthropic.buildPayload('claude', [ message ])).toStrictEqual([ { role: 'user', content: [
+    { type: 'text', text: 'text' },
+    { type: 'document', source: {
+      type: 'text',
+      media_type: 'text/plain',
+      data: 'document',
+    }}
+  ]}])
+})
+
+test('Anthropic build payload image', async () => {
+  const anthropic = new Anthropic(config)
+  const message = new Message('user', 'text')
+  message.attach(new Attachment('image', 'image/png'))
+  expect(anthropic.buildPayload('claude', [ message ])).toStrictEqual([ { role: 'user', content: 'text' }])
+  expect(anthropic.buildPayload('claude-3-5-sonnet-latest', [ message ])).toStrictEqual([ { role: 'user', content: [
+    { type: 'text', text: 'text' },
+    { type: 'image', source: {
+      type: 'base64',
+      media_type: 'image/png',
+      data: 'image',
+    }}
+  ]}])
+})
+
 test('Anthropic completion', async () => {
   const anthropic = new Anthropic(config)
   const response = await anthropic.complete('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
-  expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalled()
+  ], { temperature: 0.8 })
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalledWith({
+    max_tokens: 4096,
+    model: 'model',
+    system: 'instruction',
+    messages: [ { role: 'user', content: 'prompt' } ],
+    temperature: 0.8,
+  })
   expect(response).toStrictEqual({
     type: 'text',
     content: 'response'
@@ -130,8 +166,17 @@ test('Anthropic stream', async () => {
   const stream = await anthropic.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
-  expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalled()
+  ], { top_k: 4 })
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalledWith({
+    max_tokens: 4096,
+    model: 'model',
+    system: 'instruction',
+    messages: [ { role: 'user', content: 'prompt' } ],
+    tools: expect.any(Array),
+    tool_choice: { type: 'auto' },
+    top_k: 4,
+    stream: true,
+  })
   expect(stream.controller).toBeDefined()
   let response = ''
   let lastMsg: LlmChunkContent|null = null
@@ -158,29 +203,14 @@ test('Anthropic stream without tools', async () => {
   const stream = await anthropic.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { top_p: 4 })
   expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalledWith({
     max_tokens: 4096,
     model: 'model',
     system: 'instruction',
     messages: [ { role: 'user', content: 'prompt' }, ],
+    top_p: 4,
     stream: true,
   })
   expect(stream).toBeDefined()
-})
-
-test('Anthropic addAttachmentToPayload', async () => {
-  const anthropic = new Anthropic(config)
-  const message = new Message('user', 'text')
-  message.attach(new Attachment('image', 'image/png'))
-  const payload: MessageParam = { role: 'user', content: null }
-  anthropic.addAttachmentToPayload(message, payload)
-  expect(payload.content).toStrictEqual([
-    { type: 'text', text: 'text' },
-    { type: 'image', source: {
-      type: 'base64',
-      media_type: 'image/png',
-      data: 'image',
-    }}
-  ])
 })

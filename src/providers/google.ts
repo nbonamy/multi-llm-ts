@@ -6,7 +6,7 @@ import Message from '../models/message'
 import LlmEngine from '../engine'
 import logger from '../logger'
 
-import { Content, EnhancedGenerateContentResponse, GenerativeModel, GoogleGenerativeAI, ModelParams, Part, FunctionResponsePart, SchemaType, FunctionDeclarationSchemaProperty, FunctionCallingMode } from '@google/generative-ai'
+import { Content, EnhancedGenerateContentResponse, GenerativeModel, GoogleGenerativeAI, ModelParams, Part, FunctionResponsePart, SchemaType, FunctionDeclarationSchemaProperty, FunctionCallingMode, GenerationConfig } from '@google/generative-ai'
 import type { FunctionDeclaration } from '@google/generative-ai/dist/types'
 
 export default class extends LlmEngine {
@@ -14,7 +14,7 @@ export default class extends LlmEngine {
   client: GoogleGenerativeAI
   currentModel: GenerativeModel|null = null
   currentContent: Content[] =[]
-  currentOpts: LlmCompletionOpts|null = null
+  currentOpts: LlmCompletionOpts|undefined = undefined
   toolCalls: LlmToolCall[] = []
 
   constructor(config: EngineCreateOpts) {
@@ -67,7 +67,8 @@ export default class extends LlmEngine {
     logger.log(`[google] prompting model ${modelName}`)
     const model = await this.getModel(modelName, thread[0].contentForModel)
     const response = await model.generateContent({
-      contents: this.threadToHistory(thread, modelName),
+      contents: this.threadToHistory(thread, modelName, opts),
+      ...this.getGenerationConfig(opts)
     })
 
     // done
@@ -87,9 +88,9 @@ export default class extends LlmEngine {
     modelName = this.selectModel(modelName, thread, opts)
 
     // call
-    this.currentOpts = opts || null
+    this.currentOpts = opts
     this.currentModel = await this.getModel(modelName, thread[0].contentForModel)
-    this.currentContent = this.threadToHistory(thread, modelName)
+    this.currentContent = this.threadToHistory(thread, modelName, opts)
     return await this.doStream()
 
   }
@@ -102,6 +103,7 @@ export default class extends LlmEngine {
     logger.log(`[google] prompting model ${this.currentModel!.model}`)
     const response = await this.currentModel!.generateContentStream({
       contents: this.currentContent,
+      ...this.getGenerationConfig(this.currentOpts)
     })
 
     // done
@@ -122,7 +124,7 @@ export default class extends LlmEngine {
     return this.modelStartsWith(model, ['models/gemini-pro']) == false
   }
 
-  supportsTools(model: string): boolean {
+  private supportsTools(model: string): boolean {
     return model.includes('thinking') == false
   }
 
@@ -184,7 +186,7 @@ export default class extends LlmEngine {
     })
   }
 
-  typeToSchemaType(type: string): SchemaType {
+  private typeToSchemaType(type: string): SchemaType {
     if (type === 'string') return SchemaType.STRING
     if (type === 'number') return SchemaType.NUMBER
     if (type === 'boolean') return SchemaType.BOOLEAN
@@ -192,27 +194,24 @@ export default class extends LlmEngine {
     return SchemaType.OBJECT
   }
 
-  getPrompt(thread: Message[]): Array<string|Part> {
-    
-    // init
-    const prompt = []
-    const lastMessage = thread[thread.length-1]
-
-    // content
-    prompt.push(lastMessage.contentForModel)
-
-    // attachment
-    if (lastMessage.attachment) {
-      this.addAttachment(prompt, lastMessage.attachment)
+  private getGenerationConfig(opts?: LlmCompletionOpts): GenerationConfig {
+    if (!opts) return {}
+    const config: any = {
+      maxOutputTokens: opts?.maxTokens,
+      temperature: opts?.temperature,
+      topK: opts?.top_k,
+      topP: opts?.top_p,
     }
+    for (const key of Object.keys(config)) {
+      if (config[key] === undefined) delete config[key]
+    }
+    const hasValues = Object.values(config).some((v) => v !== undefined)
+    return hasValues ? config : {}
+  }
 
-    // done
-    return prompt
-  } 
-
-  threadToHistory(thread: Message[], modelName: string): Content[] {
+  threadToHistory(thread: Message[], modelName: string, opts?: LlmCompletionOpts): Content[] {
     const hasInstructions = this.supportsInstructions(modelName)
-    const payload = this.buildPayload(modelName, thread.slice(hasInstructions ? 1 : 0)).map((p) => {
+    const payload = this.buildPayload(modelName, thread.slice(hasInstructions ? 1 : 0), opts).map((p) => {
       if (p.role === 'system') p.role = 'user'
       return p
     })
@@ -368,7 +367,8 @@ export default class extends LlmEngine {
   }
 
    
-  addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  addImageToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
     payload.images = [ message.attachment!.content ]
   }
 

@@ -95,13 +95,13 @@ test('Google completion', async () => {
   const response = await google.complete('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { temperature: 0.8 })
   expect(_Google.GoogleGenerativeAI).toHaveBeenCalled()
   expect(_Google.GoogleGenerativeAI.prototype.getGenerativeModel).toHaveBeenCalled()
   expect(_Google.GenerativeModel.prototype.generateContent).toHaveBeenCalledWith({ contents: [{
     role: 'user',
     parts: [ { text: 'prompt' } ]
-  }]})
+  }], temperature: 0.8 })
   expect(response).toStrictEqual({
     type: 'text',
     content: 'response'
@@ -138,7 +138,7 @@ test('Google stream', async () => {
   const stream = await google.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { top_k: 4 })
   expect(_Google.GoogleGenerativeAI).toHaveBeenCalled()
   expect(_Google.GoogleGenerativeAI.prototype.getGenerativeModel).toHaveBeenCalledWith({
     model: 'model',
@@ -149,7 +149,7 @@ test('Google stream', async () => {
   expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({ contents: [{
     role: 'user',
     parts: [ { text: 'prompt' } ]
-  }]})
+  }], topK: 4 })
   let response = ''
   let lastMsg: LlmChunkContent|null = null
   const toolCalls: LlmChunk[] = []
@@ -175,7 +175,7 @@ test('Google stream without tools', async () => {
   await google.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { top_p: 4 })
   expect(_Google.GoogleGenerativeAI).toHaveBeenCalled()
   expect(_Google.GoogleGenerativeAI.prototype.getGenerativeModel).toHaveBeenCalledWith({
     model: 'model',
@@ -184,7 +184,7 @@ test('Google stream without tools', async () => {
   expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({ contents: [{
     role: 'user',
     parts: [ { text: 'prompt' } ]
-  }]})
+  }], topP: 4 })
 })
 
 test('Google Text Attachments', async () => {

@@ -123,7 +123,7 @@ export default class extends LlmEngine {
     const response = await this.client.chat({
       ...this.buildChatOptions({
         model: model,
-        messages: this.buildPayload(model, thread),
+        messages: this.buildPayload(model, thread, opts),
         opts: opts || null,
       }),
       stream: false,
@@ -146,7 +146,7 @@ export default class extends LlmEngine {
     this.currentModel = this.selectModel(model, thread, opts)
 
     // save the message thread
-    this.currentThread = this.buildPayload(this.currentModel, thread)
+    this.currentThread = this.buildPayload(this.currentModel, thread, opts)
 
     // save the opts and do it
     this.currentOpts = opts || null
@@ -192,11 +192,25 @@ export default class extends LlmEngine {
       model,
       // @ts-expect-error typing
       messages,
+      options: {}
     }
     if (opts?.contextWindowSize) {
-      chatOptions['options'] = {
-        num_ctx: opts.contextWindowSize
-      }
+      chatOptions.options!.num_ctx = opts.contextWindowSize
+    }
+    if (opts?.maxTokens) {
+      chatOptions.options!.num_predict = opts.maxTokens
+    }
+    if (opts?.temperature) {
+      chatOptions.options!.temperature = opts.temperature
+    }
+    if (opts?.top_k) {
+      chatOptions.options!.top_k = opts.top_k
+    }
+    if (opts?.top_p) {
+      chatOptions.options!.top_p = opts.top_p
+    }
+    if (Object.keys(opts || {}).length === 0) {
+      delete chatOptions.options
     }
     return chatOptions
   }
@@ -299,7 +313,8 @@ export default class extends LlmEngine {
   
   }
 
-  addAttachmentToPayload(message: Message, payload: LLmCompletionPayload) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  addImageToPayload(message: Message, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
     if (message.attachment) {
       payload.images = [ message.attachment.content ]
     }

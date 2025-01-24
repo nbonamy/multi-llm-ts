@@ -18,7 +18,11 @@ export type LlmCompletionOpts = {
   models?: Model[]
   autoSwitchVision?: boolean
   contextWindowSize?: number
-  //maxTokens?: number
+  maxTokens?: number
+  temperature?: number
+  top_k?: number
+  top_p?: number
+  citations?: boolean
   usage?: boolean
 }
 
@@ -43,6 +47,20 @@ export type LLmContentPayloadImageOpenai ={
   }
 }
 
+export type LLmContentPayloadDocumentAnthropic = {
+  type: 'document'
+  source?: {
+    type: 'text'
+    media_type: 'text/plain'
+    data: string
+  },
+  title?: string,
+  context?: string
+  citations?: {
+    enabled: boolean
+  }
+}
+
 export type LLmContentPayloadImageAnthropic = {
   type: 'image'
   source?: {
@@ -52,7 +70,11 @@ export type LLmContentPayloadImageAnthropic = {
   }
 }
 
-export type LlmContentPayload = LLmContentPayloadText | LLmContentPayloadImageOpenai | LLmContentPayloadImageAnthropic
+export type LlmContentPayload =
+  LLmContentPayloadText |
+  LLmContentPayloadImageOpenai |
+  LLmContentPayloadDocumentAnthropic |
+  LLmContentPayloadImageAnthropic
 
 export type LlmChunkContent = {
   type: 'content'

@@ -1,5 +1,5 @@
 
-import { LlmChunk, LlmChunkContent, LLmCompletionPayload } from '../../src/types/llm'
+import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
@@ -173,13 +173,31 @@ test('OpenAI no system prompt for most o1 models', async () => {
   ])
 })
 
+test('OpenAI buildPayload', async () => {
+  const openai = new OpenAI(config)
+  const message = new Message('user', 'text')
+  message.attach(new Attachment('image', 'image/png'))
+  expect(openai.buildPayload('gpt-3.5', [ message ])).toStrictEqual([{ role: 'user', content: 'text' }])
+  expect(openai.buildPayload('gpt-4o', [ message ])).toStrictEqual([{ role: 'user', content: [
+    { type: 'text', text: 'text' },
+    { type: 'image_url', image_url: { url: 'data:image/png;base64,image' } }
+  ]}])
+})
+
 test('OpenAI completion', async () => {
   const openai = new OpenAI(config)
   const response = await openai.complete('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
-  expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalled()
+  ], { temperature: 0.8 })
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    temperature : 0.8
+  })
   expect(response).toStrictEqual({
     type: 'text',
     content: 'response'
@@ -213,7 +231,7 @@ test('OpenAI stream', async () => {
   const stream = await openai.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { top_k: 4 })
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
@@ -222,6 +240,7 @@ test('OpenAI stream', async () => {
     ],
     tool_choice: 'auto',
     tools: expect.any(Array),
+    top_logprobs: 4,
     stream: true,
     stream_options: {
       include_usage: false
@@ -257,10 +276,11 @@ test('OpenAI stream no tools for o1', async () => {
   const stream = await openai.stream('o1-mini', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { top_p: 4 })
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'o1-mini',
     messages: [ { role: 'user', content: 'prompt' } ],
+    top_p: 4,
     stream: true,
     stream_options: {
       include_usage: false
@@ -288,16 +308,4 @@ test('OpenAI stream without tools', async () => {
     }
   })
   expect(stream).toBeDefined()
-})
-
-test('OpenAI addAttachmentToPayload', async () => {
-  const openai = new OpenAI(config)
-  const message = new Message('user', 'text')
-  message.attach(new Attachment('image', 'image/png'))
-  const payload: LLmCompletionPayload = { role: 'user', content: '' }
-  openai.addAttachmentToPayload(message, payload)
-  expect(payload.content).toStrictEqual([
-    { type: 'text', text: 'text' },
-    { type: 'image_url', image_url: { url: 'data:image/png;base64,image' } }
-  ])
 })
