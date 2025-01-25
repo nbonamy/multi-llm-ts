@@ -68,7 +68,7 @@ test('OpenAI Functions', async () => {
             'param3': {
               type: 'array',
               description: 'Parameter 3',
-              items: { type: 'object' },
+              items: { type: 'string' },
             },
             'param4': {
               type: 'array',
