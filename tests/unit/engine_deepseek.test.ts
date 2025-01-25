@@ -68,8 +68,8 @@ beforeEach(() => {
 test('DeepSeek Load Chat Models', async () => {
   const models = await loadDeepSeekModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'deepseek-chat', name: 'DeepSeek-V3', meta: expect.any(Object) },
-    { id: 'deepseek-reasoner', name: 'DeepSeek-R1', meta: expect.any(Object) },
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', meta: expect.any(Object) },
+    { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', meta: expect.any(Object) },
   ])
   expect(await loadModels('deepseek', config)).toStrictEqual(models)
 })

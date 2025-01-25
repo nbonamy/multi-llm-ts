@@ -43,13 +43,9 @@ export default class extends OpenAI {
     const models = await super.getModels()
 
     // translate
-    const names: { [key: string]: string } = {
-      'deepseek-chat': 'DeepSeek-V3',
-      'deepseek-reasoner': 'DeepSeek-R1',
-    }
     return models.map((model: Model) => ({
       ...model,
-      name: names[model.id] || model.name
+      name: model.name.split('-').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ').replace('Deepseek', 'DeepSeek'),
     }))
 
   }
