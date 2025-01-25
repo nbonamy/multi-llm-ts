@@ -164,17 +164,16 @@ export default class extends LlmEngine {
           const googleProps: { [k: string]: FunctionDeclarationSchemaProperty } = {};
           for (const name of Object.keys(tool.function.parameters.properties)) {
             const props = tool.function.parameters.properties[name]
-            const schema = this.typeToSchemaType(props.type)
             googleProps[name] = {
-              type: schema,
+              type: this.typeToSchemaType(props.type),
               description: props.description,
               ...(props.enum ? { enum: props.enum } : {}),
               ...(props.items ? { items: {
                   type: this.typeToSchemaType(props.items.type),
-                  properties: props.items.properties
+                  properties: props.items?.properties
                 }
               } : {}),
-            }
+            } as FunctionDeclarationSchemaProperty
           }
 
           functionDeclarations.push({
