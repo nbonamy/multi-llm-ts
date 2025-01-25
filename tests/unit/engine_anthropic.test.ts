@@ -16,7 +16,10 @@ vi.mock('@anthropic-ai/sdk', async() => {
   Anthropic.prototype.apiKey = '123'
   Anthropic.prototype.models = {
     list: vi.fn(() => {
-      return { data: [{ id: 'model', name: 'model' }] }
+      return { data: [
+        { id: 'model1', display_name: 'model1' },
+        { id: 'model2', display_name: 'model2' },
+      ] }
     })
   }
   Anthropic.prototype.messages = {
@@ -69,11 +72,8 @@ beforeEach(() => {
 test('Anthropic Load Models', async () => {
   const models = await loadAnthropicModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet' },
-    { id: 'claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku' },
-    { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
-    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
-    { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
+    { id: 'model1', name: 'model1', meta: expect.any(Object) },
+    { id: 'model2', name: 'model2', meta: expect.any(Object) },
   ])
   expect(await loadModels('anthropic', config)).toStrictEqual(models)
 })
@@ -86,6 +86,7 @@ test('Anthropic Basic', async () => {
 test('Anthropic Vision Model', async () => {
   const anthropic = new Anthropic(config)
   expect(anthropic.isVisionModel('claude-3-5-sonnet-latest')).toBe(true)
+  expect(anthropic.isVisionModel('claude-3-5-opus-latest')).toBe(false)
   expect(anthropic.isVisionModel('claude-3-5-haiku-latest')).toBe(false)
   expect(anthropic.isVisionModel('claude-3-sonnet-20240229')).toBe(true)
   expect(anthropic.isVisionModel('claude-3-opus-20240229')).toBe(true)

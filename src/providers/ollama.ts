@@ -74,13 +74,11 @@ export default class extends LlmEngine {
   async getModels(): Promise<Model[]> {
     try {
       const response = await this.client.list()
-      return response.models.map((model: any) => {
-        return {
-          id: model.model,
-          name: model.name,
-          meta: model,
-        }
-      })
+      return response.models.map((model: any) => ({
+        id: model.model,
+        name: model.name,
+        meta: model,
+      }))
     } catch (error) {
       console.error('Error listing models:', error);
       return [] 

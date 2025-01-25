@@ -5,13 +5,13 @@ import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import { loadModels, loadOpenRouterModels } from '../../src/llm'
 import OpenRouter from '../../src/providers/openrouter'
 import Message from '../../src/models/message'
-import OpenAI from 'openai'
+import OpenAI, { ClientOptions } from 'openai'
 import { LlmChunk } from '../../src/types/llm'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
 vi.mock('openai', async () => {
-  const OpenAI = vi.fn((opts: OpenAI.prototype.ClientOptions) => {
+  const OpenAI = vi.fn((opts: ClientOptions) => {
     OpenAI.prototype.apiKey = opts.apiKey
     OpenAI.prototype.baseURL = opts.baseURL
   })

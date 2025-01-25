@@ -12,6 +12,8 @@ import OpenAI from './providers/openai'
 import OpenRouter from './providers/openrouter'
 import XAI from './providers/xai'
 
+export const staticModelsListEngines = [ 'google' ]
+
 export const igniteEngine = (engine: string, config: EngineCreateOpts): LlmEngine => {
   if (engine === 'anthropic') return new Anthropic(config)
   if (engine === 'cerebras') return new Cerebreas(config)
@@ -110,7 +112,8 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
 
     return {
       chat: models,
-      image: []
+      image: [],
+      embedding: []
     }
 
   }
@@ -148,6 +151,7 @@ export const loadOllamaModels = async (engineConfig: EngineCreateOpts): Promise<
     chat: models
       .filter(model => modelInfo[model.id].family.includes('bert') === false)
       .sort((a, b) => a.name.localeCompare(b.name)),
+    image: [],
     embedding: models
       .filter(model => modelInfo[model.id].family.includes('bert') === true)
       .sort((a, b) => a.name.localeCompare(b.name)),
@@ -171,8 +175,9 @@ export const loadMistralAIModels = async (engineConfig: EngineCreateOpts): Promi
 
   // done
   return {
-    chat: models
-    .sort((a, b) => a.name.localeCompare(b.name))
+    chat: models.sort((a, b) => a.name.localeCompare(b.name)),
+    image: [],
+    embedding: []
   }
 
 }
@@ -193,8 +198,9 @@ export const loadAnthropicModels = async (engineConfig: EngineCreateOpts, comput
 
   // done
   return {
-    chat: models
-    //.sort((a, b) => a.name.localeCompare(b.name))
+    chat: models,//.sort((a, b) => a.name.localeCompare(b.name)),
+    image: [],
+    embedding: []
   }
 
 }
@@ -215,8 +221,9 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
 
   // done
   return {
-    chat: models
-    //.sort((a, b) => a.name.localeCompare(b.name))
+    chat: models,//.sort((a, b) => a.name.localeCompare(b.name)),
+    image: [],
+    embedding: []
   }
 
 }
@@ -237,8 +244,9 @@ export const loadGroqModels = async (engineConfig: EngineCreateOpts): Promise<Mo
 
   // done
   return {
-    chat: models
-    //.sort((a, b) => a.name.localeCompare(b.name))
+    chat: models,//.sort((a, b) => a.name.localeCompare(b.name))
+    image: [],
+    embedding: []
   }
 
 }
@@ -259,8 +267,9 @@ export const loadCerebrasModels = async (engineConfig: EngineCreateOpts): Promis
 
   // done
   return {
-    chat: models
-    //.sort((a, b) => a.name.localeCompare(b.name))
+    chat: models,//.sort((a, b) => a.name.localeCompare(b.name))
+    image: [],
+    embedding: []
   }
 
 }
@@ -281,8 +290,9 @@ export const loadXAIModels = async (engineConfig: EngineCreateOpts): Promise<Mod
 
   // done
   return {
-    chat: models
-    //.sort((a, b) => a.name.localeCompare(b.name))
+    chat: models,//.sort((a, b) => a.name.localeCompare(b.name))
+    image: [],
+    embedding: []
   }
 
 }
@@ -303,8 +313,9 @@ export const loadDeepSeekModels = async (engineConfig: EngineCreateOpts): Promis
 
   // done
   return {
-    chat: models
-    //.sort((a, b) => a.name.localeCompare(b.name))
+    chat: models,//.sort((a, b) => a.name.localeCompare(b.name))
+    image: [],
+    embedding: []
   }
 
 }
@@ -327,7 +338,8 @@ export const loadOpenRouterModels = async (engineConfig: EngineCreateOpts): Prom
   // done
   return {
     chat: models.filter((m) => m.meta?.architecture?.modality.split('>').pop().includes('text')).sort((a, b) => a.name.localeCompare(b.name)),
-    image: models.filter((m) => m.meta?.architecture?.modality.split('>').pop().includes('image')).sort((a, b) => a.name.localeCompare(b.name))
+    image: models.filter((m) => m.meta?.architecture?.modality.split('>').pop().includes('image')).sort((a, b) => a.name.localeCompare(b.name)),
+    embedding: []
   }
 
 }

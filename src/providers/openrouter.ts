@@ -3,6 +3,10 @@ import { EngineCreateOpts, Model } from 'types/index'
 import { LlmRole } from 'types/llm'
 import OpenAI from './openai'
 
+//
+// https://openrouter.ai/docs/quick-start
+//
+
 export default class extends OpenAI {
 
   _visionModels: string[] = []

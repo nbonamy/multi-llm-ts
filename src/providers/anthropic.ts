@@ -19,6 +19,10 @@ export interface AnthropicComputerToolInfo {
   screenNumber (): number
 }
 
+//
+// https://docs.anthropic.com/en/api/getting-started
+//
+
 export default class extends LlmEngine {
 
   client: Anthropic
@@ -46,10 +50,10 @@ export default class extends LlmEngine {
   // https://docs.anthropic.com/en/docs/about-claude/models
   getVisionModels(): string[] {
     return [
-      'claude-3-5-sonnet-latest',
-      'claude-3-sonnet-20240229',
-      'claude-3-opus-20240229',
-      'claude-3-haiku-20240307'
+      'claude-3-5-sonnet-*',
+      'claude-3-sonnet-*',
+      'claude-3-opus-*',
+      'claude-3-haiku-*'
     ]
   }
 
@@ -65,21 +69,17 @@ export default class extends LlmEngine {
     }
 
     // do it
-    const models = [
-      { id: 'claude-3-5-sonnet-latest', name: 'Claude 3.5 Sonnet' },
-      { id: 'claude-3-5-haiku-latest', name: 'Claude 3.5 Haiku' },
-      { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' },
-      { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
-      { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku' },
-      ]
+    const models = await this.client.models.list({ limit: 1000 })
 
-    // depends on platform
-    if (this.computerInfo) {
-      models.push({ id: 'computer-use', name: 'Computer Use' })
-    }
-
-    // done
-    return models
+    // transform
+    return [
+      ...models.data.map((model) => ({
+        id: model.id,
+        name: model.display_name,
+        meta: model
+      })),
+      ...(this.computerInfo ? [{ id: 'computer-use', name: 'Computer Use' }] : [])
+    ]
 
   }
 

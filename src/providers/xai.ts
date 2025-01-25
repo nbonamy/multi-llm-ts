@@ -3,6 +3,10 @@ import { EngineCreateOpts, Model } from 'types/index'
 import { LlmRole } from 'types/llm'
 import OpenAI from './openai'
 
+//
+// https://docs.x.ai/docs/introduction#what-is-grok-and-xai-api
+//
+
 export default class extends OpenAI {
 
   constructor(config: EngineCreateOpts) {
@@ -35,10 +39,15 @@ export default class extends OpenAI {
     }
 
     // do it
-    return [
-      { id: 'grok-beta', name: 'Grok 2' },
-      { id: 'grok-vision-beta', name: 'Grok Vision' },
-    ]
+    const models = await super.getModels()
+
+    // sort and transform
+    return models
+      .sort((a: Model, b: Model) => b.meta.created - a.meta.created)
+      .map((model: Model) => ({
+        ...model,
+        name: model.name.split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')
+      }))
 
   }
 

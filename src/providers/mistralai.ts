@@ -15,6 +15,10 @@ type MistralMessages = Array<
 | (ToolMessage & { role: "tool" })
 >
 
+//
+// https://docs.mistral.ai/api/
+//
+
 export default class extends LlmEngine {
 
   client: Mistral
@@ -48,13 +52,11 @@ export default class extends LlmEngine {
     // do it
     try {
       const response = await this.client.models.list()
-      return (response.data ?? []).map((model: any) => {
-        return {
-          id: model.id,
-          name: model.id,
-          meta: model,
-        }
-      })
+      return (response.data ?? []).map((model: any) => ({
+        id: model.id,
+        name: model.id,
+        meta: model,
+      }))
     } catch (error) {
       console.error('Error listing models:', error);
       return []

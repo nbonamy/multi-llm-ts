@@ -5,16 +5,26 @@ import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import { loadModels, loadXAIModels } from '../../src/llm'
 import Message from '../../src/models/message'
 import XAI from '../../src/providers/xai'
-import OpenAI from 'openai'
+import OpenAI, { ClientOptions } from 'openai'
 import { LlmChunk } from '../../src/types/llm'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
 vi.mock('openai', async () => {
-  const OpenAI = vi.fn((opts: OpenAI.prototype.ClientOptions) => {
+  const OpenAI = vi.fn((opts: ClientOptions) => {
     OpenAI.prototype.apiKey = opts.apiKey
     OpenAI.prototype.baseURL = opts.baseURL
   })
+  OpenAI.prototype.models = {
+    list: vi.fn(() => {
+      return {
+        data: [
+          {'id': 'grok-1', 'created': 1, 'object': 'model', 'owned_by': 'xai'},
+          {'id': 'grok-2', 'created': 2, 'object': 'model', 'owned_by': 'xai'},
+        ]
+      }
+    })
+  }
   OpenAI.prototype.chat = {
     completions: {
       create: vi.fn((opts) => {
@@ -57,8 +67,8 @@ beforeEach(() => {
 test('xAI Load Chat Models', async () => {
   const models = await loadXAIModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'grok-beta', name: 'Grok 2' },
-    { id: 'grok-vision-beta', name: 'Grok Vision' },
+    { id: 'grok-2', name: 'Grok 2', meta: expect.any(Object) },
+    { id: 'grok-1', name: 'Grok 1', meta: expect.any(Object) },
   ])
   expect(await loadModels('xai', config)).toStrictEqual(models)
 })

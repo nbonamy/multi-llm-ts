@@ -29,6 +29,7 @@ test('Antrophic real test', async (context) => {
   const anthropic = new Anthropic({
     apiKey: process.env.ANTHROPIC_API_KEY,
   })
+
   anthropic.addPlugin(new Plugin1())
   anthropic.addPlugin(new Plugin2())
   anthropic.addPlugin(new Plugin3())

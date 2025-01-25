@@ -14,12 +14,15 @@ Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result
 vi.mock('groq-sdk', async() => {
   const Groq = vi.fn()
   Groq.prototype.apiKey = '123'
-  Groq.prototype.listModels = vi.fn(() => {
-    return { data: [
-      { id: 'model2', name: 'model2' },
-      { id: 'model1', name: 'model1' },
-    ] }
-  })
+  Groq.prototype.models = {
+    list: vi.fn(() => {
+      return { data: [
+        { id: 'model1', name: 'model1', active: true, created: 1 },
+        { id: 'model2', name: 'model2', active: true, created: 2 },
+        { id: 'model3', name: 'model3', active: false, created: 3 },
+      ] }
+    })
+  }
   Groq.prototype.chat = {
     completions: {
       create: vi.fn((opts) => {
@@ -65,17 +68,8 @@ beforeEach(() => {
 test('Groq Load Models', async () => {
   const models = await loadGroqModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B' },
-    { id: 'llama-3.2-90b-vision-preview', name: 'Llama 3.2 90B Vision (Preview)' },
-    { id: 'llama-3.2-11b-vision-preview', name: 'Llama 3.2 11B Vision (Preview)' },
-    { id: 'llama-3.2-3b-preview', name: 'Llama 3.2 3B Text (Preview)' },
-    { id: 'llama-3.2-1b-preview', name: 'Llama 3.2 1B Text (Preview)' },
-    { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8b' },
-    { id: 'llama3-70b-8192', name: 'Llama 3 70b' },
-    { id: 'llama3-8b-8192', name: 'Llama 3 8b' },
-    { id: 'mixtral-8x7b-32768', name: 'Mixtral 8x7b' },
-    { id: 'gemma2-9b-it', name: 'Gemma 2 9b' },
-    { id: 'gemma-7b-it', name: 'Gemma 7b' },
+    { id: 'model2', name: 'model2', meta: expect.any(Object) },
+    { id: 'model1', name: 'model1', meta: expect.any(Object) },
   ])
   expect(await loadModels('groq', config)).toStrictEqual(models)
 })

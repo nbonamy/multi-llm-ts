@@ -11,6 +11,16 @@ vi.mock('openai', async () => {
     OpenAI.prototype.apiKey = opts.apiKey
     OpenAI.prototype.baseURL = opts.baseURL
   })
+  OpenAI.prototype.models = {
+    list: vi.fn(() => {
+      return {
+        data: [
+          { 'id': 'llama3.1-8b', 'object': 'model', 'created': 1, 'owned_by': 'Meta' },
+          { 'id': 'llama-3.3-70b', 'object': 'model', 'created': 2, 'owned_by': 'Meta' }
+        ]
+      }
+    })
+  }
   OpenAI.prototype.chat = {
     completions: {
       create: vi.fn()
@@ -29,8 +39,8 @@ beforeEach(() => {
 test('Cerebras Load Chat Models', async () => {
   const models = await loadCerebrasModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'llama3.1-8b', name: 'Llama 3.1 8b' },
-    { id: 'llama3.1-70b', name: 'Llama 3.1 70b' },
+    { id: 'llama-3.3-70b', name: 'Llama 3.3 70b', meta: expect.any(Object) },
+    { id: 'llama3.1-8b', name: 'Llama3.1 8b', meta: expect.any(Object) },
   ])
   expect(await loadModels('cerebras', config)).toStrictEqual(models)
 })

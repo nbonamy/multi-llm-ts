@@ -3,6 +3,10 @@ import { EngineCreateOpts, Model } from 'types/index'
 import { LlmRole } from 'types/llm'
 import OpenAI from './openai'
 
+//
+// https://api-docs.deepseek.com
+//
+
 export default class extends OpenAI {
 
   constructor(config: EngineCreateOpts) {
@@ -36,10 +40,17 @@ export default class extends OpenAI {
     }
 
     // do it
-    return [
-      { id: 'deepseek-chat', name: 'DeepSeek-V3' },
-      { id: 'deepseek-reasoner', name: 'DeepSeek-R1' },
-    ]
+    const models = await super.getModels()
+
+    // translate
+    const names: { [key: string]: string } = {
+      'deepseek-chat': 'DeepSeek-V3',
+      'deepseek-reasoner': 'DeepSeek-R1',
+    }
+    return models.map((model: Model) => ({
+      ...model,
+      name: names[model.id] || model.name
+    }))
 
   }
 

@@ -11,6 +11,10 @@ import { Stream } from 'openai/streaming'
 
 const defaultBaseUrl = 'https://api.openai.com/v1'
 
+//
+// https://platform.openai.com/docs/api-reference/introduction
+// 
+
 export default class extends LlmEngine {
 
   client: OpenAI
@@ -68,13 +72,11 @@ export default class extends LlmEngine {
           models = response.body as OpenAI.Model[]
         }
       }
-      return models.map((model: any) => {
-        return {
-          id: model.id,
-          name: model.id,
-          meta: model,
-        }
-      })
+      return models.map((model: any) => ({
+        id: model.id,
+        name: model.id,
+        meta: model,
+      }))
     } catch (error) {
       console.error('Error listing models:', error);
       return []

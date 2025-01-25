@@ -9,6 +9,10 @@ import logger from '../logger'
 import { Content, EnhancedGenerateContentResponse, GenerativeModel, GoogleGenerativeAI, ModelParams, Part, FunctionResponsePart, SchemaType, FunctionDeclarationSchemaProperty, FunctionCallingMode, GenerationConfig } from '@google/generative-ai'
 import type { FunctionDeclaration } from '@google/generative-ai/dist/types'
 
+//
+// https://ai.google.dev/gemini-api/docs
+//
+
 export default class extends LlmEngine {
 
   client: GoogleGenerativeAI
@@ -47,6 +51,13 @@ export default class extends LlmEngine {
       return []
     }
 
+    // // fetch https://generativelanguage.googleapis.com/v1beta/listModels
+    // // adding bearer token from apiKey
+    // const response = await fetch('https://generativelanguage.googleapis.com/v1beta/listModels', {
+    //   method: 'GET',
+    //   headers: { 'Authorization': `Bearer ${this.client.apiKey}` }
+    // })
+    
     // do it
     return [
       { id: 'gemini-exp-1206', name: 'Gemini 2.0 Experimental (1206)' },

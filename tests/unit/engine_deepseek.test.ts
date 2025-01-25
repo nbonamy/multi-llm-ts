@@ -4,17 +4,27 @@ import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import DeepSeek from '../../src/providers/deepseek'
 import Message from '../../src/models/message'
-import OpenAI from 'openai'
+import OpenAI, { ClientOptions } from 'openai'
 import { loadDeepSeekModels, loadModels } from '../../src/llm'
 import { LlmChunk } from '../../src/types/llm'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
 vi.mock('openai', async () => {
-  const OpenAI = vi.fn((opts: OpenAI.prototype.ClientOptions) => {
+  const OpenAI = vi.fn((opts: ClientOptions) => {
     OpenAI.prototype.apiKey = opts.apiKey
     OpenAI.prototype.baseURL = opts.baseURL
   })
+  OpenAI.prototype.models = {
+    list: vi.fn(() => {
+      return {
+        data: [
+          { id: 'deepseek-chat', object: 'model', owned_by: 'deepseek'},
+          { id: 'deepseek-reasoner', object: 'model', owned_by: 'deepseek'},
+        ]
+      }
+    })
+  }
   OpenAI.prototype.chat = {
     completions: {
       create: vi.fn((opts) => {
@@ -58,8 +68,8 @@ beforeEach(() => {
 test('DeepSeek Load Chat Models', async () => {
   const models = await loadDeepSeekModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'deepseek-chat', name: 'DeepSeek-V3' },
-    { id: 'deepseek-reasoner', name: 'DeepSeek-R1' },
+    { id: 'deepseek-chat', name: 'DeepSeek-V3', meta: expect.any(Object) },
+    { id: 'deepseek-reasoner', name: 'DeepSeek-R1', meta: expect.any(Object) },
   ])
   expect(await loadModels('deepseek', config)).toStrictEqual(models)
 })
