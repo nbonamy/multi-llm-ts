@@ -128,10 +128,13 @@ test('Build payload with text attachment', async () => {
     new Message('system', 'instructions'),
     new Message('user', 'prompt1'),
   ]
-  messages[1].attach(new Attachment('text', 'text/plain'))
+  messages[1].attach(new Attachment('attachment', 'text/plain'))
   expect(openai.buildPayload('gpt-model1', messages)).toStrictEqual([
     { role: 'system', content: 'instructions' },
-    { role: 'user', content: 'prompt1\n\ntext' },
+    { role: 'user', content: [
+      { type: 'text', text: 'prompt1' },
+      { type: 'text', text: 'attachment' },
+    ]}
   ])
 })
 

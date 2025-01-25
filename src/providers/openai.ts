@@ -320,6 +320,16 @@ export default class extends LlmEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  addTextToPayload(message: Message, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
+    if (message.attachment) {
+      payload.content = [
+        { type: 'text', text: message.contentForModel },
+        { type: 'text', text: message.attachment.content }
+      ]
+    }
+  }
+  
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   addImageToPayload(message: Message, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
     if (message.attachment) {
       payload.content = [
