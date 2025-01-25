@@ -17,10 +17,11 @@ vi.mock('groq-sdk', async() => {
   Groq.prototype.models = {
     list: vi.fn(() => {
       return { data: [
-        { id: 'model1', name: 'model1', active: true, created: 1 },
-        { id: 'model2', name: 'model2', active: true, created: 2 },
-        { id: 'model3', name: 'model3', active: false, created: 3 },
-      ] }
+        { id: 'model1-9b', active: true, created: 1 },
+        { id: 'model2-70b-preview', active: true, created: 2 },
+        { id: 'model3', active: false, created: 3 },
+        { id: 'whisper', active: true, created: 4 },
+      ]}
     })
   }
   Groq.prototype.chat = {
@@ -68,8 +69,8 @@ beforeEach(() => {
 test('Groq Load Models', async () => {
   const models = await loadGroqModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'model2', name: 'model2', meta: expect.any(Object) },
-    { id: 'model1', name: 'model1', meta: expect.any(Object) },
+    { id: 'model2-70b-preview', name: 'Model2 70b Preview', meta: expect.any(Object) },
+    { id: 'model1-9b', name: 'Model1 9b', meta: expect.any(Object) },
   ])
   expect(await loadModels('groq', config)).toStrictEqual(models)
 })

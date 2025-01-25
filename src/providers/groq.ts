@@ -51,10 +51,11 @@ export default class extends LlmEngine {
     // filter and transform
     return models.data
       .filter((model: any) => model.active)
+      .filter((model: any) => !model.id.includes('whisper'))
       .sort((a: any, b: any) => b.created - a.created)
       .map((model: any) => ({
         id: model.id,
-        name: model.name,
+        name: model.id.split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
         meta: model
       }))
   }
