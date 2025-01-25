@@ -253,7 +253,7 @@ export default class LlmEngine {
             // or an object with properties
             if (param.type === 'array') {
               if (!param.items) {
-                obj[param.name].items = { type: 'object' }
+                obj[param.name].items = { type: 'string' }
               } else if (!param.items.properties) {
                 obj[param.name].items = { type: param.items.type }
               } else {

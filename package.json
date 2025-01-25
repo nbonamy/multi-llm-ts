@@ -18,6 +18,7 @@
     "test": "vitest",
     "check": "npm run lint && npx vitest --run && npm run build",
     "testui": "vitest --ui --coverage.enabled=true",
+    "testreal": "REAL_API=1 vitest tests/unit/engine_real_apis.test.ts",
     "example": "tsx ./example/index.ts"
   },
   "author": {

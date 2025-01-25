@@ -169,18 +169,24 @@ export default class extends LlmEngine {
               type: schema,
               description: props.description,
               ...(props.enum ? { enum: props.enum } : {}),
-              ...(props.items ? { items: { type: this.typeToSchemaType(props.items.type) } } : {}),
+              ...(props.items ? { items: {
+                  type: this.typeToSchemaType(props.items.type),
+                  properties: props.items.properties
+                }
+              } : {}),
             }
           }
 
           functionDeclarations.push({
             name: tool.function.name,
             description: tool.function.description,
-            parameters: {
-              type: SchemaType.OBJECT,
-              properties: googleProps,
-              required: tool.function.parameters.required,
-            }
+            ...(Object.keys(tool.function.parameters.properties).length == 0 ? {} : {
+              parameters: {
+                type: SchemaType.OBJECT,
+                properties: googleProps,
+                required: tool.function.parameters!.required,
+              }
+            })
           })
         }
 
@@ -270,7 +276,6 @@ export default class extends LlmEngine {
   async stop(stream: AsyncGenerator<any>) {
     //await stream?.controller?.abort()
   }
-
    
   async *nativeChunkToLlmChunk(chunk: EnhancedGenerateContentResponse): AsyncGenerator<LlmChunk, void, void> {
 
