@@ -98,13 +98,15 @@ test('Anthropic buildPayload text', async () => {
   const anthropic = new Anthropic(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('document', 'text/plain'))
+  message.attachment!.title = 'title'
+  message.attachment!.context = 'context'
   expect(anthropic.buildPayload('claude', [ message ])).toStrictEqual([ { role: 'user', content: [
     { type: 'text', text: 'text' },
     { type: 'document', source: {
       type: 'text',
       media_type: 'text/plain',
       data: 'document',
-    }}
+    }, title: 'title', context: 'context' }
   ]}])
 })
 

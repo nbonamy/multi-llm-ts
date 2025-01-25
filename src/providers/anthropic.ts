@@ -366,11 +366,17 @@ export default class extends LlmEngine {
   addTextToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
     payload.content = [
       { type: 'text', text: message.contentForModel },
-      { type: 'document', source: {
-        type: 'text',
-        media_type: 'text/plain',
-        data: message.attachment!.content,
-      }, ...(opts ? { citations: { enabled: opts?.citations ?? false } } : {}) }
+      {
+        type: 'document',
+        source: {
+          type: 'text',
+          media_type: 'text/plain',
+          data: message.attachment!.content,
+        },
+        ...(message.attachment!.title.length ? { title: message.attachment!.title } : {}),
+        ...(message.attachment!.context.length ? { context: message.attachment!.context } : {}),
+        ...(opts ? { citations: { enabled: opts?.citations ?? false } } : {})
+      }
     ]
   }
 

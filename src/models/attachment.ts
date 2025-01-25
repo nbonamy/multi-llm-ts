@@ -10,10 +10,14 @@ export default class Attachment {
 
   content: string
   mimeType: string
+  title: string
+  context: string
 
   constructor(content = '', mimeType = '') {
     this.content = content
     this.mimeType = mimeType
+    this.title = ''
+    this.context = ''
   }
 
   format(): string {
