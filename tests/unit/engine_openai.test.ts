@@ -34,6 +34,10 @@ vi.mock('openai', async () => {
         data: [
           { id: 'gpt-model2' },
           { id: 'gpt-model1' },
+          { id: 'o1' },
+          { id: 'o1-model' },
+          { id: 'o13-model' },
+          { id: 'op-model' },
           { id: 'dall-e-model2' },
           { id: 'dall-e-model1' },
         ]
@@ -96,6 +100,9 @@ test('OpenAI Load Models', async () => {
   expect(models.chat).toStrictEqual([
     { id: 'gpt-model1', name: 'gpt-model1', meta: { id: 'gpt-model1' } },
     { id: 'gpt-model2', name: 'gpt-model2', meta: { id: 'gpt-model2' } },
+    { id: 'o1', name: 'o1', meta: { id: 'o1' } },
+    { id: 'o1-model', name: 'o1-model', meta: { id: 'o1-model' } },
+    { id: 'o13-model', name: 'o13-model', meta: { id: 'o13-model' } },
   ])
   expect(models.image).toStrictEqual([
     { id: 'dall-e-model1', name: 'dall-e-model1', meta: { id: 'dall-e-model1' } },

@@ -73,25 +73,27 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
   // depends on the provider
   if (!engineConfig.baseURL || engineConfig.baseURL.includes('api.openai.com')) {
 
-    // debug
+    // // debug
     // for (const model of models) {
     //   console.log(model.id)
     // }
+
+    // let's prepare for the future
+    const oModelsRegex = /o\d+-?.*/
 
     // check for unknown models
     for (const model of models) {
       if (!model.id.startsWith('babbage-') && !model.id.startsWith('chatgpt-') && !model.id.startsWith('gpt-') &&
           !model.id.startsWith('dall-e-') && !model.id.startsWith('tts-') && !model.id.startsWith('whisper-') &&
-          !model.id.startsWith('davinci-') && !model.id.startsWith('text-embedding-') && !model.id.startsWith('o1') &&
-          !model.id.startsWith('o3') && !model.id.startsWith('o4') && !model.id.startsWith('o5')&&
+          !model.id.startsWith('davinci-') && !model.id.startsWith('text-embedding-') && !model.id.match(oModelsRegex) &&
           !model.id.includes('moderation')
         ) {
         console.warn(`[openai] Unknown model type: ${model.id}`)
       }
     }
-  
+
     return {
-      chat: models.filter(model => model.id.startsWith('gpt-') || model.id.startsWith('o1')),
+      chat: models.filter(model => model.id.startsWith('gpt-') || model.id.match(oModelsRegex)),
       image: models.filter(model => model.id.startsWith('dall-e-')),
       embedding: models.filter(model => model.id.startsWith('text-embedding-'))
     }
