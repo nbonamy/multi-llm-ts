@@ -22,6 +22,7 @@ export type LlmCompletionOpts = {
   temperature?: number
   top_k?: number
   top_p?: number
+  reasoningEffort?: 'low'|'medium'|'high'
   citations?: boolean
   usage?: boolean
 }

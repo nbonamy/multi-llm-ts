@@ -316,3 +316,17 @@ test('OpenAI stream without tools', async () => {
   })
   expect(stream).toBeDefined()
 })
+
+test('OpenAI reasoning effort', async () => {
+  const openai = new OpenAI(config)
+  await openai.stream('model', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { reasoningEffort: 'low' })
+  expect(_openai.default.prototype.chat.completions.create.mock.calls[0][0].reasoning_effort).toBeUndefined()
+  await openai.stream('o1', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { reasoningEffort: 'low' })
+  expect(_openai.default.prototype.chat.completions.create.mock.calls[1][0].reasoning_effort).toBe('low')
+})

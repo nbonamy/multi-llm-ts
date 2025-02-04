@@ -7,6 +7,7 @@ import logger from '../logger'
 
 import OpenAI, { ClientOptions } from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
+import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import { Stream } from 'openai/streaming'
 
 const defaultBaseUrl = 'https://api.openai.com/v1'
@@ -48,6 +49,10 @@ export default class extends LlmEngine {
 
   modelSupportsTools(model: string): boolean {
     return !model.startsWith('o1-')
+  }
+
+  modelIsReasoning(model: string): boolean {
+    return model.startsWith('o')
   }
 
   get systemRole(): LlmRole {
@@ -114,10 +119,7 @@ export default class extends LlmEngine {
     const response = await this.client.chat.completions.create({
       model: model,
       messages: this.buildPayload(model, thread, opts) as Array<any>,
-      max_completion_tokens: opts?.maxTokens,
-      temperature: opts?.temperature,
-      top_logprobs: opts?.top_k,
-      top_p: opts?.top_p,
+      ...this.getCompletionOpts(this.currentModel, opts),
     });
 
     // done
@@ -167,18 +169,24 @@ export default class extends LlmEngine {
         tools: tools,
         tool_choice: 'auto',
       } : {}),
-      max_completion_tokens: this.currentOpts?.maxTokens,
-      temperature: this.currentOpts?.temperature,
-      top_logprobs: this.currentOpts?.top_k,
-      top_p: this.currentOpts?.top_p,
+      ...this.getCompletionOpts(this.currentModel, this.currentOpts || {}),
       stream_options: { include_usage: this.currentOpts?.usage || false },
-      //max_tokens: this.currentOpts?.maxTokens,
       stream: true,
     })
 
     // done
     return stream
 
+  }
+
+  getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<ChatCompletionCreateParamsBase, "model"|"messages"|"stream"> {
+    return {
+      max_completion_tokens: opts?.maxTokens,
+      temperature: opts?.temperature,
+      top_logprobs: opts?.top_k,
+      top_p: opts?.top_p,
+      ...(this.modelIsReasoning(model) ? { reasoning_effort: opts?.reasoningEffort } : {}),
+    }
   }
 
   async stop(stream: Stream<any>) {
