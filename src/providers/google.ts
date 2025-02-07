@@ -54,8 +54,6 @@ export default class extends LlmEngine {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${this.client.apiKey}`)
     const json = await response.json()
 
-    console.log(json)
-
     // filter
     const models = []
     for (const model of json.models) {

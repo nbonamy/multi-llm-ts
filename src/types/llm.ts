@@ -14,18 +14,21 @@ export type LlmResponse = {
 
 export type LlmStream = AsyncIterable<any>
 
-export type LlmCompletionOpts = {
-  models?: Model[]
-  autoSwitchVision?: boolean
+export type LlmModelOpts = {
   contextWindowSize?: number
   maxTokens?: number
   temperature?: number
   top_k?: number
   top_p?: number
   reasoningEffort?: 'low'|'medium'|'high'
-  citations?: boolean
-  usage?: boolean
 }
+
+export type LlmCompletionOpts = {
+  models?: Model[]
+  autoSwitchVision?: boolean
+  usage?: boolean
+  citations?: boolean
+} & LlmModelOpts
 
 export type LLmCompletionPayload = {
   role: LlmRole
