@@ -12,6 +12,17 @@ import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
+global.fetch = vi.fn((): Promise<Response> => Promise.resolve(new Response(JSON.stringify({ models: [
+  { name: 'models/non-generate-content', displayName: 'Non Generate Content', description: '', supportedGenerationMethods: [ 'embedContent' ] },
+  { name: 'models/deprecated', displayName: 'Deprecated', description: 'was deprecated in', supportedGenerationMethods: [ 'generateContent' ] },
+  { name: 'models/discontinued', displayName: 'Discontinued', description: 'was discontinued in', supportedGenerationMethods: [ 'generateContent' ] },
+  { name: 'models/tuning', displayName: 'Tuning', description: 'can be used to tune', supportedGenerationMethods: [ 'generateContent' ] },
+  { name: 'models/gemini-001', displayName: 'Gemini 001', description: '', supportedGenerationMethods: [ 'generateContent' ] },
+  { name: 'models/gemini-1.5', displayName: 'Gemini 1.5', description: '', supportedGenerationMethods: [ 'generateContent' ] },
+  { name: 'models/gemini-1.5-latest', displayName: 'Gemini 1.5', description: '', supportedGenerationMethods: [ 'generateContent' ] },
+  { name: 'models/gemini-2.0', displayName: 'Gemini 2.0', description: '', supportedGenerationMethods: [ 'generateContent' ] },
+]}))))
+
 vi.mock('@google/generative-ai', async() => {
   const GenerativeModel = vi.fn()
   GenerativeModel.prototype.generateContent = vi.fn(() => { return { response: { text: () => 'response' } } })
@@ -50,15 +61,8 @@ beforeEach(() => {
 test('Google Load Models', async () => {
   const models = await loadGoogleModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'gemini-exp-1206', name: 'Gemini 2.0 Experimental (1206)' },
-    { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
-    { id: 'gemini-2.0-flash-thinking-exp-01-21', name: 'Gemini 2.0 Flash Thinking (01-21)' },
-    { id: 'gemini-2.0-flash-thinking-exp-1219', name: 'Gemini 2.0 Flash Thinking (1219)' },
-    { id: 'learnlm-1.5-pro-experimental', name: 'LearnLM 1.5 Pro Experimental' },
-    { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
-    { id: 'gemini-1.5-flash-latest', name: 'Gemini  1.5 Flash' },
-    { id: 'gemini-1.5-flash-8b-latest', name: 'Gemini 1.5 Flash 8B' },
-    { id: 'gemini-pro', name: 'Gemini 1.0 Pro' },
+    { id: 'gemini-2.0', name: 'Gemini 2.0', meta: expect.any(Object) },
+    { id: 'gemini-1.5-latest', name: 'Gemini 1.5', meta: expect.any(Object) },
   ])
   expect(await loadModels('google', config)).toStrictEqual(models)
 })
@@ -70,9 +74,9 @@ test('Google Basic', async () => {
 
 test('Google Vision Model', async () => {
   const google = new Google(config)
-  expect(google.isVisionModel('models/gemini-pro')).toBe(false)
+  expect(google.isVisionModel('gemini-pro')).toBe(false)
   expect(google.isVisionModel('gemini-1.5-flash-latest')).toBe(true)
-  expect(google.isVisionModel('models/gemini-1.5-pro-latest')).toBe(true)
+  expect(google.isVisionModel('gemini-1.5-pro-latest')).toBe(true)
   expect(google.isVisionModel('gemini-2.0-flash-exp')).toBe(true)
   expect(google.isVisionModel('gemini-exp-1206')).toBe(true)
   expect(google.isVisionModel('gemini-2.0-flash-thinking-exp-1219')).toBe(true)
@@ -81,9 +85,9 @@ test('Google Vision Model', async () => {
 
 test('Google Tools Support', async () => {
   const google = new Google(config)
-  expect(google.supportsTools('models/gemini-pro')).toBe(true)
+  expect(google.supportsTools('gemini-pro')).toBe(true)
   expect(google.supportsTools('gemini-1.5-flash-latest')).toBe(true)
-  expect(google.supportsTools('models/gemini-1.5-pro-latest')).toBe(true)
+  expect(google.supportsTools('gemini-1.5-pro-latest')).toBe(true)
   expect(google.supportsTools('gemini-2.0-flash-exp')).toBe(true)
   expect(google.supportsTools('gemini-exp-1206')).toBe(true)
   expect(google.supportsTools('gemini-2.0-flash-thinking-exp-1219')).toBe(false)
@@ -204,7 +208,7 @@ test('Google Text Attachments', async () => {
 
 test('Google Image Attachments', async () => {
   const google = new Google(config)
-  await google.stream('models/gemini-1.5-pro-latest', [
+  await google.stream('gemini-1.5-pro-latest', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt1', new Attachment('image1', 'image/png')),
     new Message('assistant', 'response1'),

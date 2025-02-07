@@ -35,12 +35,11 @@ export default class extends LlmEngine {
   // https://ai.google.dev/gemini-api/docs/models/gemini
   getVisionModels(): string[] {
     return [
-      'models/gemini-1.5-pro-latest',
-      'gemini-1.5-flash-latest',
-      'gemini-2.0-flash-exp',
+      'gemini-1.5-pro-latest',
+      'gemini-1.5-flash-*',
+      'gemini-2.0-flash-*',
       'gemini-exp-1206',
-      'gemini-2.0-flash-thinking-exp-1219',
-      'gemini-2.0-flash-thinking-exp-01-21'
+      'gemini-2.0-flash-thinking-*',
     ]
   }
 
@@ -51,25 +50,43 @@ export default class extends LlmEngine {
       return []
     }
 
-    // // fetch https://generativelanguage.googleapis.com/v1beta/listModels
-    // // adding bearer token from apiKey
-    // const response = await fetch('https://generativelanguage.googleapis.com/v1beta/listModels', {
-    //   method: 'GET',
-    //   headers: { 'Authorization': `Bearer ${this.client.apiKey}` }
-    // })
+    // https://ai.google.dev/api/models#models_get-SHELL
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${this.client.apiKey}`)
+    const json = await response.json()
+
+    console.log(json)
+
+    // filter
+    const models = []
+    for (const model of json.models) {
+      if (model.name.match(/\d\d\d$/)) continue
+      if (model.name.includes('tuning')) continue
+      if (model.description.includes('deprecated')) continue
+      if (model.description.includes('discontinued')) continue
+      if (model.supportedGenerationMethods.includes('generateContent')) {
+        models.push({
+          id: model.name.replace('models/', ''),
+          name: model.displayName,
+          meta: model
+        })
+      }
+    }
+
+    // reverse
+    models.reverse()
+
+    // now remove duplicated based on name
+    const names: string[] = []
+    const filtered = []
+    for (const model of models) {
+      if (names.includes(model.name)) continue
+      names.push(model.name)
+      filtered.push(model)
+    }
+
+    // done
+    return filtered
     
-    // do it
-    return [
-      { id: 'gemini-exp-1206', name: 'Gemini 2.0 Experimental (1206)' },
-      { id: 'gemini-2.0-flash-exp', name: 'Gemini 2.0 Flash' },
-      { id: 'gemini-2.0-flash-thinking-exp-01-21', name: 'Gemini 2.0 Flash Thinking (01-21)' },
-      { id: 'gemini-2.0-flash-thinking-exp-1219', name: 'Gemini 2.0 Flash Thinking (1219)' },
-      { id: 'learnlm-1.5-pro-experimental', name: 'LearnLM 1.5 Pro Experimental' },
-      { id: 'gemini-1.5-pro-latest', name: 'Gemini 1.5 Pro' },
-      { id: 'gemini-1.5-flash-latest', name: 'Gemini  1.5 Flash' },
-      { id: 'gemini-1.5-flash-8b-latest', name: 'Gemini 1.5 Flash 8B' },
-      { id: 'gemini-pro', name: 'Gemini 1.0 Pro' },
-    ]
   }
 
   async complete(modelName: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
