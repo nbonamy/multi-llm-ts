@@ -14,13 +14,15 @@ export type LlmResponse = {
 
 export type LlmStream = AsyncIterable<any>
 
+export type LlmReasoningEffort = 'low'|'medium'|'high'
+
 export type LlmModelOpts = {
   contextWindowSize?: number
   maxTokens?: number
   temperature?: number
   top_k?: number
   top_p?: number
-  reasoningEffort?: 'low'|'medium'|'high'
+  reasoningEffort?: LlmReasoningEffort
 }
 
 export type LlmCompletionOpts = {

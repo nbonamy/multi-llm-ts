@@ -55,6 +55,27 @@ export default class extends LlmEngine {
     return model.startsWith('o')
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  modelSupportsMaxTokens(model: string): boolean {
+    return true
+  }
+
+  modelSupportsTemperature(model: string): boolean {
+    return !this.modelIsReasoning(model)
+  }
+
+  modelSupportsTopP(model: string): boolean {
+    return !this.modelIsReasoning(model)
+  }
+
+  modelSupportsTopK(model: string): boolean {
+    return !this.modelIsReasoning(model)
+  }
+
+  modelSupportsReasoningEffort(model: string): boolean {
+    return this.modelIsReasoning(model)
+  }
+
   get systemRole(): LlmRole {
     return 'system'//'developer'
   }
@@ -179,13 +200,13 @@ export default class extends LlmEngine {
 
   }
 
-  getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<ChatCompletionCreateParamsBase, "model"|"messages"|"stream"> {
+  getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'> {
     return {
-      max_completion_tokens: opts?.maxTokens,
-      temperature: opts?.temperature,
-      top_logprobs: opts?.top_k,
-      top_p: opts?.top_p,
-      ...(this.modelIsReasoning(model) ? { reasoning_effort: opts?.reasoningEffort } : {}),
+      ...(this.modelSupportsMaxTokens(model) && opts?.maxTokens ? { max_completion_tokens: opts?.maxTokens } : {} ),
+      ...(this.modelSupportsTemperature(model) && opts?.temperature ? { temperature: opts?.temperature } : {} ),
+      ...(this.modelSupportsTopK(model) && opts?.top_k ? { logprobs: true, top_logprobs: opts?.top_k } : {} ),
+      ...(this.modelSupportsTopP(model) && opts?.top_p ? { top_p: opts?.top_p } : {} ),
+      ...(this.modelSupportsReasoningEffort(model) && opts?.reasoningEffort ? { reasoning_effort: opts?.reasoningEffort } : {}),
     }
   }
 

@@ -63,13 +63,14 @@ test('Cerebras stream', async () => {
   /*const response = */await cerebras.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { top_p: 4, top_k: 4})
   expect(OpenAI.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
       { role: 'user', content: 'prompt' }
     ],
+    top_p: 4,
     stream: true,
     stream_options: {
       include_usage: false

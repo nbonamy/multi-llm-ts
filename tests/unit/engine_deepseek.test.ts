@@ -91,7 +91,7 @@ test('DeepSeek completion', async () => {
   const response = await deepseek.complete('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], { temperature: 0.8 })
+  ], { temperature: 0.8, reasoningEffort: 'high' })
   expect(OpenAI.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
@@ -114,7 +114,7 @@ test('DeepSeek stream', async () => {
   const stream = await deepseek.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], { top_k: 4 })
+  ], { top_k: 4, reasoningEffort: 'low' })
   expect(OpenAI.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
@@ -123,6 +123,7 @@ test('DeepSeek stream', async () => {
     ],
     tool_choice: 'auto',
     tools: expect.any(Array),
+    logprobs: true,
     top_logprobs: 4,
     stream: true,
     stream_options: {

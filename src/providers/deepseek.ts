@@ -29,6 +29,16 @@ export default class extends OpenAI {
     return true
   }
 
+  modelIsReasoning(model: string): boolean {
+    return model.includes('reason')
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  modelSupportsReasoningEffort(model: string): boolean {
+    return false
+  }
+
+
   get systemRole(): LlmRole {
     return 'system'
   }

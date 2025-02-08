@@ -7,6 +7,7 @@ import logger from '../logger'
 
 import Groq from 'groq-sdk'
 import { ChatCompletionMessageParam, ChatCompletionChunk } from 'groq-sdk/resources/chat'
+import { ChatCompletionCreateParamsBase } from 'groq-sdk/resources/chat/completions'
 import { Stream } from 'groq-sdk/lib/streaming'
 
 //
@@ -67,10 +68,7 @@ export default class extends LlmEngine {
     const response = await this.client.chat.completions.create({
       model: model,
       messages: this.buildPayload(model, thread, opts) as ChatCompletionMessageParam[],
-      max_tokens: opts?.maxTokens,
-      temperature: opts?.temperature,
-      top_logprobs: opts?.top_k,
-      top_p: opts?.top_p,
+      ...this.getCompletionOpts(model, opts),
     });
 
     // return an object
@@ -112,16 +110,22 @@ export default class extends LlmEngine {
         tools: tools,
         tool_choice: 'auto',
       } : {}),
-      max_tokens: this.currentOpts?.maxTokens,
-      temperature: this.currentOpts?.temperature,
-      top_logprobs: this.currentOpts?.top_k,
-      top_p: this.currentOpts?.top_p,
+      ...this.getCompletionOpts(this.currentModel, this.currentOpts),
       stream: true,
     })
 
     // done
     return stream
 
+  }
+
+  getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<ChatCompletionCreateParamsBase, "model"|"messages"|"stream"> {
+    return {
+      ...(opts?.maxTokens ? { max_tokens: opts?.maxTokens } : {} ),
+      ...(opts?.temperature ? { temperature: opts?.temperature } : {} ),
+      //...(opts?.top_k ? { logprobs: true, top_logprobs: opts?.top_k } : {} ),
+      ...(opts?.top_p ? { top_p: opts?.top_p } : {} ),
+    }
   }
 
   async stop(stream: Stream<any>) {

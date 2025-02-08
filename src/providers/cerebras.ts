@@ -23,6 +23,11 @@ export default class extends OpenAI {
   getVisionModels(): string[] {
     return []
   }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  modelSupportsTopK(model: string): boolean {
+    return false
+  }
   
   get systemRole(): LlmRole {
     return 'system'

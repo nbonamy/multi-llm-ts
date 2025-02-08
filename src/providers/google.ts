@@ -94,7 +94,7 @@ export default class extends LlmEngine {
     const model = await this.getModel(modelName, thread[0].contentForModel)
     const response = await model.generateContent({
       contents: this.threadToHistory(thread, modelName, opts),
-      ...this.getGenerationConfig(opts)
+      generationConfig: this.getGenerationConfig(opts),
     })
 
     // done
@@ -129,7 +129,7 @@ export default class extends LlmEngine {
     logger.log(`[google] prompting model ${this.currentModel!.model}`)
     const response = await this.currentModel!.generateContentStream({
       contents: this.currentContent,
-      ...this.getGenerationConfig(this.currentOpts)
+      generationConfig: this.getGenerationConfig(this.currentOpts),
     })
 
     // done
@@ -225,19 +225,14 @@ export default class extends LlmEngine {
     return SchemaType.OBJECT
   }
 
-  private getGenerationConfig(opts?: LlmCompletionOpts): GenerationConfig {
-    if (!opts) return {}
-    const config: any = {
-      maxOutputTokens: opts?.maxTokens,
-      temperature: opts?.temperature,
-      topK: opts?.top_k,
-      topP: opts?.top_p,
+  private getGenerationConfig(opts?: LlmCompletionOpts): GenerationConfig|undefined {
+    const config = {
+      ...(opts?.maxTokens ? { maxOutputTokens: opts?.maxTokens } : {} ),
+      ...(opts?.temperature ? { temperature: opts?.temperature } : {} ),
+      ...(opts?.top_k ? { topK: opts?.top_k } : {} ),
+      ...(opts?.top_p ? { topP: opts?.top_p } : {} ),
     }
-    for (const key of Object.keys(config)) {
-      if (config[key] === undefined) delete config[key]
-    }
-    const hasValues = Object.values(config).some((v) => v !== undefined)
-    return hasValues ? config : {}
+    return Object.keys(config).length ? config : undefined
   }
 
   threadToHistory(thread: Message[], modelName: string, opts?: LlmCompletionOpts): Content[] {

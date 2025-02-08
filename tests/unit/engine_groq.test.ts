@@ -117,7 +117,7 @@ test('Groq stream', async () => {
   const stream = await groq.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], { top_k: 4 })
+  ], { top_k: 4, top_p: 4 })
   expect(_Groq.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
@@ -126,7 +126,7 @@ test('Groq stream', async () => {
     ],
     tool_choice: 'auto',
     tools: expect.any(Array),
-    top_logprobs: 4,
+    top_p: 4,
     stream: true,
   })
   expect(stream).toBeDefined()

@@ -247,6 +247,7 @@ test('OpenAI stream', async () => {
     ],
     tool_choice: 'auto',
     tools: expect.any(Array),
+    logprobs: true,
     top_logprobs: 4,
     stream: true,
     stream_options: {
@@ -283,11 +284,11 @@ test('OpenAI stream no tools for o1', async () => {
   const stream = await openai.stream('o1-mini', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], { top_p: 4 })
+  ], { maxTokens: 200, temperature: 1.0, top_k: 4, top_p: 4 })
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'o1-mini',
     messages: [ { role: 'user', content: 'prompt' } ],
-    top_p: 4,
+    max_completion_tokens: 200,
     stream: true,
     stream_options: {
       include_usage: false
