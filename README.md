@@ -17,22 +17,23 @@ Features include:
 
 Not all providers support a "get models" end point. Those who do are listed as `dynamic` in the table below. For those who are listed as `static`, the list of models is hardcoded.
 
-|Provider|id|Models|Completion|Streaming|Vision|Function calling|Usage reporting|
-|---|---|---|---|---|---|--|--|
-|**Anthropic**|`anthropic`|static|yes|yes|yes|yes|yes|
-|**Cerebras**|`cerebras`|static|yes|yes|no|no|yes|
-|**DeepSeek**|`deepseek`|static|yes|yes|no|yes|yes|
-|**Google**|`google`|static|yes|yes|yes|yes|yes|
-|**Groq**|`groq`|static|yes|yes|yes|yes|yes|
-|**MistralAI**|`mistralai`|dynamic|yes|yes|yes|yes|yes|
-|**Ollama**|`ollama`|dynamic|yes|yes|yes|yes|yes|
-|**OpenAI**|`openai`|dynamic|yes|yes|yes<sup>1</sup>|yes<sup>1</sup>|yes|
-|**OpenRouter**|`openrouter`|dynamic|yes|yes|yes|yes|yes|
-|**TogetherAI**<sup>2</sup>|`openai`|dynamic|yes|yes|yes<sup>1</sup>|yes<sup>1</sup>|yes|
-|**xAI**|`xai`|static|yes|yes|yes|yes|yes|
+|Provider|id|Models|Completion|Streaming|Vision|Function calling|Parametrization<sup>1</sup>|Usage reporting|
+|---|---|---|---|---|---|--|--|--|
+|**Anthropic**|`anthropic`|static|yes|yes|yes|yes|yes|yes|
+|**Cerebras**|`cerebras`|static|yes|yes|no|no|yes|yes|
+|**DeepSeek**|`deepseek`|static|yes|yes|no|yes|yes|yes|
+|**Google**|`google`|static|yes|yes|yes|yes|yes|yes|
+|**Groq**|`groq`|static|yes|yes|yes|yes|yes|yes|
+|**MistralAI**|`mistralai`|dynamic|yes|yes|yes|yes|yes|yes|
+|**Ollama**|`ollama`|dynamic|yes|yes|yes|yes|yes|yes|
+|**OpenAI**|`openai`|dynamic|yes|yes|yes<sup>2</sup>|yes<sup>2</sup>|yes|yes|
+|**OpenRouter**|`openrouter`|dynamic|yes|yes|yes|yes|yes|yes|
+|**TogetherAI**<sup>3</sup>|`openai`|dynamic|yes|yes|yes<sup>2</sup>|yes<sup>2</sup>|yes|yes|
+|**xAI**|`xai`|static|yes|yes|yes|yes|yes|yes|
 
-<div><sup>1</sup> not supported for o1 family</div>
-<div><sup>2</sup> using `openai` provider. use `https://api.together.xyz/v1` as `baseURL`
+<div><sup>1</sup> Max tokens, Temperature... Support varies across providers and models
+<div><sup>2</sup> Not supported for o1 family</div>
+<div><sup>3</sup> Using `openai` provider. use `https://api.together.xyz/v1` as `baseURL`
 
 ## See it in action
 
