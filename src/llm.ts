@@ -12,7 +12,7 @@ import OpenAI from './providers/openai'
 import OpenRouter from './providers/openrouter'
 import XAI from './providers/xai'
 
-export const staticModelsListEngines = [ 'google' ]
+export const staticModelsListEngines = [ ]
 
 export const igniteEngine = (engine: string, config: EngineCreateOpts): LlmEngine => {
   if (engine === 'anthropic') return new Anthropic(config)
