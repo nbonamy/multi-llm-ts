@@ -5,10 +5,10 @@ import Message from '../models/message'
 import LlmEngine from '../engine'
 import logger from '../logger'
 
+// we do this for so that this can be imported in a browser
+// importing from 'ollama' directly imports 'fs' which fails in browser
 import { Ollama, ChatRequest, ChatResponse, ProgressResponse } from 'ollama/dist/browser.cjs'
-
-// until https://github.com/ollama/ollama-js/issues/187
-import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.6319775f.d.cts'
+import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.f6b57f53.cjs'
 
 export default class extends LlmEngine {
 
@@ -18,6 +18,7 @@ export default class extends LlmEngine {
   currentOpts: LlmCompletionOpts|null = null
   currentUsage: LlmUsage|null = null
   toolCalls: LlmToolCall[] = []
+  thinking: boolean = false
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   static isConfigured = (engineConfig: EngineCreateOpts): boolean => {
@@ -156,6 +157,7 @@ export default class extends LlmEngine {
 
     // reset
     this.toolCalls = []
+    this.thinking = false
 
     // tools
     const tools = await this.getAvailableTools()
@@ -216,7 +218,7 @@ export default class extends LlmEngine {
   async *nativeChunkToLlmChunk(chunk: ChatResponse): AsyncGenerator<LlmChunk, void, void> {
 
     // debug
-    //logger.log('nativeChunkToLlmChunk', chunk)
+    // console.dir(chunk, { depth: null })
 
     // add usage
     if (chunk.done && this.currentUsage && (chunk.eval_count || chunk.prompt_eval_count)) {
@@ -282,7 +284,7 @@ export default class extends LlmEngine {
         }        
 
       }
-    
+
       // switch to new stream
       yield {
         type: 'stream',
@@ -292,16 +294,25 @@ export default class extends LlmEngine {
       // done
       return
 
-    } else {
-
-      yield {
-        type: 'content',
-        text: chunk.message.content || '',
-        done: chunk.done
-      }
-
     }
 
+    // <think/> toggles thinking
+    if (chunk.message.content === '<think>') {
+      this.thinking = true
+      return
+    } else if (chunk.message.content === '</think>') {
+      this.thinking = false
+      return
+    }
+    
+    // content
+    yield {
+      type: this.thinking ? 'reasoning' : 'content',
+      text: chunk.message.content || '',
+      done: chunk.done
+    }
+
+    // usage
     if (this.currentOpts?.usage && this.currentUsage && chunk.done) {
       yield {
         type: 'usage',

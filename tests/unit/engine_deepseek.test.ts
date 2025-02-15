@@ -36,6 +36,12 @@ vi.mock('openai', async () => {
               yield { choices: [{ delta: { tool_calls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "ar' }} ] }, finish_reason: 'none' } ] }
               yield { choices: [{ delta: { tool_calls: [ { function: { arguments: [ 'g" ]' ] } }] }, finish_reason: 'none' } ] }
               yield { choices: [{ finish_reason: 'stop' } ] }
+
+              // yield some reasoning
+              const reasoning = 'reasoning'
+              for (let i = 0; i < reasoning.length; i++) {
+                yield { choices: [{ delta: { content: null, reasoning_content: reasoning[i], finish_reason: null } }] }
+              }
               
               // now the text response
               const content = 'response'
@@ -133,13 +139,16 @@ test('DeepSeek stream', async () => {
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
+  let reasoning = ''
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
     for await (const msg of deepseek.nativeChunkToLlmChunk(chunk)) {
+      if (msg.type === 'reasoning') reasoning += msg.text
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
+  expect(reasoning).toBe('reasoning')
   expect(response).toBe('response')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'prep2', done: false })

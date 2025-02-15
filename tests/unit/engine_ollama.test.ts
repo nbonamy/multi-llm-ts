@@ -40,6 +40,14 @@ vi.mock('ollama/dist/browser.cjs', async() => {
             }
           }
           
+          // yield some reasoning
+          const reasoning = 'reasoning'
+          yield { message: { role: 'assistant', content: '<think>' }, done: false }
+          for (let i = 0; i < reasoning.length; i++) {
+            yield { message: { role: 'assistant', content: reasoning[i] }, done: false }
+          }
+          yield { message: { role: 'assistant', content: '</think>' }, done: false }
+
           // now the text response
           const content = 'response'
           for (let i = 0; i < content.length; i++) {
@@ -138,17 +146,20 @@ test('Ollama stream without tools', async () => {
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
+  let reasoning = ''
   const toolCalls: LlmChunkTool[] = []
   let lastMsg: LlmChunkContent|null = null
   for await (const chunk of stream) {
     for await (const msg of ollama.nativeChunkToLlmChunk(chunk)) {
       lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text || ''
+      if (msg.type === 'reasoning') reasoning += msg.text || ''
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
   expect(lastMsg!.done).toBe(true)
   expect(response).toBe('response')
+  expect(reasoning).toBe('reasoning')
   expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
   await ollama.stop()
   expect(_ollama.Ollama.prototype.abort).toHaveBeenCalled()

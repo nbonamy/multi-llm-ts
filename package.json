@@ -1,6 +1,6 @@
 {
   "name": "multi-llm-ts",
-  "version": "2.12.1",
+  "version": "2.13.0",
   "description": "Library to query multiple LLM providers in a consistent way",
   "repository": {
     "type": "git",
@@ -46,7 +46,7 @@
     "@mistralai/mistralai": "^1.1.0",
     "groq-sdk": "^0.9.1",
     "minimatch": "^10.0.1",
-    "ollama": "^0.5.11",
+    "ollama": "^0.5.13",
     "openai": "^4.77.3"
   }
 }

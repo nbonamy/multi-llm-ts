@@ -83,7 +83,7 @@ export type LlmContentPayload =
   LLmContentPayloadImageAnthropic
 
 export type LlmChunkContent = {
-  type: 'content'
+  type: 'content'|'reasoning'
   text: string
   done: boolean
 }

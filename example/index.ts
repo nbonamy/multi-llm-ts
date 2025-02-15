@@ -12,13 +12,18 @@ const completion = async (llm: LlmEngine, model: string, messages: Message[]) =>
 const streaming = async (llm: LlmEngine, model: string, messages: Message[]) => {
   console.log('\n** Chat streaming')
   const stream = llm.generate(model, messages, { usage: true })
+  let reasoning = ''
   let response = ''
   for await (const chunk of stream) {
     console.log(chunk)
+    if (chunk.type === 'reasoning') {
+      reasoning += chunk.text
+    }
     if (chunk.type === 'content') {
       response += chunk.text
     }
   }
+  console.log(reasoning)
   console.log(response)
 }
 
@@ -28,7 +33,7 @@ const conversation = async (llm: LlmEngine, model: string, messages: Message[]) 
   let stream = llm.generate(model, messages)
   let response = ''
   for await (const chunk of stream) {
-    if (chunk.type === 'content') {
+    if (chunk.type === 'content' || chunk.type === 'reasoning') {
       AssistantMessage.appendText(chunk)
       response += chunk.text
     }
@@ -72,7 +77,7 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
 
   // we need an api key
   const apiKey = process.env.API_KEY || process.env[`${engine.toUpperCase()}_API_KEY`]
-  if (!apiKey) {
+  if (engine !== 'ollama' && !apiKey) {
     throw new Error('API_KEY environment variable is not set')
   }
 

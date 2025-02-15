@@ -217,7 +217,7 @@ export default class extends LlmEngine {
   async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk): AsyncGenerator<LlmChunk, void, void> {
 
     // debug
-    //logger.log('nativeChunkToLlmChunk', chunk)
+    //console.dir(chunk, { depth: null })
 
     // tool calls
     if (chunk.choices[0]?.delta?.tool_calls?.[0].function) {
@@ -327,6 +327,17 @@ export default class extends LlmEngine {
     const done = ['stop', 'length', 'content_filter', 'eos'].includes(chunk.choices[0]?.finish_reason || '')
     if (done) {
       this.streamDone = true
+    }
+
+    // reasoning chunk
+    // @ts-expect-error not in official api but used by deepseek
+    if (chunk.choices?.length && chunk.choices[0]?.delta?.reasoning_content) {
+      yield {
+        type: 'reasoning',
+        // @ts-expect-error not in official api but used by deepseek
+        text: chunk.choices[0]?.delta?.reasoning_content || '',
+        done: done,
+      }
     }
 
     // text chunk
