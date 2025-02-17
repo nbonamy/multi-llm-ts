@@ -32,6 +32,7 @@ vi.mock('openai', async () => {
       }
       return {
         data: [
+          { id: 'chatgpt-model' },
           { id: 'gpt-model2' },
           { id: 'gpt-model1' },
           { id: 'o1' },
@@ -98,6 +99,7 @@ test('OpenAI Load Models', async () => {
   const models = await loadOpenAIModels(config)
   expect(_openai.default.prototype.models.list).toHaveBeenCalled()
   expect(models.chat).toStrictEqual([
+    { id: 'chatgpt-model', name: 'chatgpt-model', meta: { id: 'chatgpt-model' } },
     { id: 'gpt-model1', name: 'gpt-model1', meta: { id: 'gpt-model1' } },
     { id: 'gpt-model2', name: 'gpt-model2', meta: { id: 'gpt-model2' } },
     { id: 'o1', name: 'o1', meta: { id: 'o1' } },
