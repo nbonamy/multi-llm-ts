@@ -83,17 +83,17 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
 
     // check for unknown models
     for (const model of models) {
-      if (!model.id.startsWith('babbage-') && !model.id.startsWith('chatgpt-') && !model.id.startsWith('gpt-') &&
-          !model.id.startsWith('dall-e-') && !model.id.startsWith('tts-') && !model.id.startsWith('whisper-') &&
-          !model.id.startsWith('davinci-') && !model.id.startsWith('text-embedding-') && !model.id.match(oModelsRegex) &&
-          !model.id.includes('moderation')
+      if (!model.id.includes('gpt-') && !model.id.match(oModelsRegex) && !model.id.startsWith('dall-e-') &&
+          !model.id.startsWith('tts-') && !model.id.startsWith('whisper-') &&
+          !model.id.startsWith('davinci-') && !model.id.startsWith('text-embedding-') && 
+          !model.id.startsWith('babbage-') &&  !model.id.includes('moderation')
         ) {
         console.warn(`[openai] Unknown model type: ${model.id}`)
       }
     }
 
     return {
-      chat: models.filter(model => model.id.startsWith('gpt-') || model.id.match(oModelsRegex)),
+      chat: models.filter(model => model.id.includes('gpt-') || model.id.match(oModelsRegex)),
       image: models.filter(model => model.id.startsWith('dall-e-')),
       embedding: models.filter(model => model.id.startsWith('text-embedding-'))
     }
