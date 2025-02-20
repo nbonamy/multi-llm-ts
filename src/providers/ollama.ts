@@ -251,20 +251,22 @@ export default class extends LlmEngine {
           status: this.getToolPreparationDescription(toolCall.function),
           done: false
         }
-        
+
+        // log
+        logger.log(`[ollama] tool call ${toolCall.function} with ${tool}`)
+        const args = JSON.parse(toolCall.args)
+
         // now notify running
         yield {
           type: 'tool',
           name: toolCall.function,
-          status: this.getToolRunningDescription(toolCall.function),
+          status: this.getToolRunningDescription(toolCall.function, args),
           done: false
         }
 
         // now execute
-        const args = JSON.parse(toolCall.args)
-        logger.log(`[${this.getName()}] tool call ${toolCall.function} with ${JSON.stringify(args)}`)
         const content = await this.callTool(toolCall.function, args)
-        logger.log(`[${this.getName()}] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+        logger.log(`[ollama] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool response message
         this.currentThread.push({

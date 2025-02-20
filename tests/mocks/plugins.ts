@@ -16,8 +16,8 @@ export class Plugin1 extends Plugin {
     return 'Plugin 1'
   }
 
-  getRunningDescription(): string {
-    return 'run1'
+  getRunningDescription(tool: string, args: any): string {
+    return `run1 of ${tool} with ${JSON.stringify(args)}`
   }
 
   getParameters(): PluginParameter[] {

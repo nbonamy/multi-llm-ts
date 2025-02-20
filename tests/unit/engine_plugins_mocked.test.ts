@@ -17,9 +17,9 @@ test('Engine plugin descriptions', () => {
   llm.addPlugin(new Plugin2())
   llm.addPlugin(new Plugin3())
   expect(llm.getToolPreparationDescription('plugin1')).toBe('')
-  expect(llm.getToolRunningDescription('plugin1')).toBe('run1')
+  expect(llm.getToolRunningDescription('plugin1', { arg: 'arg1' })).toBe('run1 of plugin1 with {"arg":"arg1"}')
   expect(llm.getToolPreparationDescription('plugin2')).toBe('prep2')
-  expect(llm.getToolRunningDescription('plugin2')).toBe('run2')
+  expect(llm.getToolRunningDescription('plugin2', { arg: 'arg2' })).toBe('run2')
 })
 
 test('Engine plugin execution', async () => {

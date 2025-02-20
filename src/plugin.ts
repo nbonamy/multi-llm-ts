@@ -27,11 +27,13 @@ export default class Plugin {
     throw new Error('Not implemented')
   }
 
-  getPreparationDescription(): string {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  getPreparationDescription(tool: string): string {
     return ''
   }
 
-  getRunningDescription(): string {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  getRunningDescription(tool: string, args: any): string {
     throw new Error('Not implemented')
   }
 

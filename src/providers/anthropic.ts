@@ -294,17 +294,19 @@ export default class extends LlmEngine {
     if (chunk.type == 'message_delta') {
       if (chunk.delta.stop_reason == 'tool_use' && this.toolCall !== null) {
 
+        // need
+        logger.log(`[anthropic] tool call ${this.toolCall.function} with ${this.toolCall.args}`)
+        const args = JSON.parse(this.toolCall.args)
+
         // first notify
         yield {
           type: 'tool',
           name: this.toolCall.function,
-          status: this.getToolRunningDescription(this.toolCall.function),
+          status: this.getToolRunningDescription(this.toolCall.function, args),
           done: false
         }
 
         // now execute
-        const args = JSON.parse(this.toolCall.args)
-        logger.log(`[anthropic] tool call ${this.toolCall.function} with ${JSON.stringify(args)}`)
         const content = await this.callTool(this.toolCall.function, args)
         logger.log(`[anthropic] tool call ${this.toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 

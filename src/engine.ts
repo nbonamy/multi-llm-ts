@@ -278,14 +278,33 @@ export default class LlmEngine {
     }
   }
 
-  protected getToolPreparationDescription(tool: string): string {
+  protected getPluginForTool(tool: string): Plugin|null {
+    
     const plugin = this.plugins.find((plugin) => plugin.getName() === tool)
-    return plugin?.getPreparationDescription() || ''
+    if (plugin) {
+      return plugin
+    }
+
+    // try multi-tools
+    for (const plugin of Object.values(this.plugins)) {
+      if (plugin.isMultiTool() && plugin.handlesTool(tool)) {
+        return plugin
+      }
+    }
+
+    // not found
+    return null
+
+  }
+
+  protected getToolPreparationDescription(tool: string): string {
+    const plugin = this.getPluginForTool(tool)
+    return plugin?.getPreparationDescription(tool) || ''
   }
   
-  protected getToolRunningDescription(tool: string): string {
-    const plugin = this.plugins.find((plugin) => plugin.getName() === tool)
-    return plugin?.getRunningDescription() || ''
+  protected getToolRunningDescription(tool: string, args: any): string {
+    const plugin = this.getPluginForTool(tool)
+    return plugin?.getRunningDescription(tool, args) || ''
   }
 
   protected async callTool(tool: string, args: any): Promise<any> {

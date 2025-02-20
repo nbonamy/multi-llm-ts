@@ -184,16 +184,19 @@ export default class extends LlmEngine {
       // add tools
       for (const toolCall of this.toolCalls) {
 
+        // log
+        logger.log(`[mistralai] tool call ${toolCall.function} with ${toolCall.args}`)
+        const args = JSON.parse(toolCall.args)
+
         // first notify
         yield {
           type: 'tool',
           name: toolCall.function,
-          status: this.getToolRunningDescription(toolCall.function),
+          status: this.getToolRunningDescription(toolCall.function, args),
           done: false
         }
 
         // now execute
-        const args = JSON.parse(toolCall.args)
         const content = await this.callTool(toolCall.function, args)
         logger.log(`[mistralai] tool call ${toolCall.function} with ${JSON.stringify(args)} => ${JSON.stringify(content).substring(0, 128)}`)
 

@@ -144,7 +144,7 @@ export default class extends LlmEngine {
       if (chunk.choices[0].delta.tool_calls[0].id !== null && chunk.choices[0].delta.tool_calls[0].id !== undefined) {
 
         // debug
-        //logger.log(`[${this.getName()}] tool call start:`, chunk)
+        //logger.log(`[groq] tool call start:`, chunk)
 
         // record the tool call
         const toolCall: LlmToolCall = {
@@ -188,19 +188,21 @@ export default class extends LlmEngine {
       // iterate on tools
       for (const toolCall of this.toolCalls) {
 
+        // log
+        logger.log(`[groq] tool call ${toolCall.function} with ${toolCall.args}`)
+        const args = JSON.parse(toolCall.args)
+
         // first notify
         yield {
           type: 'tool',
           name: toolCall.function,
-          status: this.getToolRunningDescription(toolCall.function),
+          status: this.getToolRunningDescription(toolCall.function, args),
           done: false
         }
 
         // now execute
-        const args = JSON.parse(toolCall.args)
-        logger.log(`[${this.getName()}] tool call ${toolCall.function} with ${JSON.stringify(args)}`)
         const content = await this.callTool(toolCall.function, args)
-        logger.log(`[${this.getName()}] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+        logger.log(`[groq] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message
         this.currentThread.push({

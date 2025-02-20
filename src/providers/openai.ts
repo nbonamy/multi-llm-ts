@@ -270,19 +270,21 @@ export default class extends LlmEngine {
       // iterate on tools
       for (const toolCall of this.toolCalls) {
 
+        // log
+        logger.log(`[openai] tool call ${toolCall.function} with ${toolCall.args}`)
+        const args = JSON.parse(toolCall.args)
+        
         // first notify
         yield {
           type: 'tool',
           name: toolCall.function,
-          status: this.getToolRunningDescription(toolCall.function),
+          status: this.getToolRunningDescription(toolCall.function, args),
           done: false
         }
 
         // now execute
-        const args = JSON.parse(toolCall.args)
-        logger.log(`[${this.getName()}] tool call ${toolCall.function} with ${JSON.stringify(args)}`)
         const content = await this.callTool(toolCall.function, args)
-        logger.log(`[${this.getName()}] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+        logger.log(`[openai] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message
         this.currentThread.push({
