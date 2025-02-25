@@ -11,7 +11,7 @@ const completion = async (llm: LlmEngine, model: string, messages: Message[]) =>
 
 const streaming = async (llm: LlmEngine, model: string, messages: Message[]) => {
   console.log('\n** Chat streaming')
-  const stream = llm.generate(model, messages, { usage: true })
+  const stream = llm.generate(model, messages, { usage: true, reasoning: true })
   let reasoning = ''
   let response = ''
   for await (const chunk of stream) {
@@ -57,7 +57,7 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
   const answer = new Answer()
   llm.addPlugin(answer)
   messages[1].content = 'What is the answer to life, the universe and everything?'
-  const stream = llm.generate(model, messages, { usage: true })
+  const stream = llm.generate(model, messages, { usage: true, reasoning: true })
   let response = ''
   for await (const chunk of stream) {
     console.log(chunk)

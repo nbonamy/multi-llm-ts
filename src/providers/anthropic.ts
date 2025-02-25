@@ -33,6 +33,8 @@ export default class extends LlmEngine {
   currentUsage: Usage|null = null
   toolCall: LlmToolCall|null = null
   computerInfo: AnthropicComputerToolInfo|null = null
+  thinkingBlock: string|null = null
+  thinkingSignature: string = ''
 
  constructor(config: EngineCreateOpts, computerInfo: AnthropicComputerToolInfo|null = null) {
     super(config)
@@ -151,6 +153,8 @@ export default class extends LlmEngine {
 
     // reset
     this.toolCall = null
+    this.thinkingBlock = null
+    this.thinkingSignature = ''
 
     // tools in anthropic format
     const tools: AnthropicTool[] = (await this.getAvailableTools()).map((tool) => {
@@ -265,6 +269,10 @@ export default class extends LlmEngine {
     // block start
     if (chunk.type == 'content_block_start') {
 
+      if (chunk.content_block.type == 'thinking') {
+        this.thinkingBlock = ''
+      }
+
       if (chunk.content_block.type == 'tool_use') {
 
         // record the tool call
@@ -299,7 +307,13 @@ export default class extends LlmEngine {
 
       // thinking
       if (this.toolCall === null && chunk.delta.type === 'thinking_delta') {
+        this.thinkingBlock += chunk.delta.thinking
         yield { type: 'reasoning', text: chunk.delta.thinking, done: false }
+      }
+
+      // thinking signature
+      if (this.toolCall === null && chunk.delta.type === 'signature_delta') {
+        this.thinkingSignature = chunk.delta.signature
       }
       
       // text
@@ -328,6 +342,18 @@ export default class extends LlmEngine {
         // now execute
         const content = await this.callTool(this.toolCall.function, args)
         logger.log(`[anthropic] tool call ${this.toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+
+        // add thinking block
+        if (this.thinkingBlock) {
+          this.currentThread.push({
+            role: 'assistant',
+            content: [{
+              type: 'thinking',
+              thinking: this.thinkingBlock,
+              signature: this.thinkingSignature
+            }]
+          })
+        }
 
         // add tool call message
         this.currentThread.push({
