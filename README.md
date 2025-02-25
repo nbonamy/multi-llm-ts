@@ -15,19 +15,19 @@ Features include:
 
 ## Providers supported
 
-|Provider|id|Completion<br>&&nbsp;Streaming|Vision|Function calling|Parametrization<sup>1</sup>|Usage reporting|
-|---|---|---|---|---|--|--|
-|**Anthropic**|`anthropic`|yes|yes|yes|yes|yes|
-|**Cerebras**|`cerebras`|yes|no|no|yes|yes|
-|**DeepSeek**|`deepseek`|yes|no|yes|yes|yes|
-|**Google**|`google`|yes|yes|yes|yes|yes|
-|**Groq**|`groq`|yes|yes|yes|yes|yes|
-|**MistralAI**|`mistralai`|yes|yes|yes|yes|yes|
-|**Ollama**|`ollama`|yes|yes|yes|yes|yes|
-|**OpenAI**|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|yes|yes|
-|**OpenRouter**|`openrouter`|yes|yes|yes|yes|yes|
-|**TogetherAI**<sup>3</sup>|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|yes|yes|
-|**xAI**|`xai`|yes|yes|yes|yes|yes|
+|Provider|id|Completion<br>&&nbsp;Streaming|Vision|Function calling|Reasoning|Parametrization<sup>1</sup>|Usage reporting|
+|---|---|---|---|---|--|--|--|
+|**Anthropic**|`anthropic`|yes|yes|yes|yes|yes|yes|
+|**Cerebras**|`cerebras`|yes|no|no|no|yes|yes|
+|**DeepSeek**|`deepseek`|yes|no|yes|yes|yes|yes|
+|**Google**|`google`|yes|yes|yes|no|yes|yes|
+|**Groq**|`groq`|yes|yes|yes|no|yes|yes|
+|**MistralAI**|`mistralai`|yes|yes|yes|no|yes|yes|
+|**Ollama**|`ollama`|yes|yes|yes|yes|yes|yes|
+|**OpenAI**|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|yes|yes|yes|
+|**OpenRouter**|`openrouter`|yes|yes|yes|no|yes|yes|
+|**TogetherAI**<sup>3</sup>|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|no|yes|yes|
+|**xAI**|`xai`|yes|yes|yes|no|yes|yes|
 
 <div><sup>1</sup> Max tokens, Temperature... Support varies across providers and models
 <div><sup>2</sup> Not supported for o1 family</div>
