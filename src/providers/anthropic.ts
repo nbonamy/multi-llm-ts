@@ -8,8 +8,8 @@ import logger from '../logger'
 
 import Anthropic from '@anthropic-ai/sdk'
 import { Stream } from '@anthropic-ai/sdk/streaming'
-import { Tool, MessageParam, MessageStreamEvent, TextBlock, TextDelta, InputJSONDelta, Usage, RawMessageStartEvent, RawMessageDeltaEvent, MessageDeltaUsage } from '@anthropic-ai/sdk/resources'
-import { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta/messages/messages'
+import { Tool, MessageParam, MessageStreamEvent, TextBlock, InputJSONDelta, Usage, RawMessageStartEvent, RawMessageDeltaEvent, MessageDeltaUsage } from '@anthropic-ai/sdk/resources'
+import { BetaToolUnion, MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 
 type AnthropicTool = Tool|BetaToolUnion
 
@@ -59,6 +59,10 @@ export default class extends LlmEngine {
 
   getComputerUseRealModel(): string {
     return 'claude-3-5-sonnet-20241022'
+  }
+
+  modelIsReasoning(model: string): boolean {
+    return model.startsWith('claude-3-7-sonnet')
   }
 
   async getModels(): Promise<Model[]> {
@@ -188,15 +192,12 @@ export default class extends LlmEngine {
     return this.client.messages.create({
       model: this.currentModel,
       system: this.currentSystem,
-      max_tokens: this.currentOpts?.maxTokens ?? this.getMaxTokens(this.currentModel),
       messages: this.currentThread,
       ...(tools?.length ? {
         tool_choice: { type: 'auto' },
         tools: tools as Tool[]
       } : {}),
-      temperature: this.currentOpts?.temperature,
-      top_k: this.currentOpts?.top_k,
-      top_p: this.currentOpts?.top_p,
+      ...this.getCompletionOpts(this.currentModel, this.currentOpts!),
       stream: true,
     })
 
@@ -208,16 +209,29 @@ export default class extends LlmEngine {
       model: this.getComputerUseRealModel(),
       betas: [ 'computer-use-2024-10-22' ],
       system: this.currentSystem,
-      max_tokens: this.currentOpts?.maxTokens ?? this.getMaxTokens(this.currentModel),
       messages: this.currentThread,
       tool_choice: { type: 'auto' },
       tools: tools,
-      temperature: this.currentOpts?.temperature,
-      top_k: this.currentOpts?.top_k,
-      top_p: this.currentOpts?.top_p,
+      ...this.getCompletionOpts(this.currentModel, this.currentOpts!),
       stream: true,
     })
   }
+
+  getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<MessageCreateParamsBase, 'model'|'messages'|'stream'|'tools'|'tool_choice'> {
+    return {
+      max_tokens: opts?.maxTokens ?? this.getMaxTokens(model),
+      ...(opts?.temperature ? { temperature: opts?.temperature } : {} ),
+      ...(opts?.top_k ? { top_k: opts?.top_k } : {} ),
+      ...(opts?.top_p ? { top_p: opts?.top_p } : {} ),
+      ...(this.modelIsReasoning(model) && opts?.reasoning ? {
+        thinking: {
+          type: 'enabled',
+          budget_tokens: this.currentOpts?.reasoningBudget || (opts?.maxTokens || this.getMaxTokens(model)) / 2,
+        }
+      } : {}),
+    }
+  }
+
   
   async stop(stream: Stream<any>) {
     stream.controller.abort()
@@ -226,7 +240,7 @@ export default class extends LlmEngine {
   async *nativeChunkToLlmChunk(chunk: MessageStreamEvent): AsyncGenerator<LlmChunk, void, void> {
     
     // log
-    //logger.log('[anthropic] received chunk', chunk)
+    //console.dir(chunk, { depth: null })
 
     // usage
     const usage: Usage|MessageDeltaUsage = (chunk as RawMessageStartEvent).message?.usage ?? (chunk as RawMessageDeltaEvent).usage
@@ -250,6 +264,7 @@ export default class extends LlmEngine {
 
     // block start
     if (chunk.type == 'content_block_start') {
+
       if (chunk.content_block.type == 'tool_use') {
 
         // record the tool call
@@ -276,16 +291,20 @@ export default class extends LlmEngine {
     // block delta
     if (chunk.type == 'content_block_delta') {
 
-      // text
-      if (this.toolCall === null) {
-        const textDelta = chunk.delta as TextDelta
-        yield { type: 'content', text: textDelta.text, done: false }
-      }
-
-      // tool us
+      // tool use
       if (this.toolCall !== null) {
         const toolDelta = chunk.delta as InputJSONDelta
         this.toolCall.args += toolDelta.partial_json
+      }
+
+      // thinking
+      if (this.toolCall === null && chunk.delta.type === 'thinking_delta') {
+        yield { type: 'reasoning', text: chunk.delta.thinking, done: false }
+      }
+      
+      // text
+      if (this.toolCall === null && chunk.delta.type === 'text_delta') {
+        yield { type: 'content', text: chunk.delta.text, done: false }
       }
 
     }

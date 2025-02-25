@@ -30,14 +30,14 @@ vi.mock('@anthropic-ai/sdk', async() => {
             
             // first we yield tool call chunks
             yield { type: 'content_block_start', content_block: { type: 'tool_use', id: 1, name: 'plugin2' } }
-            yield { type: 'content_block_delta', delta: { partial_json: '[ "ar' }  }
-            yield { type: 'content_block_delta', delta: { partial_json: 'g" ]' }  }
+            yield { type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: '[ "ar' }  }
+            yield { type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: 'g" ]' }  }
             yield { type: 'message_delta', delta: { stop_reason: 'tool_use' }  }
             
             // now the text response
             const content = 'response'
             for (let i = 0; i < content.length; i++) {
-              yield { type: 'content_block_delta', delta: { text: content[i] } }
+              yield { type: 'content_block_delta', delta: { type: 'text_delta', text: content[i] } }
             }
             yield { type: 'message_stop' }
           },
@@ -216,4 +216,34 @@ test('Anthropic stream without tools', async () => {
     stream: true,
   })
   expect(stream).toBeDefined()
+})
+
+test('Anthropic thinking', async () => {
+  const anthropic = new Anthropic(config)
+  await anthropic.stream('model', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { reasoning: true })
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalledWith({
+    model: 'model',
+    system: 'instruction',
+    messages: [ { role: 'user', content: 'prompt' }, ],
+    max_tokens: 4096,
+    stream: true,
+  })
+  await anthropic.stream('claude-3-7-sonnet-thinking', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { reasoning: true })
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalledWith({
+    model: 'claude-3-7-sonnet-thinking',
+    system: 'instruction',
+    messages: [ { role: 'user', content: 'prompt' }, ],
+    max_tokens: 4096,
+    thinking: {
+      type: 'enabled',
+      budget_tokens: 2048,
+    },
+    stream: true,
+  })
 })
