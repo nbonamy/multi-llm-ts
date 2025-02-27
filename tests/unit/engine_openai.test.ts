@@ -153,6 +153,7 @@ test('OpenAI Vision Model', async () => {
   expect(openai.isVisionModel('gpt-vision')).toBe(true)
   expect(openai.isVisionModel('gpt-4o')).toBe(true)
   expect(openai.isVisionModel('gpt-4o-mini')).toBe(false)
+  expect(openai.isVisionModel('gpt-4.5-preview-2025-02-27')).toBe(true)
   expect(openai.isVisionModel('o1-preview')).toBe(false)
   expect(openai.isVisionModel('o1-mini')).toBe(false)
 })

@@ -40,7 +40,7 @@ export default class extends LlmEngine {
 
   // https://openai.com/api/pricing/
   getVisionModels(): string[] {
-    return [ 'o1', '*gpt-4o', '*vision*' ]
+    return [ 'o1', '*gpt-4o', '*vision*', 'gpt-4.5*' ]
   }
 
   modelAcceptsSystemRole(model: string): boolean {
