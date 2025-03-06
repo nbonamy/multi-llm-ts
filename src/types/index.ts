@@ -2,6 +2,7 @@
 export type EngineCreateOpts = {
   apiKey?: string
   baseURL?: string
+  maxRetries?: number
 }
 
 export type ModelsList = {
