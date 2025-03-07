@@ -8,7 +8,6 @@ export default class Message {
   content: string
   reasoning: string|null
   attachment: Attachment|null
-  transient: boolean
 
   get contentForModel(): string {
     return this.content
@@ -19,7 +18,6 @@ export default class Message {
     this.reasoning = null
     this.content = (content !== null) ? content : ''
     this.attachment = attachment || null
-    this.transient = (content == null)
   }
 
   attach(attachment: Attachment) {
@@ -33,9 +31,6 @@ export default class Message {
       } else {
         this.content += chunk.text
       }
-    }
-    if (chunk?.done) {
-      this.transient = false
     }
   }
 

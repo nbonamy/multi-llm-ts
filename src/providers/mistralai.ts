@@ -135,7 +135,7 @@ export default class extends LlmEngine {
   async *nativeChunkToLlmChunk(chunk: CompletionEvent): AsyncGenerator<LlmChunk, void, void> {
 
     // debug
-    //console.log('[mistralai] chunk:', JSON.stringify(chunk))
+    //console.dir(chunk, { depth: null })
 
     // tool calls
     if (chunk.data.choices[0]?.delta?.toolCalls) {
