@@ -1,6 +1,6 @@
 {
   "name": "multi-llm-ts",
-  "version": "2.15.0",
+  "version": "2.15.1",
   "description": "Library to query multiple LLM providers in a consistent way",
   "repository": {
     "type": "git",
@@ -43,7 +43,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",
     "@google/generative-ai": "^0.21.0",
-    "@mistralai/mistralai": "^1.5.1",
+    "@mistralai/mistralai": "^1.1.0",
     "groq-sdk": "^0.9.1",
     "minimatch": "^10.0.1",
     "ollama": "^0.5.13",
