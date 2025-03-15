@@ -272,7 +272,14 @@ export default class extends LlmEngine {
 
         // log
         logger.log(`[openai] tool call ${toolCall.function} with ${toolCall.args}`)
-        const args = JSON.parse(toolCall.args)
+
+        // this can error
+        let args = null
+        try {
+          args = JSON.parse(toolCall.args)
+        } catch (err) {
+          throw new Error(`[openai] tool call ${toolCall.function} with invalid JSON args: "${toolCall.args}"`, { cause: err })
+        }
         
         // first notify
         yield {
