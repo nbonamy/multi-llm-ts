@@ -54,8 +54,9 @@ vi.mock('openai', async () => {
               
               // first we yield tool call chunks
               if (!opts.model.startsWith('o1-')) {
-                yield { choices: [{ delta: { tool_calls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "ar' }} ] }, finish_reason: 'none' } ] }
-                yield { choices: [{ delta: { tool_calls: [ { function: { arguments: [ 'g" ]' ] } }] }, finish_reason: 'none' } ] }
+                yield { choices: [{ delta: { tool_calls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "a' }} ] }, finish_reason: 'none' } ] }
+                yield { choices: [{ delta: { tool_calls: [ { id: '', function: { arguments: [ 'r' ] } }] }, finish_reason: 'none' } ] }
+                yield { choices: [{ delta: { tool_calls: [ { id: null, function: { arguments: [ 'g" ]' ] } }] }, finish_reason: 'none' } ] }
                 yield { choices: [{ finish_reason: 'tool_calls' } ] }
               }
               

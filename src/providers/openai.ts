@@ -220,32 +220,44 @@ export default class extends LlmEngine {
     //console.dir(chunk, { depth: null })
 
     // tool calls
-    if (chunk.choices[0]?.delta?.tool_calls?.[0].function) {
+    const tool_call = chunk.choices[0]?.delta?.tool_calls?.[0]
+    if (tool_call?.function) {
 
       // arguments or new tool?
-      if (chunk.choices[0].delta.tool_calls[0].id !== null && chunk.choices[0].delta.tool_calls[0].id !== undefined) {
+      if (tool_call.id !== null && tool_call.id !== undefined && tool_call.id !== '') {
 
-        // debug
-        //logger.log(`[${this.getName()}] tool call start:`, chunk)
+        // try to find if we already have this tool call
+        const existingToolCall = this.toolCalls.find(tc => tc.id === tool_call.id)
+        if (existingToolCall) {
 
-        // record the tool call
-        const toolCall: LlmToolCall = {
-          id: chunk.choices[0].delta.tool_calls[0].id,
-          message: chunk.choices[0].delta.tool_calls.map((tc: any) => {
-            delete tc.index
-            return tc
-          }),
-          function: chunk.choices[0].delta.tool_calls[0].function.name || '',
-          args: chunk.choices[0].delta.tool_calls[0].function.arguments || '',
-        }
-        this.toolCalls.push(toolCall)
+          // append arguments to existing tool call
+          existingToolCall.args += tool_call.function.arguments
 
-        // first notify
-        yield {
-          type: 'tool',
-          name: toolCall.function,
-          status: this.getToolPreparationDescription(toolCall.function),
-          done: false
+        } else {
+
+          // debug
+          //logger.log(`[${this.getName()}] tool call start:`, chunk)
+
+          // record the tool call
+          const toolCall: LlmToolCall = {
+            id: tool_call.id,
+            message: chunk.choices[0].delta.tool_calls!.map((tc: any) => {
+              delete tc.index
+              return tc
+            }),
+            function: tool_call.function.name || '',
+            args: tool_call.function.arguments || '',
+          }
+          this.toolCalls.push(toolCall)
+
+          // first notify
+          yield {
+            type: 'tool',
+            name: toolCall.function,
+            status: this.getToolPreparationDescription(toolCall.function),
+            done: false
+          }
+
         }
 
         // done
@@ -255,7 +267,7 @@ export default class extends LlmEngine {
 
         // append arguments
         const toolCall = this.toolCalls[this.toolCalls.length-1]
-        toolCall.args += chunk.choices[0].delta.tool_calls[0].function.arguments
+        toolCall.args += tool_call.function.arguments
 
         // done
         //return
