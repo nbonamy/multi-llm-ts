@@ -57,11 +57,11 @@ export default class extends LlmEngine {
     // filter
     const models = []
     for (const model of json.models) {
-      if (model.name.match(/\d\d\d$/)) continue
-      if (model.name.includes('tuning')) continue
-      if (model.description.includes('deprecated')) continue
-      if (model.description.includes('discontinued')) continue
-      if (model.supportedGenerationMethods.includes('generateContent')) {
+      if (model.name?.match(/\d\d\d$/)) continue
+      if (model.name?.includes('tuning')) continue
+      if (model.description?.includes('deprecated')) continue
+      if (model.description?.includes('discontinued')) continue
+      if (model.supportedGenerationMethods?.includes('generateContent')) {
         models.push({
           id: model.name.replace('models/', ''),
           name: model.displayName,

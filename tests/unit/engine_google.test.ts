@@ -20,7 +20,7 @@ global.fetch = vi.fn((): Promise<Response> => Promise.resolve(new Response(JSON.
   { name: 'models/gemini-001', displayName: 'Gemini 001', description: '', supportedGenerationMethods: [ 'generateContent' ] },
   { name: 'models/gemini-1.5', displayName: 'Gemini 1.5', description: '', supportedGenerationMethods: [ 'generateContent' ] },
   { name: 'models/gemini-1.5-latest', displayName: 'Gemini 1.5', description: '', supportedGenerationMethods: [ 'generateContent' ] },
-  { name: 'models/gemini-2.0', displayName: 'Gemini 2.0', description: '', supportedGenerationMethods: [ 'generateContent' ] },
+  { name: 'models/gemini-2.0', displayName: 'Gemini 2.0', supportedGenerationMethods: [ 'generateContent' ] },
 ]}))))
 
 vi.mock('@google/generative-ai', async() => {
