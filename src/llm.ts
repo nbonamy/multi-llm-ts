@@ -224,9 +224,9 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
 
   // done
   return {
-    chat: models,//.sort((a, b) => a.name.localeCompare(b.name)),
-    image: [],
-    embedding: []
+    chat: models.filter((m) => m.meta?.supportedGenerationMethods?.includes('generateContent')),
+    image: models.filter((m) => m.meta?.supportedGenerationMethods?.includes('bidiGenerateContent')),
+    embedding: models.filter((m) => m.meta?.supportedGenerationMethods?.includes('embedContent')),
   }
 
 }

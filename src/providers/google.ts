@@ -61,13 +61,11 @@ export default class extends LlmEngine {
       if (model.name?.includes('tuning')) continue
       if (model.description?.includes('deprecated')) continue
       if (model.description?.includes('discontinued')) continue
-      if (model.supportedGenerationMethods?.includes('generateContent')) {
-        models.push({
-          id: model.name.replace('models/', ''),
-          name: model.displayName,
-          meta: model
-        })
-      }
+      models.push({
+        id: model.name.replace('models/', ''),
+        name: model.displayName,
+        meta: model
+      })
     }
 
     // reverse

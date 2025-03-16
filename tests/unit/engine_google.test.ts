@@ -13,14 +13,15 @@ import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
 global.fetch = vi.fn((): Promise<Response> => Promise.resolve(new Response(JSON.stringify({ models: [
-  { name: 'models/non-generate-content', displayName: 'Non Generate Content', description: '', supportedGenerationMethods: [ 'embedContent' ] },
+  { name: 'models/embed-content', displayName: 'Non Generate Content', description: '', supportedGenerationMethods: [ 'embedContent' ] },
   { name: 'models/deprecated', displayName: 'Deprecated', description: 'was deprecated in', supportedGenerationMethods: [ 'generateContent' ] },
   { name: 'models/discontinued', displayName: 'Discontinued', description: 'was discontinued in', supportedGenerationMethods: [ 'generateContent' ] },
   { name: 'models/tuning', displayName: 'Tuning', description: 'can be used to tune', supportedGenerationMethods: [ 'generateContent' ] },
   { name: 'models/gemini-001', displayName: 'Gemini 001', description: '', supportedGenerationMethods: [ 'generateContent' ] },
   { name: 'models/gemini-1.5', displayName: 'Gemini 1.5', description: '', supportedGenerationMethods: [ 'generateContent' ] },
   { name: 'models/gemini-1.5-latest', displayName: 'Gemini 1.5', description: '', supportedGenerationMethods: [ 'generateContent' ] },
-  { name: 'models/gemini-2.0', displayName: 'Gemini 2.0', supportedGenerationMethods: [ 'generateContent' ] },
+  { name: 'models/gemini-2.0', displayName: 'Gemini 2.0', supportedGenerationMethods: [ 'generateContent', 'bidiGenerateContent' ] },
+  { name: 'models/image-model', displayName: 'New Model', description: '', supportedGenerationMethods: [ 'bidiGenerateContent' ] },
 ]}))))
 
 vi.mock('@google/generative-ai', async() => {
@@ -63,6 +64,13 @@ test('Google Load Models', async () => {
   expect(models.chat).toStrictEqual([
     { id: 'gemini-2.0', name: 'Gemini 2.0', meta: expect.any(Object) },
     { id: 'gemini-1.5-latest', name: 'Gemini 1.5', meta: expect.any(Object) },
+  ])
+  expect(models.image).toStrictEqual([
+    { id: 'image-model', name: 'New Model', meta: expect.any(Object) },
+    { id: 'gemini-2.0', name: 'Gemini 2.0', meta: expect.any(Object) },
+  ])
+  expect(models.embedding).toStrictEqual([
+    { id: 'embed-content', name: 'Non Generate Content', meta: expect.any(Object) },
   ])
   expect(await loadModels('google', config)).toStrictEqual(models)
 })
