@@ -293,8 +293,8 @@ export const loadXAIModels = async (engineConfig: EngineCreateOpts): Promise<Mod
 
   // done
   return {
-    chat: models,//.sort((a, b) => a.name.localeCompare(b.name))
-    image: [],
+    chat: models.filter((m) => !m.id.includes('image')),
+    image: models.filter((m) => m.id.includes('image')),
     embedding: []
   }
 

@@ -21,6 +21,7 @@ vi.mock('openai', async () => {
         data: [
           {'id': 'grok-1', 'created': 1, 'object': 'model', 'owned_by': 'xai'},
           {'id': 'grok-2', 'created': 2, 'object': 'model', 'owned_by': 'xai'},
+          {'id': 'grok-2-image', 'created': 3, 'object': 'model', 'owned_by': 'xai'},
         ]
       }
     })
@@ -69,6 +70,9 @@ test('xAI Load Chat Models', async () => {
   expect(models.chat).toStrictEqual([
     { id: 'grok-2', name: 'Grok 2', meta: expect.any(Object) },
     { id: 'grok-1', name: 'Grok 1', meta: expect.any(Object) },
+  ])
+  expect(models.image).toStrictEqual([
+    { id: 'grok-2-image', name: 'Grok 2 Image', meta: expect.any(Object) },
   ])
   expect(await loadModels('xai', config)).toStrictEqual(models)
 })

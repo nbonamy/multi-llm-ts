@@ -18,7 +18,7 @@ import MistralAI from './providers/mistralai'
 import Ollama from './providers/ollama'
 import OpenAI from './providers/openai'
 import OpenRouter from './providers/openrouter'
-import XAI from './providers/xai'
+import XAI, { xAIBaseURL } from './providers/xai'
 
 export * from './llm'
 
@@ -44,6 +44,7 @@ export {
   OpenAI,
   OpenRouter,
   XAI,
+  xAIBaseURL,
   textFormats,
   imageFormats,
   extensionToMimeType,

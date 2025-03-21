@@ -7,6 +7,8 @@ import OpenAI from './openai'
 // https://docs.x.ai/docs/introduction#what-is-grok-and-xai-api
 //
 
+export const xAIBaseURL = 'https://api.x.ai/v1'
+
 export default class extends OpenAI {
 
   constructor(config: EngineCreateOpts) {
