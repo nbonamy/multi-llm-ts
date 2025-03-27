@@ -100,6 +100,25 @@ export class Plugin2 extends Plugin {
         },
         description: 'Parameter 5',
         required: false
+      },
+      // @ts-expect-error testing missing type
+      {
+        name: 'param6',
+        description: 'Parameter 6',
+      },
+      // @ts-expect-error testing missing type
+      {
+        name: 'param7',
+        description: 'Parameter 7',
+        items: { type: 'string' },
+      },
+      // @ts-expect-error testing missing type
+      {
+        name: 'param8',
+        description: 'Parameter 8',
+        items: { type: 'object', properties: [
+          { name: 'key', type: 'string', description: 'Key' },
+        ] },
       }
     ]
   }

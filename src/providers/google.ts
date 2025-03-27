@@ -182,7 +182,7 @@ export default class extends LlmEngine {
               description: props.description,
               ...(props.enum ? { enum: props.enum } : {}),
               ...(props.items ? { items: {
-                  type: this.typeToSchemaType(props.items.type),
+                  type: this.typeToSchemaType(props.items.type, props.items?.properties),
                   properties: props.items?.properties
                 }
               } : {}),
@@ -215,12 +215,12 @@ export default class extends LlmEngine {
     })
   }
 
-  private typeToSchemaType(type: string): SchemaType {
+  private typeToSchemaType(type: string, properties?: any): SchemaType {
     if (type === 'string') return SchemaType.STRING
     if (type === 'number') return SchemaType.NUMBER
     if (type === 'boolean') return SchemaType.BOOLEAN
     if (type === 'array') return SchemaType.ARRAY
-    return SchemaType.OBJECT
+    return properties ? SchemaType.OBJECT : SchemaType.STRING
   }
 
   private getGenerationConfig(opts?: LlmCompletionOpts): GenerationConfig|undefined {

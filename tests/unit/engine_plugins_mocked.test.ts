@@ -57,25 +57,25 @@ test('OpenAI Functions', async () => {
         parameters: {
           type: 'object',
           properties: {
-            'param1': {
+            param1: {
               type: 'string',
               description: 'Parameter 1',
             },
-            'param2': {
+            param2: {
               type: 'number',
               description: 'Parameter 2',
             },
-            'param3': {
+            param3: {
               type: 'array',
               description: 'Parameter 3',
               items: { type: 'string' },
             },
-            'param4': {
+            param4: {
               type: 'array',
               description: 'Parameter 4',
               items: { type: 'string' },
             },
-            'param5': {
+            param5: {
               type: 'array',
               description: 'Parameter 5',
               items: {
@@ -91,6 +91,29 @@ test('OpenAI Functions', async () => {
                   },
                 },
                 required: ['key'],
+              }
+            },
+            param6: {
+              type: 'string',
+              description: 'Parameter 6',
+            },
+            param7: {
+              type: 'array',
+              description: 'Parameter 7',
+              items: { type: 'string' },
+            },
+            param8: {
+              type: 'array',
+              description: 'Parameter 8',              
+              items: {
+                type: 'object',
+                properties: {
+                  'key': {
+                    type: 'string',
+                    description: 'Key',
+                  },
+                },
+                required: [],
               }
             },
           },

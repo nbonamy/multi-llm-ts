@@ -239,7 +239,7 @@ export default class LlmEngine {
 
             // basic stuff
             obj[param.name] = {
-              type: param.type,
+              type: param.type || (param.items ? 'array' : 'string'),
               description: param.description,
             }
 
@@ -251,7 +251,7 @@ export default class LlmEngine {
             // array can have no items => object
             // no properties => just a type
             // or an object with properties
-            if (param.type === 'array') {
+            if (obj[param.name].type === 'array') {
               if (!param.items) {
                 obj[param.name].items = { type: 'string' }
               } else if (!param.items.properties) {
