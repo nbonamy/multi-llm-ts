@@ -81,19 +81,26 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
     // let's prepare for the future
     const oModelsRegex = /o\d+-?.*/
 
+    // filter out some models
+    models = models.filter(model =>
+      !model.id.includes('tts') &&
+      !model.id.includes('transcribe') &&
+      !model.id.includes('whisper') &&
+      !model.id.includes('davinci') &&
+      !model.id.includes('babbage') &&
+      !model.id.includes('moderation') &&
+      !model.id.includes('computer-use')
+    )
+
     // check for unknown models
     for (const model of models) {
-      if (!model.id.includes('gpt-') && !model.id.match(oModelsRegex) && !model.id.startsWith('dall-e-') &&
-          !model.id.startsWith('tts-') && !model.id.startsWith('whisper-') &&
-          !model.id.startsWith('davinci-') && !model.id.startsWith('text-embedding-') && 
-          !model.id.startsWith('babbage-') &&  !model.id.includes('moderation')
-        ) {
+      if (!model.id.includes('gpt-') && !model.id.match(oModelsRegex) && !model.id.startsWith('dall-e-') && !model.id.startsWith('text-embedding-')) {
         console.warn(`[openai] Unknown model type: ${model.id}`)
       }
     }
 
     return {
-      chat: models.filter(model => model.id.includes('gpt-') || model.id.match(oModelsRegex)),
+      chat: models.filter(model => (model.id.includes('gpt-') || model.id.match(oModelsRegex))),
       image: models.filter(model => model.id.startsWith('dall-e-')),
       embedding: models.filter(model => model.id.startsWith('text-embedding-'))
     }

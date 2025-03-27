@@ -39,8 +39,14 @@ vi.mock('openai', async () => {
           { id: 'o1-model' },
           { id: 'o13-model' },
           { id: 'op-model' },
+          { id: 'computer-use-preview' },
+          { id: 'chatgpt-tts' },
+          { id: 'moderation-model' },
+          { id: 'whisper-english' },
           { id: 'dall-e-model2' },
           { id: 'dall-e-model1' },
+          { id: 'text-embedding-1' },
+          { id: 'text-embedding-2' },
         ]
       }
     })
@@ -110,6 +116,10 @@ test('OpenAI Load Models', async () => {
   expect(models.image).toStrictEqual([
     { id: 'dall-e-model1', name: 'dall-e-model1', meta: { id: 'dall-e-model1' } },
     { id: 'dall-e-model2', name: 'dall-e-model2', meta: { id: 'dall-e-model2' } },
+  ])
+  expect(models.embedding).toStrictEqual([
+    { id: 'text-embedding-1', name: 'text-embedding-1', meta: { id: 'text-embedding-1' } },
+    { id: 'text-embedding-2', name: 'text-embedding-2', meta: { id: 'text-embedding-2' } },
   ])
   expect(await loadModels('openai', config)).toStrictEqual(models)
 })
