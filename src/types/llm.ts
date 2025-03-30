@@ -16,6 +16,8 @@ export type LlmStream = AsyncIterable<any>
 
 export type LlmReasoningEffort = 'low'|'medium'|'high'
 
+export type LLmCustomModelOpts = Record<string, any>
+
 export type LlmOpenAIModelOpts = {
   reasoningEffort?: LlmReasoningEffort
 }
@@ -31,6 +33,7 @@ export type LlmModelOpts = {
   temperature?: number
   top_k?: number
   top_p?: number
+  customOpts?: LLmCustomModelOpts
 } & LlmOpenAIModelOpts & LlmAnthropicModelOpts
 
 export type LlmCompletionOpts = {

@@ -359,3 +359,12 @@ test('OpenAI reasoning effort', async () => {
   ], { reasoningEffort: 'low' })
   expect(_openai.default.prototype.chat.completions.create.mock.calls[1][0].reasoning_effort).toBe('low')
 })
+
+test('OpenAI custom options', async () => {
+  const openai = new OpenAI(config)
+  await openai.stream('model', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { customOpts: { mirostat: true } })
+  expect(_openai.default.prototype.chat.completions.create.mock.calls[0][0].mirostat).toBe(true)
+})
