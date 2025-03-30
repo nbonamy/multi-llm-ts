@@ -101,6 +101,10 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
   // }
   console.log(`${models!.image?.length ?? 0} image models found`)
   console.log(`${models!.embedding?.length ?? 0} embedding models found`)
+  console.log(`${models!.realtime?.length ?? 0} realtime models found`)
+  console.log(`${models!.computer?.length ?? 0} computer use models found`)
+  console.log(`${models!.tts?.length ?? 0} tts models found`)
+  console.log(`${models!.stt?.length ?? 0} stt models found`)
 
   // each demo
   await completion(llm, model, messages)

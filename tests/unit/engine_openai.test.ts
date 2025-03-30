@@ -38,11 +38,12 @@ vi.mock('openai', async () => {
           { id: 'o1' },
           { id: 'o1-model' },
           { id: 'o13-model' },
-          { id: 'op-model' },
+          { id: 'realtime-model' },
           { id: 'computer-use-preview' },
           { id: 'chatgpt-tts' },
           { id: 'moderation-model' },
           { id: 'whisper-english' },
+          { id: 'transcribe-french' },
           { id: 'dall-e-model2' },
           { id: 'dall-e-model1' },
           { id: 'text-embedding-1' },
@@ -120,6 +121,19 @@ test('OpenAI Load Models', async () => {
   expect(models.embedding).toStrictEqual([
     { id: 'text-embedding-1', name: 'text-embedding-1', meta: { id: 'text-embedding-1' } },
     { id: 'text-embedding-2', name: 'text-embedding-2', meta: { id: 'text-embedding-2' } },
+  ])
+  expect(models.realtime).toStrictEqual([
+    { id: 'realtime-model', name: 'realtime-model', meta: { id: 'realtime-model' } },
+  ])
+  expect(models.computer).toStrictEqual([
+    { id: 'computer-use-preview', name: 'computer-use-preview', meta: { id: 'computer-use-preview' } },
+  ])
+  expect(models.tts).toStrictEqual([
+    { id: 'chatgpt-tts', name: 'chatgpt-tts', meta: { id: 'chatgpt-tts' } },
+  ])
+  expect(models.stt).toStrictEqual([
+    { id: 'transcribe-french', name: 'transcribe-french', meta: { id: 'transcribe-french' } },
+    { id: 'whisper-english', name: 'whisper-english', meta: { id: 'whisper-english' } },
   ])
   expect(await loadModels('openai', config)).toStrictEqual(models)
 })

@@ -8,7 +8,12 @@ export type EngineCreateOpts = {
 export type ModelsList = {
   chat: Model[]
   image?: Model[]
+  video?: Model[]
   embedding?: Model[]
+  realtime?: Model[]
+  computer?: Model[]
+  tts?: Model[]
+  stt?: Model[]
 }
 
 export type Model = {

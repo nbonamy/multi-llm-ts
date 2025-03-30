@@ -78,31 +78,41 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
     //   console.log(model.id)
     // }
 
-    // let's prepare for the future
-    const oModelsRegex = /o\d+-?.*/
-
     // filter out some models
     models = models.filter(model =>
-      !model.id.includes('tts') &&
-      !model.id.includes('transcribe') &&
-      !model.id.includes('whisper') &&
       !model.id.includes('davinci') &&
       !model.id.includes('babbage') &&
       !model.id.includes('moderation') &&
-      !model.id.includes('computer-use')
+      !model.id.includes('audio') &&
+      !model.id.includes('search')
     )
 
-    // check for unknown models
-    for (const model of models) {
-      if (!model.id.includes('gpt-') && !model.id.match(oModelsRegex) && !model.id.startsWith('dall-e-') && !model.id.startsWith('text-embedding-')) {
-        console.warn(`[openai] Unknown model type: ${model.id}`)
-      }
-    }
+    // assign models
+    const imageModels = models.filter(model => model.id.startsWith('dall-e-'))
+    const embeddingModels = models.filter(model => model.id.startsWith('text-embedding-'))
+    const realtimeModels = models.filter(model => model.id.includes('realtime'))
+    const computerModels = models.filter(model => model.id.includes('computer-use'))
+    const sttModels = models.filter(model => model.id.includes('whisper') || model.id.includes('transcribe'))
+    const ttsModels = models.filter(model => model.id.includes('tts'))
+
+    // chat models are the rest
+    const chatModels = models.filter(model => 
+      !imageModels.includes(model) &&
+      !embeddingModels.includes(model) &&
+      !realtimeModels.includes(model) &&
+      !computerModels.includes(model) &&
+      !sttModels.includes(model) &&
+      !ttsModels.includes(model)
+    )
 
     return {
-      chat: models.filter(model => (model.id.includes('gpt-') || model.id.match(oModelsRegex))),
-      image: models.filter(model => model.id.startsWith('dall-e-')),
-      embedding: models.filter(model => model.id.startsWith('text-embedding-'))
+      chat: chatModels,
+      image: imageModels,
+      embedding: embeddingModels,
+      realtime: realtimeModels,
+      computer: computerModels,
+      stt: sttModels,
+      tts: ttsModels,
     }
 
   } else if (engineConfig.baseURL.includes('api.together.xyz')) {
