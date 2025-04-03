@@ -1,8 +1,8 @@
 
 import { EngineCreateOpts, Model } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmToolCall } from 'types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmStreamingResponse, LlmToolCall } from 'types/llm'
 import Message from '../models/message'
-import LlmEngine from '../engine'
+import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
 
 import OpenAI, { ClientOptions } from 'openai'
@@ -16,14 +16,13 @@ const defaultBaseUrl = 'https://api.openai.com/v1'
 // https://platform.openai.com/docs/api-reference/introduction
 // 
 
+export type OpenAIStreamingContext = LlmStreamingContextTools & {
+  done?: boolean
+}
+
 export default class extends LlmEngine {
 
   client: OpenAI
-  currentModel: string = ''
-  currentThread: LLmCompletionPayload[] = []
-  currentOpts: LlmCompletionOpts|null = null
-  toolCalls: LlmToolCall[] = []
-  streamDone: boolean = false
 
   constructor(config: EngineCreateOpts, opts?: ClientOptions) {
     super(config)
@@ -115,7 +114,7 @@ export default class extends LlmEngine {
     }
   }
 
-  protected buildPayload(model: string, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+  buildPayload(model: string, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
     let payload = super.buildPayload(model, thread, opts)
     if (!this.modelAcceptsSystemRole(model)) {
       payload = payload.filter((msg: LLmCompletionPayload) => msg.role !== 'system')
@@ -153,40 +152,42 @@ export default class extends LlmEngine {
 
   }
 
-  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
 
     // set baseURL on client
     this.setBaseURL()
 
     // model: switch to vision if needed
-    this.currentModel = this.selectModel(model, thread, opts)
+    model = this.selectModel(model, thread, opts)
+    const context: OpenAIStreamingContext = {
+      model: model,
+      thread: this.buildPayload(model, thread, opts),
+      opts: opts || {},
+      toolCalls: [],
+      done: false,
+    }
 
-    // save the message thread
-    this.currentThread = this.buildPayload(this.currentModel, thread, opts)
-
-    // save the opts and do it
-    this.streamDone = false
-    this.currentOpts = opts || null
-    return await this.doStream()
+    // do it
+    return {
+      stream: await this.doStream(context),
+      context: context,
+    }
 
   }
 
-  async doStream(): Promise<LlmStream> {
+  async doStream(context: OpenAIStreamingContext): Promise<LlmStream> {
 
     // reset
-    this.toolCalls = []
+    context.toolCalls = []
 
     // call
-    logger.log(`[${this.getName()}] prompting model ${this.currentModel}`)
+    logger.log(`[${this.getName()}] prompting model ${context.model}`)
     const stream = this.client.chat.completions.create({
-      model: this.currentModel,
-      // @ts-expect-error strange error
-      // LlmRole overlap the different roles ChatCompletionMessageParam
-      // but tsc says Type 'LlmRole' is not assignable to type '"assistant"'
-      messages: this.currentThread,
-      ...this.getCompletionOpts(this.currentModel, this.currentOpts || {}),
-      ...await this.getToolsOpts(this.currentModel, this.currentOpts || {}),
-      stream_options: { include_usage: this.currentOpts?.usage || false },
+      model: context.model,
+      messages: context.thread,
+      ...this.getCompletionOpts(context.model, context.opts),
+      ...await this.getToolsOpts(context.model, context.opts),
+      stream_options: { include_usage: context.opts.usage || false },
       stream: true,
     })
 
@@ -223,10 +224,10 @@ export default class extends LlmEngine {
   }
 
   async stop(stream: Stream<any>) {
-    await stream?.controller?.abort()
+    stream?.controller?.abort()
   }
 
-  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk): AsyncGenerator<LlmChunk, void, void> {
+  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk, void, void> {
 
     // debug
     //console.dir(chunk, { depth: null })
@@ -239,7 +240,7 @@ export default class extends LlmEngine {
       if (tool_call.id !== null && tool_call.id !== undefined && tool_call.id !== '') {
 
         // try to find if we already have this tool call
-        const existingToolCall = this.toolCalls.find(tc => tc.id === tool_call.id)
+        const existingToolCall = context.toolCalls.find(tc => tc.id === tool_call.id)
         if (existingToolCall) {
 
           // append arguments to existing tool call
@@ -260,7 +261,7 @@ export default class extends LlmEngine {
             function: tool_call.function.name || '',
             args: tool_call.function.arguments || '',
           }
-          this.toolCalls.push(toolCall)
+          context.toolCalls.push(toolCall)
 
           // first notify
           yield {
@@ -278,7 +279,7 @@ export default class extends LlmEngine {
       } else {
 
         // append arguments
-        const toolCall = this.toolCalls[this.toolCalls.length-1]
+        const toolCall = context.toolCalls[context.toolCalls.length-1]
         toolCall.args += tool_call.function.arguments
 
         // done
@@ -289,10 +290,10 @@ export default class extends LlmEngine {
     }
 
     // now tool calling
-    if (['tool_calls', 'function_call', 'stop'].includes(chunk.choices[0]?.finish_reason|| '') && this.toolCalls?.length) {
+    if (['tool_calls', 'function_call', 'stop'].includes(chunk.choices[0]?.finish_reason|| '') && context.toolCalls?.length) {
 
       // iterate on tools
-      for (const toolCall of this.toolCalls) {
+      for (const toolCall of context.toolCalls) {
 
         // log
         logger.log(`[openai] tool call ${toolCall.function} with ${toolCall.args}`)
@@ -318,14 +319,14 @@ export default class extends LlmEngine {
         logger.log(`[openai] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message
-        this.currentThread.push({
+        context.thread.push({
           role: 'assistant',
           content: '',
           tool_calls: toolCall.message
         })
 
         // add tool response message
-        this.currentThread.push({
+        context.thread.push({
           role: 'tool',
           tool_call_id: toolCall.id,
           name: toolCall.function,
@@ -348,7 +349,7 @@ export default class extends LlmEngine {
       // switch to new stream
       yield {
         type: 'stream',
-        stream: await this.doStream(),
+        stream: await this.doStream(context),
       }
 
       // done
@@ -359,7 +360,7 @@ export default class extends LlmEngine {
     // done?
     const done = ['stop', 'length', 'content_filter', 'eos'].includes(chunk.choices[0]?.finish_reason || '')
     if (done) {
-      this.streamDone = true
+      context.done = true
     }
 
     // reasoning chunk
@@ -383,7 +384,7 @@ export default class extends LlmEngine {
     }
 
     // usage
-    if (this.currentOpts?.usage && this.streamDone && chunk.usage) {
+    if (context.opts?.usage && context.done && chunk.usage) {
       yield {
         type: 'usage',
         usage: chunk.usage

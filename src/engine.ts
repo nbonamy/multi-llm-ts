@@ -1,11 +1,21 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { EngineCreateOpts, Model, ModelsList } from 'types/index'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmStream, LlmChunk, LlmTool, LlmToolArrayItem } from 'types/llm'
+import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext } from 'types/llm'
 import { PluginParameter } from 'types/plugin'
 import { minimatch } from 'minimatch'
 import Message from './models/message'
 import Plugin from './plugin'
+
+export type LlmStreamingContextBase = {
+  model: string
+  thread: any[]
+  opts: LlmCompletionOpts
+}
+
+export type LlmStreamingContextTools = LlmStreamingContextBase & {
+  toolCalls: LlmToolCall[]
+}
 
 export default class LlmEngine {
 
@@ -60,11 +70,12 @@ export default class LlmEngine {
   }
 
   async *generate(model: string, thread: Message[], opts?: LlmCompletionOpts): AsyncIterable<LlmChunk> {
-    let stream: LlmStream|null = await this.stream(model, thread, opts)
-    while (stream != null) {
+    const response: LlmStreamingResponse|null = await this.stream(model, thread, opts)
+    let stream = response?.stream
+    while (true) {
       let stream2 = null
       for await (const chunk of stream) {
-        const stream3 = this.nativeChunkToLlmChunk(chunk)
+        const stream3 = this.nativeChunkToLlmChunk(chunk, response.context)
         for await (const msg of stream3) {
           if (msg.type === 'stream') {
             stream2 = msg.stream
@@ -73,11 +84,12 @@ export default class LlmEngine {
           }
         }
       }
+      if (!stream2) break
       stream = stream2
     }
   }
 
-  protected async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+  protected async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
     throw new Error('Not implemented')
   }
 
@@ -94,7 +106,7 @@ export default class LlmEngine {
   }
 
   // eslint-disable-next-line require-yield
-  protected async *nativeChunkToLlmChunk(chunk: any): AsyncGenerator<LlmChunk, void, void> {
+  protected async *nativeChunkToLlmChunk(chunk: any, context: LlmStreamingContext): AsyncGenerator<LlmChunk, void, void> {
     throw new Error('Not implemented')
   }
 
@@ -110,7 +122,7 @@ export default class LlmEngine {
 
   }
 
-  protected findModel(models: Model[], filters: string[]): Model|null {
+  findModel(models: Model[], filters: string[]): Model|null {
     for (const filter of filters) {
       for (const model of models) {
         if (minimatch(model.id, filter)) {
@@ -149,7 +161,7 @@ export default class LlmEngine {
 
   }
 
-  protected buildPayload(model: string, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+  buildPayload(model: string, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
     if (typeof thread === 'string') {
       return [{ role: 'user', content: thread }]
     } else {

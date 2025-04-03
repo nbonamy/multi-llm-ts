@@ -1,6 +1,6 @@
 
 import { EngineCreateOpts, Model } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall } from 'types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall } from 'types/llm'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
 import LlmEngine from '../engine'
@@ -13,13 +13,16 @@ import type { FunctionDeclaration } from '@google/generative-ai/dist/types'
 // https://ai.google.dev/gemini-api/docs
 //
 
+export type GoogleStreamingContext = {
+  model: GenerativeModel
+  content: Content[]
+  opts: LlmCompletionOpts
+  toolCalls: LlmToolCall[]
+}
+
 export default class extends LlmEngine {
 
   client: GoogleGenerativeAI
-  currentModel: GenerativeModel|null = null
-  currentContent: Content[] =[]
-  currentOpts: LlmCompletionOpts|undefined = undefined
-  toolCalls: LlmToolCall[] = []
 
   constructor(config: EngineCreateOpts) {
     super(config)
@@ -106,28 +109,36 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(modelName: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(modelName: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
 
     // model: switch to vision if needed
     modelName = this.selectModel(modelName, thread, opts)
 
-    // call
-    this.currentOpts = opts
-    this.currentModel = await this.getModel(modelName, thread[0].contentForModel, opts)
-    this.currentContent = this.threadToHistory(thread, modelName, opts)
-    return await this.doStream()
+    // context
+    const context: GoogleStreamingContext = {
+      model: await this.getModel(modelName, thread[0].contentForModel, opts),
+      content: this.threadToHistory(thread, modelName, opts),
+      opts: opts || {},
+      toolCalls: [],
+    }
+
+    // do it
+    return {
+      stream: await this.doStream(context),
+      context: context
+    }
 
   }
 
-  async doStream(): Promise<LlmStream> {
+  async doStream(context: GoogleStreamingContext): Promise<LlmStream> {
 
     // reset
-    this.toolCalls = []
+    context.toolCalls = []
 
-    logger.log(`[google] prompting model ${this.currentModel!.model}`)
-    const response = await this.currentModel!.generateContentStream({
-      contents: this.currentContent,
-      generationConfig: this.getGenerationConfig(this.currentOpts),
+    logger.log(`[google] prompting model ${context.model!.model}`)
+    const response = await context.model!.generateContentStream({
+      contents: context.content,
+      generationConfig: this.getGenerationConfig(context.opts),
     })
 
     // done
@@ -148,7 +159,7 @@ export default class extends LlmEngine {
     return this.modelStartsWith(model, ['models/gemini-pro']) == false
   }
 
-  private supportsTools(model: string): boolean {
+  supportsTools(model: string): boolean {
     return model.includes('thinking') == false
   }
 
@@ -284,7 +295,7 @@ export default class extends LlmEngine {
     //await stream?.controller?.abort()
   }
    
-  async *nativeChunkToLlmChunk(chunk: EnhancedGenerateContentResponse): AsyncGenerator<LlmChunk, void, void> {
+  async *nativeChunkToLlmChunk(chunk: EnhancedGenerateContentResponse, context: GoogleStreamingContext): AsyncGenerator<LlmChunk, void, void> {
 
     // debug
     // logger.log('[google] chunk', JSON.stringify(chunk))
@@ -294,7 +305,7 @@ export default class extends LlmEngine {
     if (toolCalls?.length) {
 
       // save
-      this.toolCalls = toolCalls.map((tc) => {
+      context.toolCalls = toolCalls.map((tc) => {
         return {
           id: tc.name,
           message: '',
@@ -307,7 +318,7 @@ export default class extends LlmEngine {
       const results: FunctionResponsePart[] = []
 
       // call
-      for (const toolCall of this.toolCalls) {
+      for (const toolCall of context.toolCalls) {
 
         // first notify
         yield {
@@ -353,13 +364,13 @@ export default class extends LlmEngine {
       }
 
       // function call
-      this.currentContent.push({
+      context.content.push({
         role: 'assistant',
         parts: chunk.candidates![0].content.parts,
       })
 
       // send
-      this.currentContent.push({
+      context.content.push({
         role: 'tool',
         parts: results
       })
@@ -367,7 +378,7 @@ export default class extends LlmEngine {
       // switch to new stream
       yield {
         type: 'stream',
-        stream: await this.doStream(),
+        stream: await this.doStream(context),
       }
       
       // done
@@ -384,7 +395,7 @@ export default class extends LlmEngine {
     }
 
     // usage
-    if (done && this.currentOpts?.usage && chunk.usageMetadata) {
+    if (done && context.opts.usage && chunk.usageMetadata) {
       yield { type: 'usage', usage: {
         prompt_tokens: chunk.usageMetadata.promptTokenCount,
         completion_tokens: chunk.usageMetadata.candidatesTokenCount,

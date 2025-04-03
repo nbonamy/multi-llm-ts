@@ -1,8 +1,8 @@
 
 import { EngineCreateOpts, Model, ModelsList } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LlmUsage } from 'types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmUsage } from 'types/llm'
 import Message from '../models/message'
-import LlmEngine from '../engine'
+import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
 
 // we do this for so that this can be imported in a browser
@@ -10,15 +10,14 @@ import logger from '../logger'
 import { Ollama, ChatRequest, ChatResponse, ProgressResponse } from 'ollama/dist/browser.cjs'
 import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.f6b57f53.cjs'
 
+export type OllamaStreamingContext = LlmStreamingContextTools & {
+  usage: LlmUsage
+  thinking: boolean
+}
+
 export default class extends LlmEngine {
 
   client: Ollama
-  currentModel: string = ''
-  currentThread: LLmCompletionPayload[] = []
-  currentOpts: LlmCompletionOpts|null = null
-  currentUsage: LlmUsage|null = null
-  toolCalls: LlmToolCall[] = []
-  thinking: boolean = false
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   static isConfigured = (engineConfig: EngineCreateOpts): boolean => {
@@ -140,35 +139,43 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
 
     // model: switch to vision if needed
-    this.currentModel = this.selectModel(model, thread, opts)
+    model = this.selectModel(model, thread, opts)
 
-    // save the message thread
-    this.currentThread = this.buildPayload(this.currentModel, thread, opts)
+    // context
+    const context: OllamaStreamingContext = {
+      model: model,
+      thread: this.buildPayload(model, thread, opts),
+      opts: opts || {},
+      toolCalls: [],
+      usage: { prompt_tokens: 0, completion_tokens: 0 },
+      thinking: false,
+    }
 
-    // save the opts and do it
-    this.currentOpts = opts || null
-    this.currentUsage = { prompt_tokens: 0, completion_tokens: 0 }
-    return await this.doStream()
+    // do it
+    return {
+      stream: await this.doStream(context),
+      context: context
+    }
   }
 
-  async doStream(): Promise<LlmStream> {
+  async doStream(context: OllamaStreamingContext): Promise<LlmStream> {
 
     // reset
-    this.toolCalls = []
-    this.thinking = false
+    context.toolCalls = []
+    context.thinking = false
 
     // call
-    logger.log(`[ollama] prompting model ${this.currentModel}`)
+    logger.log(`[ollama] prompting model ${context.model}`)
     const stream = this.client.chat({
       ...this.buildChatOptions({
-        model: this.currentModel,
-        messages: this.currentThread,
-        opts: this.currentOpts
+        model: context.model,
+        messages: context.thread,
+        opts: context.opts
       }),
-      ...await this.getToolOpts(this.currentModel, this.currentOpts || {}),
+      ...await this.getToolOpts(context.model, context.opts || {}),
       stream: true,
     })
 
@@ -226,15 +233,15 @@ export default class extends LlmEngine {
     await this.client.abort()
   }
 
-  async *nativeChunkToLlmChunk(chunk: ChatResponse): AsyncGenerator<LlmChunk, void, void> {
+  async *nativeChunkToLlmChunk(chunk: ChatResponse, context: OllamaStreamingContext): AsyncGenerator<LlmChunk, void, void> {
 
     // debug
     // console.dir(chunk, { depth: null })
 
     // add usage
-    if (chunk.done && this.currentUsage && (chunk.eval_count || chunk.prompt_eval_count)) {
-      this.currentUsage.prompt_tokens += chunk.prompt_eval_count
-      this.currentUsage.completion_tokens += chunk.eval_count
+    if (chunk.done && context.usage && (chunk.eval_count || chunk.prompt_eval_count)) {
+      context.usage.prompt_tokens += chunk.prompt_eval_count
+      context.usage.completion_tokens += chunk.eval_count
     }
 
     // tool calls
@@ -248,12 +255,12 @@ export default class extends LlmEngine {
 
         // record the tool call
         const toolCall: LlmToolCall = {
-          id: `${this.toolCalls.length}`,
+          id: `${context.toolCalls.length}`,
           message: tool,
           function: tool.function.name,
           args: JSON.stringify(tool.function.arguments || ''),
         }
-        this.toolCalls.push(toolCall)
+        context.toolCalls.push(toolCall)
 
         // first notify prep
         yield {
@@ -280,7 +287,7 @@ export default class extends LlmEngine {
         logger.log(`[ollama] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool response message
-        this.currentThread.push({
+        context.thread.push({
           role: 'tool',
           content: JSON.stringify(content)
         })
@@ -301,7 +308,7 @@ export default class extends LlmEngine {
       // switch to new stream
       yield {
         type: 'stream',
-        stream: await this.doStream(),
+        stream: await this.doStream(context),
       }
 
       // done
@@ -311,25 +318,25 @@ export default class extends LlmEngine {
 
     // <think/> toggles thinking
     if (chunk.message.content === '<think>') {
-      this.thinking = true
+      context.thinking = true
       return
     } else if (chunk.message.content === '</think>') {
-      this.thinking = false
+      context.thinking = false
       return
     }
     
     // content
     yield {
-      type: this.thinking ? 'reasoning' : 'content',
+      type: context.thinking ? 'reasoning' : 'content',
       text: chunk.message.content || '',
       done: chunk.done
     }
 
     // usage
-    if (this.currentOpts?.usage && this.currentUsage && chunk.done) {
+    if (context.opts.usage && context.usage && chunk.done) {
       yield {
         type: 'usage',
-        usage: this.currentUsage
+        usage: context.usage
       }
     } 
   

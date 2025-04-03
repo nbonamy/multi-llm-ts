@@ -115,7 +115,7 @@ test('Groq stream', async () => {
   groq.addPlugin(new Plugin1())
   groq.addPlugin(new Plugin2())
   groq.addPlugin(new Plugin3())
-  const stream = await groq.stream('model', [
+  const { stream, context } = await groq.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4, top_p: 4 })
@@ -136,7 +136,7 @@ test('Groq stream', async () => {
   let lastMsg:LlmChunkContent|null  = null
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of groq.nativeChunkToLlmChunk(chunk)) {
+    for await (const msg of groq.nativeChunkToLlmChunk(chunk, context)) {
       lastMsg = msg
       if (msg.type === 'content') response += msg.text || ''
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -175,7 +175,7 @@ test('Groq stream tools disabled', async () => {
 
 test('Groq stream without tools', async () => {
   const groq = new Groq(config)
-  const stream = await groq.stream('model', [
+  const { stream } = await groq.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_p: 4 })
@@ -197,12 +197,18 @@ test('Groq nativeChunkToLlmChunk Text', async () => {
     id: '123', model: 'model1', created: 1, object: 'chat.completion.chunk',
     choices: [{ index: 0, delta: { content: 'response' }, finish_reason: null }],
   }
-  for await (const llmChunk of groq.nativeChunkToLlmChunk(streamChunk)) {
+  const context = {
+    model: 'mode1',
+    thread: [],
+    opts: {},
+    toolCalls: []
+  }
+  for await (const llmChunk of groq.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.choices[0].finish_reason = 'stop'
   streamChunk.choices[0].delta.content = null
-  for await (const llmChunk of groq.nativeChunkToLlmChunk(streamChunk)) {
+  for await (const llmChunk of groq.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })

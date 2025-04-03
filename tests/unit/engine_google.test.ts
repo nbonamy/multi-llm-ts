@@ -4,7 +4,7 @@ import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
-import Google from '../../src/providers/google'
+import Google, { GoogleStreamingContext } from '../../src/providers/google'
 import { loadGoogleModels, loadModels } from '../../src/llm'
 import { EnhancedGenerateContentResponse, FunctionCall, FinishReason } from '@google/generative-ai'
 import * as _Google from '@google/generative-ai'
@@ -140,12 +140,18 @@ test('Google nativeChunkToLlmChunk Text', async () => {
     functionCalls: vi.fn((): FunctionCall[] => []),
     functionCall: () => undefined,
   }
-  for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk)) {
+  const context: GoogleStreamingContext = {
+    model: null as unknown as _Google.GenerativeModel,
+    content: [],
+    opts: {},
+    toolCalls: [],
+  }
+  for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
-  streamChunk.candidates[0].finishReason = 'STOP' as FinishReason
-  streamChunk.text = vi.fn(() => null)
-  for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk)) {
+  streamChunk.candidates![0].finishReason = 'STOP' as FinishReason
+  streamChunk.text = vi.fn(() => '')
+  for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
@@ -243,7 +249,7 @@ test('Google stream', async () => {
   google.addPlugin(new Plugin1())
   google.addPlugin(new Plugin2())
   google.addPlugin(new Plugin3())
-  const stream = await google.stream('model', [
+  const { stream, context } = await google.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { temperature: 1.0, top_k: 4 })
@@ -267,7 +273,7 @@ test('Google stream', async () => {
   let lastMsg: LlmChunkContent | null = null
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of google.nativeChunkToLlmChunk(chunk)) {
+    for await (const msg of google.nativeChunkToLlmChunk(chunk, context)) {
       lastMsg = msg
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)

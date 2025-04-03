@@ -3,7 +3,7 @@ import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
-import Anthropic from '../../src/providers/anthropic'
+import Anthropic, { AnthropicStreamingContext } from '../../src/providers/anthropic'
 import { loadAnthropicModels, loadModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
 import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
@@ -151,12 +151,19 @@ test('Anthropic nativeChunkToLlmChunk Text', async () => {
     type: 'content_block_delta',
     delta: { type: 'text_delta', text: 'response' }
   }
-  for await (const llmChunk of anthropic.nativeChunkToLlmChunk(streamChunk)) {
+  const context: AnthropicStreamingContext = {
+    model: 'model',
+    system: 'instruction',
+    thread: [],
+    opts: {},
+    usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
+  }
+  for await (const llmChunk of anthropic.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.delta.text = null
   streamChunk.type = 'message_stop'
-  for await (const llmChunk of anthropic.nativeChunkToLlmChunk(streamChunk)) {
+  for await (const llmChunk of anthropic.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
@@ -166,7 +173,7 @@ test('Anthropic stream', async () => {
   anthropic.addPlugin(new Plugin1())
   anthropic.addPlugin(new Plugin2())
   anthropic.addPlugin(new Plugin3())
-  const stream = await anthropic.stream('model', [
+  const { stream, context } = await anthropic.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4 })
@@ -185,7 +192,7 @@ test('Anthropic stream', async () => {
   let lastMsg: LlmChunkContent|null = null
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of anthropic.nativeChunkToLlmChunk(chunk)) {
+    for await (const msg of anthropic.nativeChunkToLlmChunk(chunk, context)) {
       lastMsg = msg
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -223,7 +230,7 @@ test('Anthropic stream tools disabled', async () => {
 
 test('Anthropic stream without tools', async () => {
   const anthropic = new Anthropic(config)
-  const stream = await anthropic.stream('model', [
+  const { stream } = await anthropic.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_p: 4 })

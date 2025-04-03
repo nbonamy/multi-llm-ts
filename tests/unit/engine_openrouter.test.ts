@@ -98,7 +98,7 @@ test('OpenRouter stream', async () => {
   openrouter.addPlugin(new Plugin1())
   openrouter.addPlugin(new Plugin2())
   openrouter.addPlugin(new Plugin3())
-  const stream = await openrouter.stream('model', [
+  const { stream, context } = await openrouter.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
@@ -120,7 +120,7 @@ test('OpenRouter stream', async () => {
   let response = ''
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of openrouter.nativeChunkToLlmChunk(chunk)) {
+    for await (const msg of openrouter.nativeChunkToLlmChunk(chunk, context)) {
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
     }
@@ -136,7 +136,7 @@ test('OpenRouter stream', async () => {
 
 test('OpenRouter stream without tools', async () => {
   const openrouter = new OpenRouter(config)
-  const stream = await openrouter.stream('model', [
+  const { stream } = await openrouter.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])

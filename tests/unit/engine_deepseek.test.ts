@@ -117,7 +117,7 @@ test('DeepSeek stream', async () => {
   deepseek.addPlugin(new Plugin1())
   deepseek.addPlugin(new Plugin2())
   deepseek.addPlugin(new Plugin3())
-  const stream = await deepseek.stream('model', [
+  const { stream, context } = await deepseek.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4, reasoningEffort: 'low' })
@@ -142,7 +142,7 @@ test('DeepSeek stream', async () => {
   let reasoning = ''
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of deepseek.nativeChunkToLlmChunk(chunk)) {
+    for await (const msg of deepseek.nativeChunkToLlmChunk(chunk, context)) {
       if (msg.type === 'reasoning') reasoning += msg.text
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -160,7 +160,7 @@ test('DeepSeek stream', async () => {
 
 test('DeepSeek stream without tools', async () => {
   const deepseek = new DeepSeek(config)
-  const stream = await deepseek.stream('model', [
+  const { stream } = await deepseek.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_p: 4 })

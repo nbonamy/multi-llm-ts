@@ -1,8 +1,8 @@
 
 import { EngineCreateOpts, Model } from 'types/index'
-import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload } from 'types/llm'
+import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload, LlmStreamingResponse } from 'types/llm'
 import Message from '../models/message'
-import LlmEngine from '../engine'
+import LlmEngine, { LlmStreamingContextBase } from '../engine'
 import Plugin from '../plugin'
 import logger from '../logger'
 
@@ -10,6 +10,10 @@ import Anthropic from '@anthropic-ai/sdk'
 import { Stream } from '@anthropic-ai/sdk/streaming'
 import { Tool, MessageParam, MessageStreamEvent, TextBlock, InputJSONDelta, Usage, RawMessageStartEvent, RawMessageDeltaEvent, MessageDeltaUsage } from '@anthropic-ai/sdk/resources'
 import { BetaToolUnion, MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/beta/messages/messages'
+
+//
+// https://docs.anthropic.com/en/api/getting-started
+//
 
 type AnthropicTool = Tool|BetaToolUnion
 
@@ -19,22 +23,18 @@ export interface AnthropicComputerToolInfo {
   screenNumber (): number
 }
 
-//
-// https://docs.anthropic.com/en/api/getting-started
-//
+export type AnthropicStreamingContext = LlmStreamingContextBase & {
+  system: string,
+  usage: Usage,
+  toolCall?: LlmToolCall,
+  thinkingBlock?: string,
+  thinkingSignature?: string,
+}
 
 export default class extends LlmEngine {
 
   client: Anthropic
-  currentModel: string = ''
-  currentSystem: string = ''
-  currentThread: MessageParam[] = []
-  currentOpts: LlmCompletionOpts|null = null
-  currentUsage: Usage|null = null
-  toolCall: LlmToolCall|null = null
   computerInfo: AnthropicComputerToolInfo|null = null
-  thinkingBlock: string|null = null
-  thinkingSignature: string = ''
 
  constructor(config: EngineCreateOpts, computerInfo: AnthropicComputerToolInfo|null = null) {
     super(config)
@@ -123,36 +123,42 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
 
     // model: switch to vision if needed
-    this.currentModel = this.selectModel(model, thread, opts)
-  
+    model = this.selectModel(model, thread, opts)
+
     // add computer tools
-    if (this.computerInfo && this.currentModel === 'computer-use') {
+    if (this.computerInfo && model === 'computer-use') {
       const computerUse = this.plugins.find((p) => p.getName() === this.computerInfo!.plugin.getName())
       if (!computerUse) {
         this.plugins.push(this.computerInfo.plugin)
       }
     }
 
-    // save the message thread
-    this.currentSystem = thread[0].contentForModel
-    this.currentThread = this.buildPayload(this.currentModel, thread, opts) as MessageParam[]
+    // the context
+    const context: AnthropicStreamingContext = {
+      model: model,
+      system: thread[0].contentForModel,
+      thread: this.buildPayload(model, thread, opts) as MessageParam[],
+      opts: opts || {},
+      usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
+    }
 
-    // save the opts and do it
-    this.currentOpts = opts || null
-    this.currentUsage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
-    return await this.doStream()
+    // do it
+    return {
+      stream: await this.doStream(context),
+      context: context,
+    }
 
   }
 
-  async doStream(): Promise<LlmStream> {
+  async doStream(context: AnthropicStreamingContext): Promise<LlmStream> {
 
     // reset
-    this.toolCall = null
-    this.thinkingBlock = null
-    this.thinkingSignature = ''
+    context.toolCall = undefined
+    context.thinkingBlock = undefined
+    context.thinkingSignature = ''
 
     // tools in anthropic format
     const tools: AnthropicTool[] = (await this.getAvailableTools()).map((tool) => {
@@ -168,7 +174,7 @@ export default class extends LlmEngine {
     })
 
     // add computer tools
-    if (this.computerInfo && this.currentModel === 'computer-use') {
+    if (this.computerInfo && context.model === 'computer-use') {
       const scaledScreenSize = this.computerInfo.screenSize()
       tools.push({
         name: 'computer',
@@ -180,37 +186,37 @@ export default class extends LlmEngine {
     }
 
     // call
-    if (this.currentModel === 'computer-use') {
-      return this.doStreamBeta()
+    if (context.model === 'computer-use') {
+      return this.doStreamBeta(context)
     } else {
-      return this.doStreamNormal()
+      return this.doStreamNormal(context)
     }
 
   }
 
-  async doStreamNormal(): Promise<LlmStream> {
+  async doStreamNormal(context: AnthropicStreamingContext): Promise<LlmStream> {
 
-    logger.log(`[anthropic] prompting model ${this.currentModel}`)
+    logger.log(`[anthropic] prompting model ${context.model}`)
     return this.client.messages.create({
-      model: this.currentModel,
-      system: this.currentSystem,
-      messages: this.currentThread,
-      ...this.getCompletionOpts(this.currentModel, this.currentOpts!),
-      ...await this.getToolOpts(this.currentModel, this.currentOpts!),
+      model: context.model,
+      system: context.system,
+      messages: context.thread,
+      ...this.getCompletionOpts(context.model, context.opts),
+      ...await this.getToolOpts(context.model, context.opts),
       stream: true,
     })
 
   }
 
-  async doStreamBeta(): Promise<LlmStream> {
-    logger.log(`[anthropic] prompting model ${this.currentModel}`)
+  async doStreamBeta(context: AnthropicStreamingContext): Promise<LlmStream> {
+    logger.log(`[anthropic] prompting model ${context.model}`)
     return this.client.beta.messages.create({
       model: this.getComputerUseRealModel(),
       betas: [ 'computer-use-2024-10-22' ],
-      system: this.currentSystem,
-      messages: this.currentThread,
-      ...this.getCompletionOpts(this.currentModel, this.currentOpts!),
-      ...await this.getToolOpts(this.currentModel, this.currentOpts!),
+      system: context.system,
+      messages: context.thread,
+      ...this.getCompletionOpts(context.model, context.opts),
+      ...await this.getToolOpts(context.model, context.opts),
       stream: true,
     })
   }
@@ -224,7 +230,7 @@ export default class extends LlmEngine {
       ...(this.modelIsReasoning(model) && opts?.reasoning ? {
         thinking: {
           type: 'enabled',
-          budget_tokens: this.currentOpts?.reasoningBudget || (opts?.maxTokens || this.getMaxTokens(model)) / 2,
+          budget_tokens: opts.reasoningBudget || (opts?.maxTokens || this.getMaxTokens(model)) / 2,
         }
       } : {}),
     }
@@ -259,27 +265,27 @@ export default class extends LlmEngine {
     stream.controller.abort()
   }
    
-  async *nativeChunkToLlmChunk(chunk: MessageStreamEvent): AsyncGenerator<LlmChunk, void, void> {
+  async *nativeChunkToLlmChunk(chunk: MessageStreamEvent, context: AnthropicStreamingContext): AsyncGenerator<LlmChunk, void, void> {
     
     // log
     //console.dir(chunk, { depth: null })
 
     // usage
     const usage: Usage|MessageDeltaUsage = (chunk as RawMessageStartEvent).message?.usage ?? (chunk as RawMessageDeltaEvent).usage
-    if (this.currentUsage && usage) {
+    if (context.usage && usage) {
       if ('input_tokens' in usage) {
-        this.currentUsage.input_tokens += (usage as Usage).input_tokens ?? 0
+        context.usage.input_tokens += (usage as Usage).input_tokens ?? 0
       }
-      this.currentUsage.output_tokens += usage.output_tokens ?? 0
+      context.usage.output_tokens += usage.output_tokens ?? 0
     }
 
     // done
     if (chunk.type == 'message_stop') {
       yield { type: 'content', text: '', done: true }
-      if (this.currentUsage && this.currentOpts?.usage) {
+      if (context.usage && context.opts.usage) {
         yield { type: 'usage', usage: {
-          prompt_tokens: this.currentUsage.input_tokens,
-          completion_tokens: this.currentUsage.output_tokens,
+          prompt_tokens: context.usage.input_tokens,
+          completion_tokens: context.usage.output_tokens,
         }}
       }
     }
@@ -288,13 +294,13 @@ export default class extends LlmEngine {
     if (chunk.type == 'content_block_start') {
 
       if (chunk.content_block.type == 'thinking') {
-        this.thinkingBlock = ''
+        context.thinkingBlock = ''
       }
 
       if (chunk.content_block.type == 'tool_use') {
 
         // record the tool call
-        this.toolCall = {
+        context.toolCall = {
           id: chunk.content_block.id,
           message: '',
           function: chunk.content_block.name,
@@ -304,13 +310,13 @@ export default class extends LlmEngine {
         // notify
         yield {
           type: 'tool',
-          name: this.toolCall.function,
-          status: this.getToolPreparationDescription(this.toolCall.function),
+          name: context.toolCall.function,
+          status: this.getToolPreparationDescription(context.toolCall.function),
           done: false
         }
         
       } else {
-        this.toolCall = null
+        context.toolCall = undefined
       }
     }
 
@@ -318,24 +324,24 @@ export default class extends LlmEngine {
     if (chunk.type == 'content_block_delta') {
 
       // tool use
-      if (this.toolCall !== null) {
+      if (context.toolCall !== undefined) {
         const toolDelta = chunk.delta as InputJSONDelta
-        this.toolCall.args += toolDelta.partial_json
+        context.toolCall!.args += toolDelta.partial_json
       }
 
       // thinking
-      if (this.toolCall === null && chunk.delta.type === 'thinking_delta') {
-        this.thinkingBlock += chunk.delta.thinking
+      if (context.toolCall === undefined && chunk.delta.type === 'thinking_delta') {
+        context.thinkingBlock += chunk.delta.thinking
         yield { type: 'reasoning', text: chunk.delta.thinking, done: false }
       }
 
       // thinking signature
-      if (this.toolCall === null && chunk.delta.type === 'signature_delta') {
-        this.thinkingSignature = chunk.delta.signature
+      if (context.toolCall === undefined && chunk.delta.type === 'signature_delta') {
+        context.thinkingSignature = chunk.delta.signature
       }
       
       // text
-      if (this.toolCall === null && chunk.delta.type === 'text_delta') {
+      if (context.toolCall === undefined && chunk.delta.type === 'text_delta') {
         yield { type: 'content', text: chunk.delta.text, done: false }
       }
 
@@ -343,63 +349,63 @@ export default class extends LlmEngine {
 
     // tool call?
     if (chunk.type == 'message_delta') {
-      if (chunk.delta.stop_reason == 'tool_use' && this.toolCall !== null) {
+      if (chunk.delta.stop_reason == 'tool_use' && context.toolCall !== undefined) {
 
         // need
-        logger.log(`[anthropic] tool call ${this.toolCall.function} with ${this.toolCall.args}`)
-        const args = JSON.parse(this.toolCall.args)
+        logger.log(`[anthropic] tool call ${context.toolCall!.function} with ${context.toolCall!.args}`)
+        const args = JSON.parse(context.toolCall!.args)
 
         // first notify
         yield {
           type: 'tool',
-          name: this.toolCall.function,
-          status: this.getToolRunningDescription(this.toolCall.function, args),
+          name: context.toolCall!.function,
+          status: this.getToolRunningDescription(context.toolCall!.function, args),
           done: false
         }
 
         // now execute
-        const content = await this.callTool(this.toolCall.function, args)
-        logger.log(`[anthropic] tool call ${this.toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+        const content = await this.callTool(context.toolCall!.function, args)
+        logger.log(`[anthropic] tool call ${context.toolCall!.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add thinking block
-        if (this.thinkingBlock) {
-          this.currentThread.push({
+        if (context.thinkingBlock) {
+          context.thread.push({
             role: 'assistant',
             content: [{
               type: 'thinking',
-              thinking: this.thinkingBlock,
-              signature: this.thinkingSignature
+              thinking: context.thinkingBlock,
+              signature: context.thinkingSignature
             }]
           })
         }
 
         // add tool call message
-        this.currentThread.push({
+        context.thread.push({
           role: 'assistant',
           content: [{
             type: 'tool_use',
-            id: this.toolCall.id,
-            name: this.toolCall.function,
+            id: context.toolCall!.id,
+            name: context.toolCall!.function,
             input: args,
           }]
         })
 
         // add tool response message
-        if (this.toolCall.function === 'computer') {
-          this.currentThread.push({
+        if (context.toolCall!.function === 'computer') {
+          context.thread.push({
             role: 'user',
             content: [{
               type: 'tool_result',
-              tool_use_id: this.toolCall.id,
+              tool_use_id: context.toolCall!.id,
               ...content,
             }]
           })
         } else {
-          this.currentThread.push({
+          context.thread.push({
             role: 'user',
             content: [{
               type: 'tool_result',
-              tool_use_id: this.toolCall.id,
+              tool_use_id: context.toolCall!.id,
               content: JSON.stringify(content)
             }]
           })
@@ -408,7 +414,7 @@ export default class extends LlmEngine {
         // clear
         yield {
           type: 'tool',
-          name: this.toolCall.function,
+          name: context.toolCall!.function,
           done: true,
           call: {
             params: args,
@@ -419,7 +425,7 @@ export default class extends LlmEngine {
         // switch to new stream
         yield {
           type: 'stream',
-          stream: await this.doStream(),
+          stream: await this.doStream(context),
         }
 
       }

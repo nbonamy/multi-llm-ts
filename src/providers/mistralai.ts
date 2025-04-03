@@ -1,8 +1,8 @@
 
 import { EngineCreateOpts, Model } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall } from 'types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall } from 'types/llm'
 import Message from '../models/message'
-import LlmEngine from '../engine'
+import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
 
 import { Mistral } from '@mistralai/mistralai'
@@ -22,10 +22,6 @@ type MistralMessages = Array<
 export default class extends LlmEngine {
 
   client: Mistral
-  currentModel: string = ''
-  currentThread: MistralMessages = []
-  currentOpts: LlmCompletionOpts|undefined = undefined
-  toolCalls: LlmToolCall[] = []
 
   constructor(config: EngineCreateOpts) {
     super(config)
@@ -85,32 +81,39 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
 
     // model: switch to vision if needed
-    this.currentModel = this.selectModel(model, thread, opts)
+    model = this.selectModel(model, thread, opts)
   
-    // save the message thread
-    this.currentThread = this.buildPayload(this.currentModel, thread, opts) as MistralMessages
+    // context
+    const context: LlmStreamingContextTools = {
+      model: model,
+      thread: this.buildPayload(model, thread, opts) as MistralMessages,
+      opts: opts || {},
+      toolCalls: [],
+    }
 
-    // save opts and run
-    this.currentOpts = opts
-    return await this.doStream()
+    // do it
+    return {
+      stream: await this.doStream(context),
+      context: context
+    }
 
   }
 
-  async doStream(): Promise<LlmStream> {
+  async doStream(context: LlmStreamingContextTools): Promise<LlmStream> {
 
     // reset
-    this.toolCalls = []
+    context.toolCalls = []
 
     // call
-    logger.log(`[mistralai] prompting model ${this.currentModel}`)
+    logger.log(`[mistralai] prompting model ${context.model}`)
     const stream = this.client.chat.stream({
-      model: this.currentModel,
-      messages: this.currentThread,
-      ...this.getCompletionOpts(this.currentModel, this.currentOpts),
-      ...await this.getToolOpts(this.currentModel, this.currentOpts),
+      model: context.model,
+      messages: context.thread,
+      ...this.getCompletionOpts(context.model, context.opts),
+      ...await this.getToolOpts(context.model, context.opts),
     })
 
     // done
@@ -146,7 +149,7 @@ export default class extends LlmEngine {
   }
 
    
-  async *nativeChunkToLlmChunk(chunk: CompletionEvent): AsyncGenerator<LlmChunk, void, void> {
+  async *nativeChunkToLlmChunk(chunk: CompletionEvent, context: LlmStreamingContextTools): AsyncGenerator<LlmChunk, void, void> {
 
     // debug
     //console.dir(chunk, { depth: null })
@@ -170,7 +173,7 @@ export default class extends LlmEngine {
           function: chunk.data.choices[0].delta.toolCalls[0].function.name,
           args: chunk.data.choices[0].delta.toolCalls[0].function.arguments as string,
         }
-        this.toolCalls.push(toolCall)
+        context.toolCalls.push(toolCall)
 
         // first notify
         yield {
@@ -182,7 +185,7 @@ export default class extends LlmEngine {
 
       } else {
 
-        const toolCall = this.toolCalls[this.toolCalls.length-1]
+        const toolCall = context.toolCalls[context.toolCalls.length-1]
         toolCall.args += chunk.data.choices[0].delta.toolCalls[0].function.arguments
 
       }
@@ -193,10 +196,10 @@ export default class extends LlmEngine {
     if (chunk.data.choices[0]?.finishReason === 'tool_calls') {
 
       // debug
-      //logger.log('[mistralai] tool calls:', this.toolCalls)
+      //logger.log('[mistralai] tool calls:', context.toolCalls)
 
       // add tools
-      for (const toolCall of this.toolCalls) {
+      for (const toolCall of context.toolCalls) {
 
         // log
         logger.log(`[mistralai] tool call ${toolCall.function} with ${toolCall.args}`)
@@ -215,13 +218,13 @@ export default class extends LlmEngine {
         logger.log(`[mistralai] tool call ${toolCall.function} with ${JSON.stringify(args)} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message
-        this.currentThread.push({
+        context.thread.push({
           role: 'assistant',
           toolCalls: toolCall.message
         })
 
         // add tool response message
-        this.currentThread.push({
+        context.thread.push({
           role: 'tool',
           toolCallId: toolCall.id,
           name: toolCall.function,
@@ -244,7 +247,7 @@ export default class extends LlmEngine {
       // switch to new stream
       yield {
         type: 'stream',
-        stream: await this.doStream(),
+        stream: await this.doStream(context),
       }
 
       // done
@@ -260,7 +263,7 @@ export default class extends LlmEngine {
     }
 
     // usage
-    if (this.currentOpts?.usage && chunk.data.usage) {
+    if (context.opts.usage && chunk.data.usage) {
       yield {
         type: 'usage',
         usage: {

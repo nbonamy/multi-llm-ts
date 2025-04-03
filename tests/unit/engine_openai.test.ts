@@ -185,7 +185,6 @@ test('OpenAI Vision Model', async () => {
 
 test('OpenAI system prompt for most models', async () => {
   const openai = new OpenAI(config)
-  // @ts-expect-error testing private method
   const payload = openai.buildPayload('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
@@ -198,7 +197,6 @@ test('OpenAI system prompt for most models', async () => {
 
 test('OpenAI no system prompt for most o1 models', async () => {
   const openai = new OpenAI(config)
-  // @ts-expect-error testing private method
   const payload = openai.buildPayload('o1-mini', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
@@ -212,9 +210,7 @@ test('OpenAI buildPayload', async () => {
   const openai = new OpenAI(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  // @ts-expect-error protected
   expect(openai.buildPayload('gpt-3.5', [ message ])).toStrictEqual([{ role: 'user', content: 'text' }])
-  // @ts-expect-error protected
   expect(openai.buildPayload('gpt-4o', [ message ])).toStrictEqual([{ role: 'user', content: [
     { type: 'text', text: 'text' },
     { type: 'image_url', image_url: { url: 'data:image/png;base64,image' } }
@@ -250,12 +246,18 @@ test('OpenAI nativeChunkToLlmChunk Text', async () => {
     object: 'chat.completion.chunk',
     choices: [{ index: 0, delta: { content: 'response' }, finish_reason: null }],
   }
-  for await (const llmChunk of openai.nativeChunkToLlmChunk(streamChunk)) {
+  const context = {
+    model: 'model',
+    thread: [],
+    opts: {},
+    toolCalls: [],
+  }
+  for await (const llmChunk of openai.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.choices[0].delta.content = null
   streamChunk.choices[0].finish_reason = 'stop'
-  for await (const llmChunk of openai.nativeChunkToLlmChunk(streamChunk)) {
+  for await (const llmChunk of openai.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
@@ -265,7 +267,7 @@ test('OpenAI stream', async () => {
   openai.addPlugin(new Plugin1())
   openai.addPlugin(new Plugin2())
   openai.addPlugin(new Plugin3())
-  const stream = await openai.stream('model', [
+  const { stream, context } = await openai.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4 })
@@ -290,7 +292,7 @@ test('OpenAI stream', async () => {
   let lastMsg:LlmChunkContent|null  = null
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of openai.nativeChunkToLlmChunk(chunk)) {
+    for await (const msg of openai.nativeChunkToLlmChunk(chunk, context)) {
       lastMsg = msg
       if (msg.type === 'content') response += msg.text || ''
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -336,7 +338,7 @@ test('OpenAI stream no tools for o1', async () => {
   openai.addPlugin(new Plugin1())
   openai.addPlugin(new Plugin2())
   openai.addPlugin(new Plugin3())
-  const stream = await openai.stream('o1-mini', [
+  const { stream } = await openai.stream('o1-mini', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { maxTokens: 200, temperature: 1.0, top_k: 4, top_p: 4 })
@@ -355,7 +357,7 @@ test('OpenAI stream no tools for o1', async () => {
 
 test('OpenAI stream without tools', async () => {
   const openai = new OpenAI(config)
-  const stream = await openai.stream('model', [
+  const { stream } = await openai.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])

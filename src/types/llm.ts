@@ -14,6 +14,13 @@ export type LlmResponse = {
 
 export type LlmStream = AsyncIterable<any>
 
+export type LlmStreamingContext = any
+
+export type LlmStreamingResponse = {
+  stream: LlmStream
+  context: LlmStreamingContext
+}
+
 export type LlmReasoningEffort = 'low'|'medium'|'high'
 
 export type LLmCustomModelOpts = Record<string, any>

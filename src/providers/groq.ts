@@ -1,8 +1,8 @@
 
 import { EngineCreateOpts, Model } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall } from 'types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall } from 'types/llm'
 import Message from '../models/message'
-import LlmEngine from '../engine'
+import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
 
 import Groq from 'groq-sdk'
@@ -17,10 +17,6 @@ import { Stream } from 'groq-sdk/lib/streaming'
 export default class extends LlmEngine {
 
   client: Groq
-  currentModel: string = ''
-  currentThread: LLmCompletionPayload[] = []
-  currentOpts: LlmCompletionOpts|undefined = undefined
-  toolCalls: LlmToolCall[] = []
 
   constructor(config: EngineCreateOpts) {
     super(config)
@@ -81,32 +77,39 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStream> {
+  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
 
     // model: switch to vision if needed
-    this.currentModel = this.selectModel(model, thread, opts)
-  
-    // save the message thread
-    this.currentThread = this.buildPayload(model, thread, this.currentOpts)
+    model = this.selectModel(model, thread, opts)
 
-    // save opts and do it
-    this.currentOpts = opts
-    return await this.doStream()
+    // context
+    const context: LlmStreamingContextTools = {
+      model: model,
+      thread: this.buildPayload(model, thread, opts),
+      opts: opts || {},
+      toolCalls: []
+    }
+
+    // do it
+    return {
+      stream: await this.doStream(context),
+      context: context
+    }
 
   }
 
-  async doStream(): Promise<LlmStream> {
+  async doStream(context: LlmStreamingContextTools): Promise<LlmStream> {
 
     // reset
-    this.toolCalls = []
+    context.toolCalls = []
 
     // call
-    logger.log(`[Groq] prompting model ${this.currentModel}`)
+    logger.log(`[Groq] prompting model ${context.model}`)
     const stream = this.client.chat.completions.create({
-      model: this.currentModel,
-      messages: this.currentThread as ChatCompletionMessageParam[],
-      ...this.getCompletionOpts(this.currentModel, this.currentOpts),
-      ...await this.getToolOpts(this.currentModel, this.currentOpts),
+      model: context.model,
+      messages: context.thread as ChatCompletionMessageParam[],
+      ...this.getCompletionOpts(context.model, context.opts),
+      ...await this.getToolOpts(context.model, context.opts),
       stream: true,
     })
 
@@ -144,7 +147,7 @@ export default class extends LlmEngine {
     stream.controller.abort()
   }
 
-  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk): AsyncGenerator<LlmChunk, void, void> {
+  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: LlmStreamingContextTools): AsyncGenerator<LlmChunk, void, void> {
 
     // debug
     //logger.log('nativeChunkToLlmChunk', JSON.stringify(chunk))
@@ -168,7 +171,7 @@ export default class extends LlmEngine {
           function: chunk.choices[0].delta.tool_calls[0].function.name || '',
           args: chunk.choices[0].delta.tool_calls[0].function.arguments || '',
         }
-        this.toolCalls.push(toolCall)
+        context.toolCalls.push(toolCall)
 
         // first notify
         yield {
@@ -184,7 +187,7 @@ export default class extends LlmEngine {
       } else {
 
         // append arguments
-        const toolCall = this.toolCalls[this.toolCalls.length-1]
+        const toolCall = context.toolCalls[context.toolCalls.length-1]
         toolCall.args += chunk.choices[0].delta.tool_calls[0].function.arguments
 
         // done
@@ -195,10 +198,10 @@ export default class extends LlmEngine {
     }
 
     // now tool calling
-    if (['tool_calls', 'function_call', 'stop'].includes(chunk.choices[0]?.finish_reason|| '') && this.toolCalls?.length) {
+    if (['tool_calls', 'function_call', 'stop'].includes(chunk.choices[0]?.finish_reason|| '') && context.toolCalls?.length) {
 
       // iterate on tools
-      for (const toolCall of this.toolCalls) {
+      for (const toolCall of context.toolCalls) {
 
         // log
         logger.log(`[groq] tool call ${toolCall.function} with ${toolCall.args}`)
@@ -217,14 +220,14 @@ export default class extends LlmEngine {
         logger.log(`[groq] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message
-        this.currentThread.push({
+        context.thread.push({
           role: 'assistant',
           content: '',
           tool_calls: toolCall.message
         })
 
         // add tool response message
-        this.currentThread.push({
+        context.thread.push({
           role: 'tool',
           tool_call_id: toolCall.id,
           name: toolCall.function,
@@ -247,7 +250,7 @@ export default class extends LlmEngine {
       // switch to new stream
       yield {
         type: 'stream',
-        stream: await this.doStream(),
+        stream: await this.doStream(context),
       }
 
       // done
@@ -262,7 +265,7 @@ export default class extends LlmEngine {
       yield { type: 'content', text: '', done: true }
 
       // usage?
-      if (this.currentOpts?.usage && chunk.x_groq?.usage) {
+      if (context.opts?.usage && chunk.x_groq?.usage) {
         yield { type: 'usage', usage: chunk.x_groq.usage }
       }
     

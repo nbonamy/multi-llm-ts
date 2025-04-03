@@ -1,5 +1,5 @@
 
-import { LlmChunkContent } from '../../src/types/llm'
+import { LlmChunkContent, LlmChunkTool } from '../../src/types/llm'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
@@ -9,6 +9,7 @@ import { Mistral } from '@mistralai/mistralai'
 import { CompletionEvent } from '@mistralai/mistralai/models/components'
 import { loadMistralAIModels, loadModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
+import { LlmStreamingContextTools } from '../../src/engine'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -117,12 +118,18 @@ test('MistralAI nativeChunkToLlmChunk Text', async () => {
       index: 0, delta: { content: 'response' }, finishReason: null
     }],
   }}
-  for await (const llmChunk of mistralai.nativeChunkToLlmChunk(streamChunk)) {
+  const context: LlmStreamingContextTools = {
+    model: 'model',
+    thread: [],
+    opts: {},
+    toolCalls: [],
+  }
+  for await (const llmChunk of mistralai.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.data.choices[0].delta.content = null
   streamChunk.data.choices[0].finishReason = 'stop'
-  for await (const llmChunk of mistralai.nativeChunkToLlmChunk(streamChunk)) {
+  for await (const llmChunk of mistralai.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
@@ -132,7 +139,7 @@ test('MistralAI stream with tools', async () => {
   mistralai.addPlugin(new Plugin1())
   mistralai.addPlugin(new Plugin2())
   mistralai.addPlugin(new Plugin3())
-  const stream = await mistralai.stream('mistral-large', [
+  const { stream, context } = await mistralai.stream('mistral-large', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4 })
@@ -145,9 +152,9 @@ test('MistralAI stream with tools', async () => {
   expect(stream.controller).toBeDefined()
   let response = ''
   let lastMsg: LlmChunkContent|null = null
-  const toolCalls = []
+  const toolCalls: LlmChunkTool[] = []
   for await (const chunk of stream) {
-    for await (const msg of mistralai.nativeChunkToLlmChunk(chunk)) {
+    for await (const msg of mistralai.nativeChunkToLlmChunk(chunk, context)) {
       lastMsg = msg
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -168,7 +175,7 @@ test('MistralAI stream without tools', async () => {
   mistralai.addPlugin(new Plugin1())
   mistralai.addPlugin(new Plugin2())
   mistralai.addPlugin(new Plugin3())
-  const stream = await mistralai.stream('model', [
+  const { stream } = await mistralai.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_p: 4 })
@@ -182,7 +189,7 @@ test('MistralAI stream without tools', async () => {
 
 test('MistralAI  stream without tools', async () => {
   const mistralai = new MistralAI(config)
-  const stream = await mistralai.stream('mistral-large', [
+  const { stream } = await mistralai.stream('mistral-large', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])

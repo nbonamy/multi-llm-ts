@@ -95,7 +95,7 @@ test('xAI stream', async () => {
   xai.addPlugin(new Plugin1())
   xai.addPlugin(new Plugin2())
   xai.addPlugin(new Plugin3())
-  const stream = await xai.stream('model', [
+  const { stream, context } = await xai.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
@@ -117,7 +117,7 @@ test('xAI stream', async () => {
   let response = ''
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of xai.nativeChunkToLlmChunk(chunk)) {
+    for await (const msg of xai.nativeChunkToLlmChunk(chunk, context)) {
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
     }
@@ -133,7 +133,7 @@ test('xAI stream', async () => {
 
 test('xAI stream without tools', async () => {
   const xai = new XAI(config)
-  const stream = await xai.stream('model', [
+  const { stream } = await xai.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])

@@ -3,7 +3,7 @@ import { LlmChunkContent, LlmChunkTool } from '../../src/types/llm'
 import { vi, beforeEach, expect, test } from 'vitest'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
-import Ollama from '../../src/providers/ollama'
+import Ollama, { OllamaStreamingContext } from '../../src/providers/ollama'
 import * as _ollama from 'ollama/dist/browser.cjs'
 import { loadModels, loadOllamaModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
@@ -100,9 +100,7 @@ test('Ollama buildPayload', async () => {
   const ollama = new Ollama(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  // @ts-expect-error protected
   expect(ollama.buildPayload('llama', [ message ])).toStrictEqual([ { role: 'user', content: 'text' } ])
-  // @ts-expect-error protected
   expect(ollama.buildPayload('llava', [ message ])).toStrictEqual([ { role: 'user', content: 'text', images: [ 'image' ]} ])
 })
 
@@ -132,7 +130,7 @@ test('Ollama stream without tools', async () => {
   ollama.addPlugin(new Plugin1())
   ollama.addPlugin(new Plugin2())
   ollama.addPlugin(new Plugin3())
-  const stream = await ollama.stream('model', [
+  const { stream, context } = await ollama.stream('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4 })
@@ -152,7 +150,7 @@ test('Ollama stream without tools', async () => {
   const toolCalls: LlmChunkTool[] = []
   let lastMsg: LlmChunkContent|null = null
   for await (const chunk of stream) {
-    for await (const msg of ollama.nativeChunkToLlmChunk(chunk)) {
+    for await (const msg of ollama.nativeChunkToLlmChunk(chunk, context)) {
       lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text || ''
       if (msg.type === 'reasoning') reasoning += msg.text || ''
@@ -172,7 +170,7 @@ test('Ollama stream with tools', async () => {
   ollama.addPlugin(new Plugin1())
   ollama.addPlugin(new Plugin2())
   ollama.addPlugin(new Plugin3())
-  const stream = await ollama.stream('llama3-groq-tool-use', [
+  const { stream, context } = await ollama.stream('llama3-groq-tool-use', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4 })
@@ -193,7 +191,7 @@ test('Ollama stream with tools', async () => {
   const toolCalls: LlmChunkTool[] = []
   let lastMsg: LlmChunkContent|null = null
   for await (const chunk of stream) {
-    for await (const msg of ollama.nativeChunkToLlmChunk(chunk)) {
+    for await (const msg of ollama.nativeChunkToLlmChunk(chunk, context)) {
       lastMsg = msg
       if (msg.type === 'content') response += msg.text || ''
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -232,7 +230,7 @@ test('Ollama stream with tools disabled', async () => {
 
 test('Ollama stream without tools and options', async () => {
   const ollama = new Ollama(config)
-  const stream = await ollama.stream('llama3-groq-tool-use', [
+  const { stream } = await ollama.stream('llama3-groq-tool-use', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { contextWindowSize: 4096, top_p: 4 })
@@ -257,12 +255,20 @@ test('Ollama nativeChunkToLlmChunk Text', async () => {
     message: { content: 'response'},
     done: false
   }
-  for await (const llmChunk of ollama.nativeChunkToLlmChunk(streamChunk)) {
+  const context: OllamaStreamingContext = {
+    model: 'model',
+    thread: [],
+    opts: {},
+    toolCalls: [],
+    usage: {},
+    thinking: false,
+  }
+  for await (const llmChunk of ollama.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.done = true
   streamChunk.message.content = null
-  for await (const llmChunk of ollama.nativeChunkToLlmChunk(streamChunk)) {
+  for await (const llmChunk of ollama.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
