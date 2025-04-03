@@ -57,10 +57,10 @@ vi.mock('@google/generative-ai', async () => {
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
+  vi.clearAllMocks()
   config = {
     apiKey: '123',
   }
-  vi.clearAllMocks()
 })
 
 test('Google Load Models', async () => {
@@ -281,6 +281,22 @@ test('Google stream', async () => {
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await google.stop(stream)
   //expect(response.controller.abort).toHaveBeenCalled()
+})
+
+test('Google stream tools disabled', async () => {
+  const google = new Google(config);
+  google.addPlugin(new Plugin1())
+  google.addPlugin(new Plugin2())
+  google.addPlugin(new Plugin3())
+  await google.stream('model', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { temperature: 1.0, top_k: 4, tools: false })
+  expect(_Google.GoogleGenerativeAI.prototype.getGenerativeModel).toHaveBeenCalledWith({
+    model: 'model',
+    systemInstruction: 'instruction',
+  }, { 'apiVersion': 'v1beta', })
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
 })
 
 test('Google stream without tools', async () => {

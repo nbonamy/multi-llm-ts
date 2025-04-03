@@ -70,6 +70,7 @@ export default class extends LlmEngine {
       model: model,
       messages: this.buildPayload(model, thread, opts) as ChatCompletionMessageParam[],
       ...this.getCompletionOpts(model, opts),
+      ...await this.getToolOpts(model, opts),
     });
 
     // return an object
@@ -99,19 +100,13 @@ export default class extends LlmEngine {
     // reset
     this.toolCalls = []
 
-    // tools
-    const tools = await this.getAvailableTools()
-
     // call
     logger.log(`[Groq] prompting model ${this.currentModel}`)
     const stream = this.client.chat.completions.create({
       model: this.currentModel,
       messages: this.currentThread as ChatCompletionMessageParam[],
-      ...(tools.length ? {
-        tools: tools,
-        tool_choice: 'auto',
-      } : {}),
       ...this.getCompletionOpts(this.currentModel, this.currentOpts),
+      ...await this.getToolOpts(this.currentModel, this.currentOpts),
       stream: true,
     })
 
@@ -120,13 +115,29 @@ export default class extends LlmEngine {
 
   }
 
-  getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<ChatCompletionCreateParamsBase, "model"|"messages"|"stream"> {
+  getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'> {
     return {
       ...(opts?.maxTokens ? { max_tokens: opts?.maxTokens } : {} ),
       ...(opts?.temperature ? { temperature: opts?.temperature } : {} ),
       //...(opts?.top_k ? { logprobs: true, top_logprobs: opts?.top_k } : {} ),
       ...(opts?.top_p ? { top_p: opts?.top_p } : {} ),
     }
+  }
+
+  async getToolOpts(model: string, opts?: LlmCompletionOpts): Promise<Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'>> {
+
+    // disabled?
+    if (opts?.tools === false) {
+      return {}
+    }
+
+    // tools
+    const tools = await this.getAvailableTools()
+    return tools.length ? {
+      tools: tools,
+      tool_choice: 'auto',
+    } : {}
+
   }
 
   async stop(stream: Stream<any>) {

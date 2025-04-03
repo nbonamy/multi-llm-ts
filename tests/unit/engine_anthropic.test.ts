@@ -201,6 +201,26 @@ test('Anthropic stream', async () => {
   expect(stream.controller.abort).toHaveBeenCalled()
 })
 
+test('Anthropic stream tools disabled', async () => {
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new Plugin1())
+  anthropic.addPlugin(new Plugin2())
+  anthropic.addPlugin(new Plugin3())
+  await anthropic.stream('model', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { top_k: 4, tools: false })
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalledWith({
+    max_tokens: 4096,
+    model: 'model',
+    system: 'instruction',
+    messages: [ { role: 'user', content: 'prompt' } ],
+    top_k: 4,
+    stream: true,
+  })
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+})
+
 test('Anthropic stream without tools', async () => {
   const anthropic = new Anthropic(config)
   const stream = await anthropic.stream('model', [

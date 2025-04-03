@@ -106,11 +106,9 @@ export default class extends LlmEngine {
     const response = await this.client.messages.create({
       model: model,
       system: thread[0].contentForModel,
-      max_tokens: opts?.maxTokens ?? this.getMaxTokens(model),
       messages: this.buildPayload(model, thread, opts) as MessageParam[],
-      temperature: opts?.temperature,
-      top_k: opts?.top_k,
-      top_p: opts?.top_p,
+      ...this.getCompletionOpts(model, opts),
+      ...await this.getToolOpts(model, opts),
     });
 
     // return an object
@@ -183,40 +181,36 @@ export default class extends LlmEngine {
 
     // call
     if (this.currentModel === 'computer-use') {
-      return this.doStreamBeta(tools)
+      return this.doStreamBeta()
     } else {
-      return this.doStreamNormal(tools)
+      return this.doStreamNormal()
     }
 
   }
 
-  async doStreamNormal(tools: AnthropicTool[]): Promise<LlmStream> {
+  async doStreamNormal(): Promise<LlmStream> {
 
     logger.log(`[anthropic] prompting model ${this.currentModel}`)
     return this.client.messages.create({
       model: this.currentModel,
       system: this.currentSystem,
       messages: this.currentThread,
-      ...(tools?.length ? {
-        tool_choice: { type: 'auto' },
-        tools: tools as Tool[]
-      } : {}),
       ...this.getCompletionOpts(this.currentModel, this.currentOpts!),
+      ...await this.getToolOpts(this.currentModel, this.currentOpts!),
       stream: true,
     })
 
   }
 
-  async doStreamBeta(tools: AnthropicTool[]): Promise<LlmStream> {
+  async doStreamBeta(): Promise<LlmStream> {
     logger.log(`[anthropic] prompting model ${this.currentModel}`)
     return this.client.beta.messages.create({
       model: this.getComputerUseRealModel(),
       betas: [ 'computer-use-2024-10-22' ],
       system: this.currentSystem,
       messages: this.currentThread,
-      tool_choice: { type: 'auto' },
-      tools: tools,
       ...this.getCompletionOpts(this.currentModel, this.currentOpts!),
+      ...await this.getToolOpts(this.currentModel, this.currentOpts!),
       stream: true,
     })
   }
@@ -236,6 +230,30 @@ export default class extends LlmEngine {
     }
   }
 
+  async getToolOpts<T>(model: string, opts?: LlmCompletionOpts): Promise<Omit<T, 'max_tokens'|'model'|'messages'|'stream'>> {
+
+    if (opts?.tools === false) {
+      return {} as T
+    }
+
+    // tools in anthropic format
+    const tools: AnthropicTool[] = (await this.getAvailableTools()).map((tool) => {
+      return {
+        name: tool.function.name,
+        description: tool.function.description,
+        input_schema: {
+          type: 'object',
+          properties: tool.function.parameters.properties,
+          required: tool.function.parameters.required,
+        }
+      }
+    })
+
+    return tools.length ? {
+      tool_choice: { type: 'auto' },
+      tools: tools as Tool[]
+    } as T : {} as T 
+  }
   
   async stop(stream: Stream<any>) {
     stream.controller.abort()

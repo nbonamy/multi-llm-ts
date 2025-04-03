@@ -38,6 +38,7 @@ export type LlmModelOpts = {
 
 export type LlmCompletionOpts = {
   models?: Model[]
+  tools?: boolean
   autoSwitchVision?: boolean
   usage?: boolean
   citations?: boolean

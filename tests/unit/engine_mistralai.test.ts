@@ -127,7 +127,7 @@ test('MistralAI nativeChunkToLlmChunk Text', async () => {
   }
 })
 
-test('MistralAI  stream with tools', async () => {
+test('MistralAI stream with tools', async () => {
   const mistralai = new MistralAI(config)
   mistralai.addPlugin(new Plugin1())
   mistralai.addPlugin(new Plugin2())
@@ -163,7 +163,7 @@ test('MistralAI  stream with tools', async () => {
   //expect(Mistral.prototype.abort).toHaveBeenCalled()
 })
 
-test('MistralAI  stream without tools', async () => {
+test('MistralAI stream without tools', async () => {
   const mistralai = new MistralAI(config)
   mistralai.addPlugin(new Plugin1())
   mistralai.addPlugin(new Plugin2())

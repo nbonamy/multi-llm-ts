@@ -212,7 +212,9 @@ test('OpenAI buildPayload', async () => {
   const openai = new OpenAI(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
+  // @ts-expect-error protected
   expect(openai.buildPayload('gpt-3.5', [ message ])).toStrictEqual([{ role: 'user', content: 'text' }])
+  // @ts-expect-error protected
   expect(openai.buildPayload('gpt-4o', [ message ])).toStrictEqual([{ role: 'user', content: [
     { type: 'text', text: 'text' },
     { type: 'image_url', image_url: { url: 'data:image/png;base64,image' } }
@@ -224,7 +226,7 @@ test('OpenAI completion', async () => {
   const response = await openai.complete('model', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], { temperature: 0.8 })
+  ], { temperature: 0.8, tools: false })
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model',
     messages: [
@@ -304,6 +306,31 @@ test('OpenAI stream', async () => {
   expect(stream.controller.abort).toHaveBeenCalled()
 })
 
+test('OpenAI stream tools disabled', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin1())
+  openai.addPlugin(new Plugin2())
+  openai.addPlugin(new Plugin3())
+  await openai.stream('model', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { top_k: 4, tools: false })
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    logprobs: true,
+    top_logprobs: 4,
+    stream: true,
+    stream_options: {
+      include_usage: false
+    }
+  })
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+})
+
 test('OpenAI stream no tools for o1', async () => {
   const openai = new OpenAI(config)
   openai.addPlugin(new Plugin1())
@@ -352,11 +379,13 @@ test('OpenAI reasoning effort', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { reasoningEffort: 'low' })
+  // @ts-expect-error mock
   expect(_openai.default.prototype.chat.completions.create.mock.calls[0][0].reasoning_effort).toBeUndefined()
   await openai.stream('o1', [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { reasoningEffort: 'low' })
+  // @ts-expect-error mock
   expect(_openai.default.prototype.chat.completions.create.mock.calls[1][0].reasoning_effort).toBe('low')
 })
 
@@ -366,5 +395,6 @@ test('OpenAI custom options', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { customOpts: { mirostat: true } })
+  // @ts-expect-error mock
   expect(_openai.default.prototype.chat.completions.create.mock.calls[0][0].mirostat).toBe(true)
 })

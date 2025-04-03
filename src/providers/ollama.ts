@@ -125,6 +125,7 @@ export default class extends LlmEngine {
         messages: this.buildPayload(model, thread, opts),
         opts: opts || null,
       }),
+      ...await this.getToolOpts(model, opts || {}),
       stream: false,
     })
 
@@ -159,31 +160,21 @@ export default class extends LlmEngine {
     this.toolCalls = []
     this.thinking = false
 
-    // tools
-    const tools = await this.getAvailableTools()
-  
     // call
     logger.log(`[ollama] prompting model ${this.currentModel}`)
     const stream = this.client.chat({
       ...this.buildChatOptions({
-      model: this.currentModel,
-      messages: this.currentThread,
-      opts: this.currentOpts
+        model: this.currentModel,
+        messages: this.currentThread,
+        opts: this.currentOpts
       }),
+      ...await this.getToolOpts(this.currentModel, this.currentOpts || {}),
       stream: true,
-      ...(this.modelSupportsTools(this.currentModel) && tools.length ? {
-        tools: tools,
-        tool_choice: 'auto',
-      } : {}),
     })
 
     // done
     return stream
 
-  }
-
-  async stop() {
-    await this.client.abort()
   }
 
   buildChatOptions({ model, messages, opts }: { model: string, messages: LLmCompletionPayload[], opts: LlmCompletionOpts|null }): ChatRequest {
@@ -213,6 +204,26 @@ export default class extends LlmEngine {
       delete chatOptions.options
     }
     return chatOptions
+  }
+
+  async getToolOpts(model: string, opts?: LlmCompletionOpts): Promise<Omit<ChatRequest, 'model'>> {
+
+    // disabled?
+    if (opts?.tools === false || !this.modelSupportsTools(model)) {
+      return {}
+    }
+
+    // tools
+    const tools = await this.getAvailableTools()
+    return tools.length ? {
+      tools: tools,
+      //tool_choice: 'auto',
+    } : {}
+
+  }
+
+  async stop() {
+    await this.client.abort()
   }
 
   async *nativeChunkToLlmChunk(chunk: ChatResponse): AsyncGenerator<LlmChunk, void, void> {

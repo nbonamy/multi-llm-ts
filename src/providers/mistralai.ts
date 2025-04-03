@@ -6,7 +6,7 @@ import LlmEngine from '../engine'
 import logger from '../logger'
 
 import { Mistral } from '@mistralai/mistralai'
-import { AssistantMessage, CompletionEvent, SystemMessage, ToolMessage, UserMessage } from '@mistralai/mistralai/models/components'
+import { AssistantMessage, ChatCompletionStreamRequest, CompletionEvent, SystemMessage, ToolMessage, UserMessage } from '@mistralai/mistralai/models/components'
 
 type MistralMessages = Array<
 | (SystemMessage & { role: "system" })
@@ -70,9 +70,8 @@ export default class extends LlmEngine {
     const response = await this.client.chat.complete({
       model: model,
       messages: this.buildPayload(model, thread, opts) as MistralMessages,
-      maxTokens: opts?.maxTokens,
-      temperature: opts?.temperature,
-      topP: opts?.top_p,
+      ...this.getCompletionOpts(model, opts),
+      ...await this.getToolOpts(model, opts),
     });
 
     // return an object
@@ -105,21 +104,13 @@ export default class extends LlmEngine {
     // reset
     this.toolCalls = []
 
-    // tools
-    const tools = await this.getAvailableToolsForModel(this.currentModel)
-
     // call
     logger.log(`[mistralai] prompting model ${this.currentModel}`)
     const stream = this.client.chat.stream({
       model: this.currentModel,
       messages: this.currentThread,
-      ...(tools.length && {
-        tools: tools,
-        toolChoice: 'auto',
-      }),
-      maxTokens: this.currentOpts?.maxTokens,
-      temperature: this.currentOpts?.temperature,
-      topP: this.currentOpts?.top_p,
+      ...this.getCompletionOpts(this.currentModel, this.currentOpts),
+      ...await this.getToolOpts(this.currentModel, this.currentOpts),
     })
 
     // done
@@ -127,6 +118,29 @@ export default class extends LlmEngine {
 
   }
 
+  getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<ChatCompletionStreamRequest, 'model'|'messages'|'stream'> {
+    return {
+      maxTokens: opts?.maxTokens,
+      temperature: opts?.temperature,
+      topP: opts?.top_p,
+    }
+  }
+
+  async getToolOpts<T>(model: string, opts?: LlmCompletionOpts): Promise<Omit<T, 'model'|'messages'|'stream'>> {
+
+    // disabled?
+    if (opts?.tools === false) {
+      return {} as T
+    }
+
+    // tools
+    const tools = await this.getAvailableToolsForModel(model)
+    return tools.length ? {
+      tools: tools,
+      toolChoice: 'auto',
+    } as T : {} as T
+
+  }
    
   async stop() {
   }

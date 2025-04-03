@@ -100,7 +100,9 @@ test('Ollama buildPayload', async () => {
   const ollama = new Ollama(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
+  // @ts-expect-error protected
   expect(ollama.buildPayload('llama', [ message ])).toStrictEqual([ { role: 'user', content: 'text' } ])
+  // @ts-expect-error protected
   expect(ollama.buildPayload('llava', [ message ])).toStrictEqual([ { role: 'user', content: 'text', images: [ 'image' ]} ])
 })
 
@@ -180,7 +182,7 @@ test('Ollama stream with tools', async () => {
       { role: 'system', content: 'instruction' },
       { role: 'user', content: 'prompt' }
     ],
-    tool_choice: 'auto',
+    //tool_choice: 'auto',
     tools: expect.any(Array),
     options: { top_k: 4 },
     stream: true,
@@ -205,6 +207,27 @@ test('Ollama stream with tools', async () => {
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await ollama.stop()
   expect(_ollama.Ollama.prototype.abort).toHaveBeenCalled()
+})
+
+test('Ollama stream with tools disabled', async () => {
+  const ollama = new Ollama(config)
+  ollama.addPlugin(new Plugin1())
+  ollama.addPlugin(new Plugin2())
+  ollama.addPlugin(new Plugin3())
+  await ollama.stream('llama3-groq-tool-use', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { top_k: 4, tools: false })
+  expect(_ollama.Ollama.prototype.chat).toHaveBeenCalledWith({
+    model: 'llama3-groq-tool-use',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    options: { top_k: 4 },
+    stream: true,
+  })
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
 })
 
 test('Ollama stream without tools and options', async () => {

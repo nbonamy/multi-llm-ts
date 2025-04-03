@@ -140,7 +140,8 @@ export default class extends LlmEngine {
     const response = await this.client.chat.completions.create({
       model: model,
       messages: this.buildPayload(model, thread, opts) as Array<any>,
-      ...this.getCompletionOpts(this.currentModel, opts),
+      ...this.getCompletionOpts(model, opts),
+      ...await this.getToolsOpts(model, opts),
     });
 
     // done
@@ -175,9 +176,6 @@ export default class extends LlmEngine {
     // reset
     this.toolCalls = []
 
-    // tools
-    const tools = await this.getAvailableTools()
-
     // call
     logger.log(`[${this.getName()}] prompting model ${this.currentModel}`)
     const stream = this.client.chat.completions.create({
@@ -186,11 +184,8 @@ export default class extends LlmEngine {
       // LlmRole overlap the different roles ChatCompletionMessageParam
       // but tsc says Type 'LlmRole' is not assignable to type '"assistant"'
       messages: this.currentThread,
-      ...(this.modelSupportsTools(this.currentModel) && tools.length ? {
-        tools: tools,
-        tool_choice: 'auto',
-      } : {}),
       ...this.getCompletionOpts(this.currentModel, this.currentOpts || {}),
+      ...await this.getToolsOpts(this.currentModel, this.currentOpts || {}),
       stream_options: { include_usage: this.currentOpts?.usage || false },
       stream: true,
     })
@@ -209,6 +204,22 @@ export default class extends LlmEngine {
       ...(this.modelSupportsReasoningEffort(model) && opts?.reasoningEffort ? { reasoning_effort: opts?.reasoningEffort } : {}),
       ...(opts?.customOpts ? opts.customOpts : {}),
     }
+  }
+
+  async getToolsOpts(model: string, opts?: LlmCompletionOpts): Promise<Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'>> {
+
+    // check if enabled
+    if (opts?.tools === false || !this.modelSupportsTools(model)) {
+      return {}
+    }
+
+    // tools
+    const tools = await this.getAvailableTools()
+    return tools.length ? {
+      tools: tools,
+      tool_choice: 'auto',
+    } : {}
+
   }
 
   async stop(stream: Stream<any>) {

@@ -61,6 +61,7 @@ vi.mock('groq-sdk', async() => {
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
+  vi.clearAllMocks()
   config = {
     apiKey: '123',
   }
@@ -151,6 +152,27 @@ test('Groq stream', async () => {
   expect(stream.controller.abort).toHaveBeenCalled()
 })
 
+test('Groq stream tools disabled', async () => {
+  const groq = new Groq(config)
+  groq.addPlugin(new Plugin1())
+  groq.addPlugin(new Plugin2())
+  groq.addPlugin(new Plugin3())
+  await groq.stream('model', [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { top_k: 4, top_p: 4, tools: false })
+  expect(_Groq.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' }
+    ],
+    top_p: 4,
+    stream: true,
+  })
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+})
+
 test('Groq stream without tools', async () => {
   const groq = new Groq(config)
   const stream = await groq.stream('model', [
@@ -172,7 +194,7 @@ test('Groq stream without tools', async () => {
 test('Groq nativeChunkToLlmChunk Text', async () => {
   const groq = new Groq(config)
   const streamChunk: ChatCompletionChunk = {
-    id: '123', model: 'model1', created: null, object: 'chat.completion.chunk',
+    id: '123', model: 'model1', created: 1, object: 'chat.completion.chunk',
     choices: [{ index: 0, delta: { content: 'response' }, finish_reason: null }],
   }
   for await (const llmChunk of groq.nativeChunkToLlmChunk(streamChunk)) {
