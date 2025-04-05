@@ -1,6 +1,6 @@
 {
   "name": "multi-llm-ts",
-  "version": "3.2.0",
+  "version": "3.2.1",
   "description": "Library to query multiple LLM providers in a consistent way",
   "repository": {
     "type": "git",
@@ -35,6 +35,7 @@
     "eslint": "^9.17.0",
     "eslint-import-resolver-typescript": "^3.7.0",
     "eslint-plugin-import": "^2.31.0",
+    "jsdom": "^26.0.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
