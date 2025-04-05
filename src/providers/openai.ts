@@ -129,7 +129,7 @@ export default class extends LlmEngine {
     return payload
   }
 
-  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // set baseURL on client
     this.setBaseURL()
@@ -138,15 +138,83 @@ export default class extends LlmEngine {
     logger.log(`[${this.getName()}] prompting model ${model}`)
     const response = await this.client.chat.completions.create({
       model: model,
-      messages: this.buildPayload(model, thread, opts) as Array<any>,
+      messages: thread,
       ...this.getCompletionOpts(model, opts),
       ...await this.getToolsOpts(model, opts),
     });
 
+    // get choice
+    const choice = response.choices?.[0]
+
+    // tool call
+    if (choice?.finish_reason === 'tool_calls') {
+
+      const toolCalls = choice.message.tool_calls!
+      for (const toolCall of toolCalls) {
+
+        // log
+        logger.log(`[openai] tool call ${toolCall.function.name} with ${toolCall.function.arguments}`)
+
+        // this can error
+        let args = null
+        try {
+          args = JSON.parse(toolCall.function.arguments)
+        } catch (err) {
+          throw new Error(`[openai] tool call ${toolCall.function.name} with invalid JSON args: "${toolCall.function.arguments}"`, { cause: err })
+        }
+        
+        // now execute
+        const content = await this.callTool(toolCall.function.name, args)
+        logger.log(`[openai] tool call ${toolCall.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
+
+        // add tool call message
+        thread.push(choice.message)
+
+        // add tool response message
+        thread.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          name: toolCall.function.name,
+          content: JSON.stringify(content)
+        })
+
+      }
+
+      // prompt again
+      const completion = await this.chat(model, thread, opts)
+
+      // cumulate usage
+      if (opts?.usage && response.usage && completion.usage) {
+        completion.usage.prompt_tokens += response.usage.prompt_tokens
+        if (response.usage.prompt_tokens_details?.cached_tokens) {
+          completion.usage.prompt_tokens_details!.cached_tokens! += response.usage.prompt_tokens_details?.cached_tokens
+        }
+        if (response.usage.prompt_tokens_details?.audio_tokens) {
+          completion.usage.prompt_tokens_details!.audio_tokens! += response.usage.prompt_tokens_details?.audio_tokens
+        }
+        if (response.usage.completion_tokens_details?.reasoning_tokens) {
+          completion.usage.completion_tokens_details!.reasoning_tokens! += response.usage.completion_tokens_details?.reasoning_tokens
+        }
+        if (response.usage.completion_tokens_details?.audio_tokens) {
+          completion.usage.completion_tokens_details!.audio_tokens! += response.usage.completion_tokens_details?.audio_tokens
+        }
+      }
+
+      // done
+      return completion
+    
+    }
+
+    // total tokens is not part of our response
+    if (response.usage?.total_tokens) {
+      // @ts-expect-error "must be optional"???
+      delete response.usage.total_tokens
+    }
+
     // done
     return {
       type: 'text',
-      content: response.choices?.[0].message.content || '',
+      content: choice.message.content || '',
       ...(opts?.usage && response.usage ? { usage: response.usage } : {}),
     }
 
@@ -281,6 +349,7 @@ export default class extends LlmEngine {
         // append arguments
         const toolCall = context.toolCalls[context.toolCalls.length-1]
         toolCall.args += tool_call.function.arguments
+        toolCall.message[toolCall.message.length-1].function.arguments = toolCall.args
 
         // done
         //return

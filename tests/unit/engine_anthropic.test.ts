@@ -177,7 +177,7 @@ test('Anthropic stream', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4 })
-  expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalledWith({
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(1, {
     max_tokens: 4096,
     model: 'model',
     system: 'instruction',
@@ -198,6 +198,20 @@ test('Anthropic stream', async () => {
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(2, {
+    max_tokens: 4096,
+    model: 'model',
+    system: 'instruction',
+    messages: [
+      { role: 'user', content: 'prompt' },
+      { role: 'assistant', content: [ { type: 'tool_use', id: 1, name: 'plugin2', input: [ 'arg' ], } ] },
+      { role: 'user', content: [ { type: 'tool_result', tool_use_id: 1, content: '"result2"' } ] },
+    ],
+    tools: expect.any(Array),
+    tool_choice: { type: 'auto' },
+    top_k: 4,
+    stream: true,
+  })
   expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])

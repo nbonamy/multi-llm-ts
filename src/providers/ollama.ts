@@ -114,19 +114,57 @@ export default class extends LlmEngine {
     }
   }
 
-  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // call
     logger.log(`[ollama] prompting model ${model}`)
     const response = await this.client.chat({
       ...this.buildChatOptions({
         model: model,
-        messages: this.buildPayload(model, thread, opts),
+        messages: thread,
         opts: opts || null,
       }),
       ...await this.getToolOpts(model, opts || {}),
       stream: false,
     })
+
+    // tool class
+    if (response.message.tool_calls?.length) {
+
+      // iterate on each tool
+      for (const toolCall of response.message.tool_calls) {
+
+        // log
+        logger.log(`[ollama] tool call ${toolCall.function.name} with ${JSON.stringify(toolCall.function.arguments)}`)
+
+        // now execute
+        const content = await this.callTool(toolCall.function.name, toolCall.function.arguments)
+        logger.log(`[ollama] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+
+        // add tool call message
+        thread.push(response.message)
+
+        // add tool response message
+        thread.push({
+          role: 'tool',
+          content: JSON.stringify(content)
+        })
+
+      }
+
+      // prompt again
+      const completion = await this.chat(model, thread, opts)
+
+      // cumulate usage
+      if (opts?.usage && completion.usage) {
+        completion.usage.prompt_tokens += response.prompt_eval_count ?? 0
+        completion.usage.completion_tokens += response.eval_count ?? 0
+      }
+
+      // done
+      return completion
+
+    }
 
     // return an object
     return {
@@ -286,6 +324,9 @@ export default class extends LlmEngine {
         const content = await this.callTool(toolCall.function, args)
         logger.log(`[ollama] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
+        // add tool call message
+        context.thread.push(chunk.message)
+        
         // add tool response message
         context.thread.push({
           role: 'tool',

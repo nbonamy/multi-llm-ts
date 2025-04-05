@@ -66,7 +66,8 @@ export default class LlmEngine {
   }
 
   async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
-    throw new Error('Not implemented')
+    const messages = this.buildPayload(model, thread, opts)
+    return await this.chat(model, messages, opts)
   }
 
   async *generate(model: string, thread: Message[], opts?: LlmCompletionOpts): AsyncIterable<LlmChunk> {
@@ -87,6 +88,10 @@ export default class LlmEngine {
       if (!stream2) break
       stream = stream2
     }
+  }
+
+  protected async chat(model: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+    throw new Error('Not implemented')
   }
 
   protected async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {

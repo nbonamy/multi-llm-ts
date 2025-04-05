@@ -28,17 +28,19 @@ global.fetch = vi.fn((): Promise<Response> => Promise.resolve(new Response(JSON.
 
 vi.mock('@google/generative-ai', async () => {
   const GenerativeModel = vi.fn()
-  GenerativeModel.prototype.generateContent = vi.fn(() => { return { response: { text: () => 'response' } } })
+  GenerativeModel.prototype.generateContent = vi.fn(() => { return { response: { text: () => 'response', functionCalls: (): any[] => [] } } })
   GenerativeModel.prototype.generateContentStream = vi.fn(() => {
     return {
       stream: {
         async *[Symbol.asyncIterator]() {
 
           // first we yield tool call chunks
-          yield { candidates: [{ content: { parts: [] } }], functionCalls: () => [{ name: 'plugin2', args: ['arg'] }] }
+          yield { candidates: [{ content: { parts: [{
+            functionCall: { name: 'plugin2', args: ['arg'] }
+          }] } }], functionCalls: () => [{ name: 'plugin2', args: ['arg'] }] }
 
           // now the text response
-          const content = 'response'
+           const content = 'response'
           for (let i = 0; i < content.length; i++) {
             yield { candidates: [{ finishReason: 'none' }], text: () => content[i], functionCalls: (): any[] => [] }
           }
@@ -260,7 +262,7 @@ test('Google stream', async () => {
     toolConfig: { functionCallingConfig: { mode: 'auto' } },
     tools: tools,
   }, { 'apiVersion': 'v1beta', })
-  expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({
+  expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenNthCalledWith(1, {
     contents: [{
       role: 'user',
       parts: [{ text: 'prompt' }]
@@ -279,6 +281,16 @@ test('Google stream', async () => {
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
+  expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenNthCalledWith(2, {
+    contents: [
+      { role: 'user', parts: [{ text: 'prompt' }] },
+      { role: 'assistant', parts: [{ functionCall: { name: 'plugin2', args: ['arg'] } }] },
+      { role: 'tool', parts: [{ functionResponse: { name: 'plugin2', response: 'result2' } }] },
+    ], generationConfig: {
+      topK: 4,
+      temperature: 1.0
+    }
+  })
   expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])

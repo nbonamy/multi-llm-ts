@@ -174,7 +174,7 @@ test('Ollama stream with tools', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4 })
-  expect(_ollama.Ollama.prototype.chat).toHaveBeenCalledWith({
+  expect(_ollama.Ollama.prototype.chat).toHaveBeenNthCalledWith(1, {
     model: 'llama3-groq-tool-use',
     messages: [
       { role: 'system', content: 'instruction' },
@@ -197,6 +197,19 @@ test('Ollama stream with tools', async () => {
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
+  expect(_ollama.Ollama.prototype.chat).toHaveBeenNthCalledWith(2, {
+    model: 'llama3-groq-tool-use',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' },
+      { role: 'assistant', content: '', done: false, tool_calls: [ { function: { name: 'plugin2', arguments: [ 'arg' ] } } ] },
+      { role: 'tool', content: '"result2"' },
+    ],
+    //tool_choice: 'auto',
+    tools: expect.any(Array),
+    options: { top_k: 4 },
+    stream: true,
+  })
   expect(lastMsg!.done).toBe(true)
   expect(response).toBe('response')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])

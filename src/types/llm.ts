@@ -12,6 +12,20 @@ export type LlmResponse = {
   url?: string
 }
 
+export type LlmToolCall = {
+  id: string
+  message: any
+  function: string
+  args: string
+}
+
+export type LlmToolResponse = {
+  type: 'tools'
+  calls: LlmToolCall[]
+}
+
+export type LlmNonStreamingResponse = LlmResponse | LlmToolResponse
+
 export type LlmStream = AsyncIterable<any>
 
 export type LlmStreamingContext = any
@@ -165,13 +179,6 @@ export type LlmToolOpenAI = {
 }
 
 export type LlmTool = LlmToolOpenAI
-
-export type LlmToolCall = {
-  id: string
-  message: any
-  function: string
-  args: string
-}
 
 export type LlmUsage = {
   prompt_tokens: number

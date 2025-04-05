@@ -8,7 +8,7 @@ import logger from '../logger'
 
 import Anthropic from '@anthropic-ai/sdk'
 import { Stream } from '@anthropic-ai/sdk/streaming'
-import { Tool, MessageParam, MessageStreamEvent, TextBlock, InputJSONDelta, Usage, RawMessageStartEvent, RawMessageDeltaEvent, MessageDeltaUsage } from '@anthropic-ai/sdk/resources'
+import { Tool, MessageParam, MessageStreamEvent, TextBlock, InputJSONDelta, Usage, RawMessageStartEvent, RawMessageDeltaEvent, MessageDeltaUsage, ToolUseBlock } from '@anthropic-ai/sdk/resources'
 import { BetaToolUnion, MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 
 //
@@ -95,6 +95,13 @@ export default class extends LlmEngine {
   }
 
   async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+    return await this.chat(model, [
+      thread[0],
+      ...this.buildPayload(model, thread, opts)
+    ], opts)
+  }
+
+  async chat(model: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // model
     if (model === 'computer-use') {
@@ -106,10 +113,63 @@ export default class extends LlmEngine {
     const response = await this.client.messages.create({
       model: model,
       system: thread[0].contentForModel,
-      messages: this.buildPayload(model, thread, opts) as MessageParam[],
+      messages: thread.slice(1) as MessageParam[],
       ...this.getCompletionOpts(model, opts),
       ...await this.getToolOpts(model, opts),
     });
+
+    // tool call
+    if (response.stop_reason === 'tool_use') {
+
+      const toolCall = response.content[response.content.length - 1] as ToolUseBlock
+      
+      // need
+      logger.log(`[anthropic] tool call ${toolCall.name} with ${JSON.stringify(toolCall.input)}`)
+
+      // now execute
+      const content = await this.callTool(toolCall.name, toolCall.input)
+      logger.log(`[anthropic] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
+
+      // add all response blocks
+      thread.push(...response.content.map((c) => ({
+        role: 'assistant',
+        content: [c]
+      })))
+
+      // add tool response message
+      if (toolCall!.name === 'computer') {
+        thread.push({
+          role: 'user',
+          content: [{
+            type: 'tool_result',
+            tool_use_id: toolCall.id,
+            ...content,
+          }]
+        })
+      } else {
+        thread.push({
+          role: 'user',
+          content: [{
+            type: 'tool_result',
+            tool_use_id: toolCall.id,
+            content: JSON.stringify(content)
+          }]
+        })
+      }
+
+      // prompt again
+      const completion = await this.chat(model, thread, opts)
+
+      // cumulate usage
+      if (opts?.usage && response.usage && completion.usage) {
+        completion.usage.prompt_tokens += response.usage.input_tokens
+        completion.usage.completion_tokens += response.usage.output_tokens
+      }
+
+      // done
+      return completion
+
+    }
 
     // return an object
     const content = response.content[0] as TextBlock

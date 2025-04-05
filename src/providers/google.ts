@@ -88,15 +88,69 @@ export default class extends LlmEngine {
     
   }
 
-  async complete(modelName: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+    const messages = this.threadToHistory(thread, model, opts)
+    return await this.chat(model, messages, opts)
+  }
+
+  async chat(modelName: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // call
     logger.log(`[google] prompting model ${modelName}`)
     const model = await this.getModel(modelName, thread[0].contentForModel, opts)
     const response = await model.generateContent({
-      contents: this.threadToHistory(thread, modelName, opts),
+      contents: thread,
       generationConfig: this.getGenerationConfig(opts),
     })
+
+    // check for tool calls
+    const toolCalls = response.response.functionCalls()
+    if (toolCalls?.length) {
+
+      // results
+      const results: FunctionResponsePart[] = []
+
+      for (const toolCall of toolCalls) {
+
+        // need
+        logger.log(`[google] tool call ${toolCall.name} with ${JSON.stringify(toolCall.args)}`)
+
+        // now execute
+        const content = await this.callTool(toolCall.name, toolCall.args)
+        logger.log(`[google] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
+
+        results.push({ functionResponse: {
+          name: toolCall.name,
+          response: content
+        }})
+
+      }
+
+      // function call
+      thread.push({
+        role: 'assistant',
+        parts: response.response.candidates![0].content.parts,
+      })
+
+      // send
+      thread.push({
+        role: 'tool',
+        parts: results
+      })
+
+      // prompt again
+      const completion = await this.chat(modelName, thread, opts)
+
+      // cumulate usage
+      if (opts?.usage && response.response.usageMetadata && completion.usage) {
+        completion.usage.prompt_tokens += response.response.usageMetadata.promptTokenCount
+        completion.usage.completion_tokens += response.response.usageMetadata.candidatesTokenCount
+      }
+
+      // done
+      return completion
+
+    }
 
     // done
     return {
@@ -342,7 +396,7 @@ export default class extends LlmEngine {
 
         // now execute
         const content = await this.callTool(toolCall.function, args)
-        logger.log(`[google] tool call ${toolCall.function} with ${JSON.stringify(args)} => ${JSON.stringify(content).substring(0, 128)}`)
+        logger.log(`[google] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // send
         results.push({ functionResponse: {

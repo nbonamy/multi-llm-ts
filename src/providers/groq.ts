@@ -58,16 +58,73 @@ export default class extends LlmEngine {
       }))
   }
 
-  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // call
-    logger.log(`[Groq] prompting model ${model}`)
+    logger.log(`[groq] prompting model ${model}`)
     const response = await this.client.chat.completions.create({
       model: model,
-      messages: this.buildPayload(model, thread, opts) as ChatCompletionMessageParam[],
+      messages: thread as ChatCompletionMessageParam[],
       ...this.getCompletionOpts(model, opts),
       ...await this.getToolOpts(model, opts),
     });
+
+    // get choice
+    const choice = response.choices?.[0]
+
+    // tool call
+    if (choice?.finish_reason === 'tool_calls') {
+
+      const toolCalls = choice.message.tool_calls!
+      for (const toolCall of toolCalls) {
+
+        // log
+        logger.log(`[groq] tool call ${toolCall.function.name} with ${toolCall.function.arguments}`)
+
+        // this can error
+        let args = null
+        try {
+          args = JSON.parse(toolCall.function.arguments)
+        } catch (err) {
+          throw new Error(`[groq] tool call ${toolCall.function.name} with invalid JSON args: "${toolCall.function.arguments}"`, { cause: err })
+        }
+        
+        // now execute
+        const content = await this.callTool(toolCall.function.name, args)
+        logger.log(`[groq] tool call ${toolCall.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
+
+        // add tool call message
+        thread.push(choice.message)
+
+        // add tool response message
+        thread.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          name: toolCall.function.name,
+          content: JSON.stringify(content)
+        })
+
+      }
+
+      // prompt again
+      const completion = await this.chat(model, thread, opts)
+
+      // cumulate usage
+      if (opts?.usage && response.usage && completion.usage) {
+        completion.usage.prompt_tokens += response.usage.prompt_tokens
+        completion.usage.completion_tokens += response.usage.completion_tokens
+      }
+
+      // done
+      return completion
+    
+    }    
+
+    // total tokens is not part of our response
+    if (response.usage?.total_tokens) {
+      // @ts-expect-error "must be optional"???
+      delete response.usage.total_tokens
+    }
 
     // return an object
     return {
@@ -104,7 +161,7 @@ export default class extends LlmEngine {
     context.toolCalls = []
 
     // call
-    logger.log(`[Groq] prompting model ${context.model}`)
+    logger.log(`[groq] prompting model ${context.model}`)
     const stream = this.client.chat.completions.create({
       model: context.model,
       messages: context.thread as ChatCompletionMessageParam[],
@@ -189,6 +246,7 @@ export default class extends LlmEngine {
         // append arguments
         const toolCall = context.toolCalls[context.toolCalls.length-1]
         toolCall.args += chunk.choices[0].delta.tool_calls[0].function.arguments
+        toolCall.message[toolCall.message.length-1].function.arguments = toolCall.args
 
         // done
         //return

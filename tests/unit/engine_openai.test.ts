@@ -271,7 +271,7 @@ test('OpenAI stream', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4 })
-  expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenNthCalledWith(1, {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
@@ -298,6 +298,23 @@ test('OpenAI stream', async () => {
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenNthCalledWith(2, {
+    model: 'model',
+    messages: [
+      { role: 'system', content: 'instruction' },
+      { role: 'user', content: 'prompt' },
+      { role: 'assistant', content: '', tool_calls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "arg" ]' } } ] },
+      { role: 'tool', content: '"result2"', name: 'plugin2', tool_call_id: 1 }
+    ],
+    tool_choice: 'auto',
+    tools: expect.any(Array),
+    logprobs: true,
+    top_logprobs: 4,
+    stream: true,
+    stream_options: {
+      include_usage: false
+    }
+  })
   expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])

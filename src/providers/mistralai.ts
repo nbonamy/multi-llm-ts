@@ -59,16 +59,59 @@ export default class extends LlmEngine {
     }
   }
 
-  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // call
     logger.log(`[mistralai] prompting model ${model}`)
     const response = await this.client.chat.complete({
       model: model,
-      messages: this.buildPayload(model, thread, opts) as MistralMessages,
+      messages: thread as MistralMessages,
       ...this.getCompletionOpts(model, opts),
       ...await this.getToolOpts(model, opts),
     });
+
+    // get choice
+    const choice = response.choices?.[0]
+
+    // tool call
+    if (choice?.finishReason === 'tool_calls') {
+
+      const toolCalls = choice.message.toolCalls!
+      for (const toolCall of toolCalls) {
+
+        // log
+        logger.log(`[mistralai] tool call ${toolCall.function.name} with ${toolCall.function.arguments}`)
+
+        // now execute
+        const content = await this.callTool(toolCall.function.name, toolCall.function.arguments)
+        logger.log(`[mistralai] tool call ${toolCall.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
+
+        // add tool call message
+        thread.push(choice.message)
+
+        // add tool response message
+        thread.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          name: toolCall.function.name,
+          content: JSON.stringify(content)
+        })
+
+      }
+
+      // prompt again
+      const completion = await this.chat(model, thread, opts)
+
+      // cumulate usage
+      if (opts?.usage && response.usage && completion.usage) {
+        completion.usage.prompt_tokens += response.usage.promptTokens
+        completion.usage.completion_tokens += response.usage.completionTokens
+      }
+
+      // done
+      return completion
+    
+    }    
 
     // return an object
     return {
@@ -187,6 +230,7 @@ export default class extends LlmEngine {
 
         const toolCall = context.toolCalls[context.toolCalls.length-1]
         toolCall.args += chunk.data.choices[0].delta.toolCalls[0].function.arguments
+        toolCall.message[toolCall.message.length-1].function.arguments = toolCall.args
 
       }
 
@@ -215,7 +259,7 @@ export default class extends LlmEngine {
 
         // now execute
         const content = await this.callTool(toolCall.function, args)
-        logger.log(`[mistralai] tool call ${toolCall.function} with ${JSON.stringify(args)} => ${JSON.stringify(content).substring(0, 128)}`)
+        logger.log(`[mistralai] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message
         context.thread.push({

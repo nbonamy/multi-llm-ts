@@ -262,11 +262,23 @@ export const loadGroqModels = async (engineConfig: EngineCreateOpts): Promise<Mo
     return null
   }
 
+  // specialized models
+  const ttsModels = models.filter(model => model.id.includes('tts'))
+
+  // chat models are the rest
+  const chatModels = models.filter(model => 
+    !ttsModels.includes(model)
+  )
+
   // done
   return {
-    chat: models,//.sort((a, b) => a.name.localeCompare(b.name))
+    chat: chatModels,//.sort((a, b) => a.name.localeCompare(b.name))
     image: [],
-    embedding: []
+    embedding: [],
+    realtime: [],
+    computer: [],
+    stt: [],
+    tts: ttsModels,
   }
 
 }

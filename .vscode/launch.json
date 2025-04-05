@@ -12,8 +12,8 @@
         "example"
       ],
       "env": {
-        "ENGINE": "google",
-        "MODEL": "models/gemini-2.0-flash-exp"
+        "ENGINE": "openai",
+        "MODEL": "gpt-4o"
       },
       "runtimeExecutable": "npm",
       "skipFiles": [

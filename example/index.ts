@@ -52,8 +52,17 @@ const conversation = async (llm: LlmEngine, model: string, messages: Message[]) 
   messages.splice(2,2)
 }
 
+const completion_tools = async (llm: LlmEngine, model: string, messages: Message[]) => {
+  console.log('\n** Function calling non-streaming')
+  const answer = new Answer()
+  llm.addPlugin(answer)
+  messages[1].content = 'What is the answer to life, the universe and everything?'
+  const response = await llm.complete(model, messages, { usage: true, reasoning: true })
+  console.log(response)
+}
+
 const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
-  console.log('\n** Function calling')
+  console.log('\n** Function calling streaming')
   const answer = new Answer()
   llm.addPlugin(answer)
   messages[1].content = 'What is the answer to life, the universe and everything?'
@@ -108,6 +117,7 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
 
   // each demo
   await completion(llm, model, messages)
+  await completion_tools(llm, model, messages)
   await streaming(llm, model, messages)
   await conversation(llm, model, messages)
   await tooling(llm, model, messages)

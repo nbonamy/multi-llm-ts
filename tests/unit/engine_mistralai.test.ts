@@ -143,9 +143,12 @@ test('MistralAI stream with tools', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4 })
-  expect(Mistral.prototype.chat.stream).toHaveBeenCalledWith({
+  expect(Mistral.prototype.chat.stream).toHaveBeenNthCalledWith(1, {
     model: 'mistral-large',
-    messages: [ { role: 'system', content: 'instruction' }, { role: 'user', content: 'prompt' } ],
+    messages: [
+      { role: 'system', content: 'instruction' }, 
+      { role: 'user', content: 'prompt' }
+    ],
     toolChoice: 'auto',
     tools: expect.any(Array),
   })
@@ -160,6 +163,17 @@ test('MistralAI stream with tools', async () => {
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
+  expect(Mistral.prototype.chat.stream).toHaveBeenNthCalledWith(2, {
+    model: 'mistral-large',
+    messages: [
+      { role: 'system', content: 'instruction' }, 
+      { role: 'user', content: 'prompt' },
+      { role: 'assistant', toolCalls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "arg" ]' } } ] },
+      { role: 'tool', toolCallId: 1, name: 'plugin2', content: '"result2"' }
+    ],
+    toolChoice: 'auto',
+    tools: expect.any(Array),
+  })
   expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
