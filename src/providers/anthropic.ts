@@ -281,12 +281,14 @@ export default class extends LlmEngine {
   }
 
   getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<MessageCreateParamsBase, 'model'|'messages'|'stream'|'tools'|'tool_choice'> {
+    const isThinkingEnabled = this.modelIsReasoning(model) && opts?.reasoning;
+    
     return {
       max_tokens: opts?.maxTokens ?? this.getMaxTokens(model),
-      ...(opts?.temperature ? { temperature: opts?.temperature } : {} ),
+      ...(isThinkingEnabled ? { temperature: 1.0 } : (opts?.temperature ? { temperature: opts?.temperature } : {})),
       ...(opts?.top_k ? { top_k: opts?.top_k } : {} ),
       ...(opts?.top_p ? { top_p: opts?.top_p } : {} ),
-      ...(this.modelIsReasoning(model) && opts?.reasoning ? {
+      ...(isThinkingEnabled ? {
         thinking: {
           type: 'enabled',
           budget_tokens: opts.reasoningBudget || (opts?.maxTokens || this.getMaxTokens(model)) / 2,
