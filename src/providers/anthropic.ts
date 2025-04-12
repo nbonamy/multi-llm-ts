@@ -1,9 +1,8 @@
-
 import { EngineCreateOpts, Model } from 'types/index'
 import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload, LlmStreamingResponse } from 'types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextBase } from '../engine'
-import Plugin from '../plugin'
+import { Plugin } from '../plugin'
 import logger from '../logger'
 
 import Anthropic from '@anthropic-ai/sdk'

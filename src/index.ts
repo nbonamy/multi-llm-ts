@@ -1,11 +1,10 @@
-
 export * from './types/index'
 export * from './types/plugin'
 export * from './types/llm'
 
 import Attachment, { textFormats, imageFormats, extensionToMimeType, mimeTypeToExtension } from './models/attachment'
 import Message from './models/message'
-import Plugin from './plugin'
+import { Plugin } from './plugin'
 
 import LlmEngine from './engine'
 

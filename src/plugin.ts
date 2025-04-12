@@ -1,10 +1,13 @@
-
 import { PluginParameter } from 'types/plugin'
 
-export default class Plugin {
+export class Plugin {
+
+  serializeInTools(): boolean {
+    return true
+  }
 
   sezializeInTools(): boolean {
-    return true
+    return this.serializeInTools()
   }
 
   isEnabled(): boolean {
