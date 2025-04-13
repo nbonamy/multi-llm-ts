@@ -59,3 +59,5 @@ export class Plugin {
   }
 
 }
+
+export default Plugin;

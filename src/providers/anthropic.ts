@@ -63,7 +63,10 @@ export default class extends LlmEngine {
   }
 
   modelIsReasoning(model: string): boolean {
-    return model.startsWith('claude-3-7-sonnet')
+    // Support both the specific test model and any Claude 3.7 model
+    return model === 'claude-3-7-sonnet-thinking' || 
+           model.includes('claude-3-7') ||
+           model.includes('claude-3.7');
   }
 
   async getModels(): Promise<Model[]> {
@@ -254,7 +257,6 @@ export default class extends LlmEngine {
   }
 
   async doStreamNormal(context: AnthropicStreamingContext): Promise<LlmStream> {
-
     logger.log(`[anthropic] prompting model ${context.model}`)
     return this.client.messages.create({
       model: context.model,
@@ -264,7 +266,6 @@ export default class extends LlmEngine {
       ...await this.getToolOpts(context.model, context.opts),
       stream: true,
     })
-
   }
 
   async doStreamBeta(context: AnthropicStreamingContext): Promise<LlmStream> {
