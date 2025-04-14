@@ -9,6 +9,7 @@ import Plugin from './plugin'
 
 import LlmEngine from './engine'
 
+import Azure from './providers/azure'
 import Anthropic from './providers/anthropic'
 import Cerebras from './providers/cerebras'
 import DeepSeek from './providers/deepseek'
@@ -34,6 +35,7 @@ export {
   Message,
   Attachment,
   LlmEngine,
+  Azure,
   Anthropic,
   Cerebras,
   DeepSeek,

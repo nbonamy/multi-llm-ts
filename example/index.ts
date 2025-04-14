@@ -82,7 +82,9 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
   // initialize
   const engine = process.env.ENGINE ?? 'openai'
   const model = process.env.MODEL ?? 'gpt-4o-mini'
-  const baseURL = process.env.BASE_URL ?? undefined
+  const baseURL = process.env.BASE_URL ?? process.env.ENDPOINT ?? undefined
+  const deployment = process.env.DEPLOYMENT ?? undefined
+  const apiVersion = process.env.API_VERSION ?? undefined
 
   // we need an api key
   const apiKey = process.env.API_KEY || process.env[`${engine.toUpperCase()}_API_KEY`]
@@ -93,7 +95,9 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
   // start the engine
   const config: EngineCreateOpts = {
     apiKey: apiKey,
-    baseURL: baseURL
+    baseURL: baseURL,
+    deployment: deployment,
+    apiVersion: apiVersion
   }
   const llm = igniteEngine(engine, config)
   const messages = [
