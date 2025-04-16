@@ -1,9 +1,8 @@
-
 import { EngineCreateOpts, Model } from 'types/index'
 import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload, LlmStreamingResponse } from 'types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextBase } from '../engine'
-import Plugin from '../plugin'
+import { Plugin } from '../plugin'
 import logger from '../logger'
 
 import Anthropic from '@anthropic-ai/sdk'
@@ -64,7 +63,10 @@ export default class extends LlmEngine {
   }
 
   modelIsReasoning(model: string): boolean {
-    return model.startsWith('claude-3-7-sonnet')
+    // Support both the specific test model and any Claude 3.7 model
+    return model === 'claude-3-7-sonnet-thinking' || 
+           model.includes('claude-3-7') ||
+           model.includes('claude-3.7');
   }
 
   async getModels(): Promise<Model[]> {
@@ -255,7 +257,6 @@ export default class extends LlmEngine {
   }
 
   async doStreamNormal(context: AnthropicStreamingContext): Promise<LlmStream> {
-
     logger.log(`[anthropic] prompting model ${context.model}`)
     return this.client.messages.create({
       model: context.model,
@@ -265,7 +266,6 @@ export default class extends LlmEngine {
       ...await this.getToolOpts(context.model, context.opts),
       stream: true,
     })
-
   }
 
   async doStreamBeta(context: AnthropicStreamingContext): Promise<LlmStream> {
@@ -282,12 +282,14 @@ export default class extends LlmEngine {
   }
 
   getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<MessageCreateParamsBase, 'model'|'messages'|'stream'|'tools'|'tool_choice'> {
+    const isThinkingEnabled = this.modelIsReasoning(model) && opts?.reasoning;
+    
     return {
       max_tokens: opts?.maxTokens ?? this.getMaxTokens(model),
-      ...(opts?.temperature ? { temperature: opts?.temperature } : {} ),
+      ...(isThinkingEnabled ? { temperature: 1.0 } : (opts?.temperature ? { temperature: opts?.temperature } : {})),
       ...(opts?.top_k ? { top_k: opts?.top_k } : {} ),
       ...(opts?.top_p ? { top_p: opts?.top_p } : {} ),
-      ...(this.modelIsReasoning(model) && opts?.reasoning ? {
+      ...(isThinkingEnabled ? {
         thinking: {
           type: 'enabled',
           budget_tokens: opts.reasoningBudget || (opts?.maxTokens || this.getMaxTokens(model)) / 2,

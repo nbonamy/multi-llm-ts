@@ -5,7 +5,7 @@ import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool
 import { PluginParameter } from 'types/plugin'
 import { minimatch } from 'minimatch'
 import Message from './models/message'
-import Plugin from './plugin'
+import { Plugin } from './plugin'
 
 export type LlmStreamingContextBase = {
   model: string
