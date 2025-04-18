@@ -18,6 +18,7 @@ Features include:
 |Provider|id|Completion<br>&&nbsp;Streaming|Vision|Function calling|Reasoning|Parametrization<sup>1</sup>|Usage reporting|
 |---|---|---|---|---|--|--|--|
 |**Anthropic**|`anthropic`|yes|yes|yes|yes|yes|yes|
+|**Azure AI**|`azure`|yes|yes|yes|yes|yes|yes|
 |**Cerebras**|`cerebras`|yes|no|no|no|yes|yes|
 |**DeepSeek**|`deepseek`|yes|no|yes|yes|yes|yes|
 |**Google**|`google`|yes|yes|yes|no|yes|yes|
