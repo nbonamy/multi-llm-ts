@@ -413,7 +413,7 @@ export default class extends LlmEngine {
 
         // need
         logger.log(`[anthropic] tool call ${context.toolCall!.function} with ${context.toolCall!.args}`)
-        const args = JSON.parse(context.toolCall!.args)
+        const args = context.toolCall!.args?.length ? JSON.parse(context.toolCall!.args) : {}
 
         // first notify
         yield {
