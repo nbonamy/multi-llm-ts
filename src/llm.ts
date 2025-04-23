@@ -91,13 +91,18 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
     )
 
     // assign models
-    const imageModels = models.filter(model => model.id.startsWith('dall-e-'))
+    const imageModels = models.filter(model => model.id.startsWith('dall-e-') || model.id.includes('image-'))
     const embeddingModels = models.filter(model => model.id.startsWith('text-embedding-'))
     const realtimeModels = models.filter(model => model.id.includes('realtime'))
     const computerModels = models.filter(model => model.id.includes('computer-use'))
     const sttModels = models.filter(model => model.id.includes('whisper') || model.id.includes('transcribe'))
     const ttsModels = models.filter(model => model.id.includes('tts'))
 
+    // hack: add gpt-image-1
+    if (!imageModels.map(m => m.id).includes('gpt-image-1')) {
+      imageModels.unshift({ id: 'gpt-image-1', name: 'GPT Image', meta: {} });
+    }
+    
     // chat models are the rest
     const chatModels = models.filter(model => 
       !imageModels.includes(model) &&
