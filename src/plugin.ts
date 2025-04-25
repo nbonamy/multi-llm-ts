@@ -6,10 +6,6 @@ export class Plugin {
     return true
   }
 
-  sezializeInTools(): boolean {
-    return this.serializeInTools()
-  }
-
   isEnabled(): boolean {
     return false
   }

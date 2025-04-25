@@ -286,7 +286,7 @@ export default class extends LlmEngine {
     
     return {
       max_tokens: opts?.maxTokens ?? this.getMaxTokens(model),
-      ...(isThinkingEnabled ? { temperature: 1.0 } : (opts?.temperature ? { temperature: opts?.temperature } : {})),
+      ...(opts?.temperature ? { temperature: opts.temperature } : (isThinkingEnabled ? { temperature: 1.0 } : {})),
       ...(opts?.top_k ? { top_k: opts?.top_k } : {} ),
       ...(opts?.top_p ? { top_p: opts?.top_p } : {} ),
       ...(isThinkingEnabled ? {
