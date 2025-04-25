@@ -1,6 +1,6 @@
 
 import { EngineCreateOpts, Model } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall } from 'types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from 'types/llm'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
 import LlmEngine from '../engine'
@@ -95,6 +95,9 @@ export default class extends LlmEngine {
 
   async chat(modelName: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
+    // save tool calls
+    const toolCallInfo: LlmToolCallInfo[] = []
+    
     // call
     logger.log(`[google] prompting model ${modelName}`)
     const model = await this.getModel(modelName, thread[0].contentForModel, opts)
@@ -124,6 +127,13 @@ export default class extends LlmEngine {
           response: content
         }})
 
+        // save tool call info
+        toolCallInfo.push({
+          name: toolCall.name,
+          params: toolCall.args,
+          result: content
+        })
+
       }
 
       // function call
@@ -141,6 +151,12 @@ export default class extends LlmEngine {
       // prompt again
       const completion = await this.chat(modelName, thread, opts)
 
+      // prepend tool call info
+      completion.toolCalls = [
+        ...toolCallInfo,
+        ...completion.toolCalls,
+      ]
+
       // cumulate usage
       if (opts?.usage && response.response.usageMetadata && completion.usage) {
         completion.usage.prompt_tokens += response.response.usageMetadata.promptTokenCount
@@ -156,6 +172,7 @@ export default class extends LlmEngine {
     return {
       type: 'text',
       content: response.response.text(),
+      toolCalls: toolCallInfo,
       ...(opts?.usage && response.response.usageMetadata ? { usage: {
         prompt_tokens: response.response.usageMetadata.promptTokenCount,
         completion_tokens: response.response.usageMetadata.candidatesTokenCount,

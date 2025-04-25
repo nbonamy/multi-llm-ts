@@ -1,6 +1,6 @@
 
 import { EngineCreateOpts, Model, ModelsList } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmUsage } from 'types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from 'types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
@@ -125,6 +125,9 @@ export default class extends LlmEngine {
 
   async chat(model: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
+    // save tool calls
+    const toolCallInfo: LlmToolCallInfo[] = []
+    
     // call
     logger.log(`[ollama] prompting model ${model}`)
     const response = await this.client.chat({
@@ -159,10 +162,22 @@ export default class extends LlmEngine {
           content: JSON.stringify(content)
         })
 
+        // save tool call info
+        toolCallInfo.push({
+          name: toolCall.function.name,
+          params: toolCall.function.arguments,
+          result: content
+        })
       }
 
       // prompt again
       const completion = await this.chat(model, thread, opts)
+
+      // prepend tool call info
+      completion.toolCalls = [
+        ...toolCallInfo,
+        ...completion.toolCalls,
+      ]
 
       // cumulate usage
       if (opts?.usage && completion.usage) {
@@ -179,6 +194,7 @@ export default class extends LlmEngine {
     return {
       type: 'text',
       content: response.message.content,
+      toolCalls: toolCallInfo,
       ...(opts?.usage ?  { usage: {
         prompt_tokens: response.prompt_eval_count,
         completion_tokens: response.eval_count,

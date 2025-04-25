@@ -1,9 +1,9 @@
 
 import { EngineCreateOpts, Model } from 'types/index'
-import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload, LlmStreamingResponse } from 'types/llm'
+import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload, LlmStreamingResponse, LlmToolCallInfo } from 'types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextBase } from '../engine'
-import Plugin from '../plugin'
+import { Plugin } from '../plugin'
 import logger from '../logger'
 
 import Anthropic from '@anthropic-ai/sdk'
@@ -108,6 +108,9 @@ export default class extends LlmEngine {
       model = this.getComputerUseRealModel()
     }
 
+    // save tool calls
+    const toolCallInfo: LlmToolCallInfo[] = []
+    
     // call
     logger.log(`[anthropic] prompting model ${model}`)
     const response = await this.client.messages.create({
@@ -157,8 +160,21 @@ export default class extends LlmEngine {
         })
       }
 
+      // save tool call info
+      toolCallInfo.push({
+        name: toolCall.name,
+        params: toolCall.input,
+        result: content
+      })
+
       // prompt again
       const completion = await this.chat(model, thread, opts)
+
+      // prepend tool call info
+      completion.toolCalls = [
+        ...toolCallInfo,
+        ...completion.toolCalls,
+      ]
 
       // cumulate usage
       if (opts?.usage && response.usage && completion.usage) {
@@ -176,6 +192,7 @@ export default class extends LlmEngine {
     return {
       type: 'text',
       content: content.text,
+      toolCalls: toolCallInfo,
       ...(opts?.usage && response.usage ? { usage: {
         prompt_tokens: response.usage.input_tokens,
         completion_tokens: response.usage.output_tokens,

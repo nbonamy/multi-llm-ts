@@ -1,6 +1,6 @@
 
 import { EngineCreateOpts, Model } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmStreamingResponse, LlmToolCall } from 'types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from 'types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
@@ -134,6 +134,9 @@ export default class extends LlmEngine {
     // set baseURL on client
     this.setBaseURL()
 
+    // save tool calls
+    const toolCallInfo: LlmToolCallInfo[] = []
+    
     // call
     logger.log(`[${this.getName()}] prompting model ${model}`)
     const response = await this.client.chat.completions.create({
@@ -148,6 +151,9 @@ export default class extends LlmEngine {
 
     // tool call
     if (choice?.finish_reason === 'tool_calls') {
+
+      // add tool call message
+      thread.push(choice.message)
 
       const toolCalls = choice.message.tool_calls!
       for (const toolCall of toolCalls) {
@@ -167,9 +173,6 @@ export default class extends LlmEngine {
         const content = await this.callTool(toolCall.function.name, args)
         logger.log(`[openai] tool call ${toolCall.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
-        // add tool call message
-        thread.push(choice.message)
-
         // add tool response message
         thread.push({
           role: 'tool',
@@ -178,10 +181,23 @@ export default class extends LlmEngine {
           content: JSON.stringify(content)
         })
 
+        // save tool call info
+        toolCallInfo.push({
+          name: toolCall.function.name,
+          params: args,
+          result: content
+        })
+
       }
 
       // prompt again
       const completion = await this.chat(model, thread, opts)
+
+      // prepend tool call info
+      completion.toolCalls = [
+        ...toolCallInfo,
+        ...completion.toolCalls,
+      ]
 
       // cumulate usage
       if (opts?.usage && response.usage && completion.usage) {
@@ -215,6 +231,7 @@ export default class extends LlmEngine {
     return {
       type: 'text',
       content: choice.message.content || '',
+      toolCalls: toolCallInfo,
       ...(opts?.usage && response.usage ? { usage: response.usage } : {}),
     }
 
