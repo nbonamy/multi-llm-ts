@@ -165,7 +165,7 @@ test('Complete content', async () => {
     new Message('user', 'prompt1'),
   ]
   const response = await openai.complete('model', messages)
-  expect(response).toStrictEqual({ type: 'text', 'content': 'response' })
+  expect(response).toStrictEqual({ type: 'text', 'content': 'response', toolCalls: [] })
 })
 
 test('Generate content', async () => {

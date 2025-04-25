@@ -1,6 +1,6 @@
 
 import { PluginParameter } from '../../src/types/plugin'
-import Plugin from '../../src/plugin'
+import { Plugin } from '../../src/plugin'
 
 export class Plugin1 extends Plugin {
   

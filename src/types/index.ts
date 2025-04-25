@@ -3,6 +3,8 @@ export type EngineCreateOpts = {
   apiKey?: string
   baseURL?: string
   maxRetries?: number
+  deployment?: string
+  apiVersion?: string
 }
 
 export type ModelsList = {

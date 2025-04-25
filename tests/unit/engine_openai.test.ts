@@ -115,6 +115,7 @@ test('OpenAI Load Models', async () => {
     { id: 'o13-model', name: 'o13-model', meta: { id: 'o13-model' } },
   ])
   expect(models.image).toStrictEqual([
+    { id: 'gpt-image-1', name: 'GPT Image', meta: { } },
     { id: 'dall-e-model1', name: 'dall-e-model1', meta: { id: 'dall-e-model1' } },
     { id: 'dall-e-model2', name: 'dall-e-model2', meta: { id: 'dall-e-model2' } },
   ])
@@ -233,7 +234,8 @@ test('OpenAI completion', async () => {
   })
   expect(response).toStrictEqual({
     type: 'text',
-    content: 'response'
+    content: 'response',
+    toolCalls: [],
   })
 })
 

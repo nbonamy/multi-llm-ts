@@ -2,6 +2,7 @@
 import { EngineCreateOpts, Model, ModelsList } from 'types/index'
 import LlmEngine from 'engine'
 import Anthropic, { AnthropicComputerToolInfo } from './providers/anthropic'
+import Azure from './providers/azure'
 import Cerebreas from './providers/cerebras'
 import DeepSeek from './providers/deepseek'
 import Google from './providers/google'
@@ -15,6 +16,7 @@ import XAI from './providers/xai'
 export const staticModelsListEngines = [ ]
 
 export const igniteEngine = (engine: string, config: EngineCreateOpts): LlmEngine => {
+  if (engine === 'azure') return new Azure(config)
   if (engine === 'anthropic') return new Anthropic(config)
   if (engine === 'cerebras') return new Cerebreas(config)
   if (engine === 'deepseek') return new DeepSeek(config)
@@ -29,6 +31,7 @@ export const igniteEngine = (engine: string, config: EngineCreateOpts): LlmEngin
 }
 
 export const loadModels = async (engine: string, config: EngineCreateOpts): Promise<ModelsList|null> => {
+  if (engine === 'azure') return await loadAzureModels(config)
   if (engine === 'anthropic') return await loadAnthropicModels(config)
   if (engine === 'cerebras') return await loadCerebrasModels(config)
   if (engine === 'deepseek') return await loadDeepSeekModels(config)
@@ -88,13 +91,18 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
     )
 
     // assign models
-    const imageModels = models.filter(model => model.id.startsWith('dall-e-'))
+    const imageModels = models.filter(model => model.id.startsWith('dall-e-') || model.id.includes('image-'))
     const embeddingModels = models.filter(model => model.id.startsWith('text-embedding-'))
     const realtimeModels = models.filter(model => model.id.includes('realtime'))
     const computerModels = models.filter(model => model.id.includes('computer-use'))
     const sttModels = models.filter(model => model.id.includes('whisper') || model.id.includes('transcribe'))
     const ttsModels = models.filter(model => model.id.includes('tts'))
 
+    // hack: add gpt-image-1
+    if (!imageModels.map(m => m.id).includes('gpt-image-1')) {
+      imageModels.unshift({ id: 'gpt-image-1', name: 'GPT Image', meta: {} });
+    }
+    
     // chat models are the rest
     const chatModels = models.filter(model => 
       !imageModels.includes(model) &&
@@ -136,6 +144,36 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
       embedding: []
     }
 
+  }
+
+}
+
+export const loadAzureModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
+
+  // load
+  let models = null
+  try {
+    const azure = new Azure(engineConfig)
+    models = await azure.getModels()
+  } catch (error) {
+    console.error('Error listing Azure models:', error);
+  }
+  if (!models) {
+    return null
+  }
+
+  // xform
+  models = models
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  // // debug
+  // for (const model of models) {
+  //   console.log(model.id)
+  // }
+
+  return {
+    chat: models,
+    image: [],
   }
 
 }

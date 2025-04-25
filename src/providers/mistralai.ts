@@ -1,6 +1,6 @@
 
 import { EngineCreateOpts, Model } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall } from 'types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from 'types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
@@ -61,6 +61,9 @@ export default class extends LlmEngine {
 
   async chat(model: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
+    // save tool calls
+    const toolCallInfo: LlmToolCallInfo[] = []
+    
     // call
     logger.log(`[mistralai] prompting model ${model}`)
     const response = await this.client.chat.complete({
@@ -97,10 +100,22 @@ export default class extends LlmEngine {
           content: JSON.stringify(content)
         })
 
+        // save tool call info
+        toolCallInfo.push({
+          name: toolCall.function.name,
+          params: toolCall.function.arguments,
+          result: content
+        })
       }
 
       // prompt again
       const completion = await this.chat(model, thread, opts)
+
+      // prepend tool call info
+      completion.toolCalls = [
+        ...toolCallInfo,
+        ...completion.toolCalls,
+      ]
 
       // cumulate usage
       if (opts?.usage && response.usage && completion.usage) {
@@ -117,6 +132,7 @@ export default class extends LlmEngine {
     return {
       type: 'text',
       content: response.choices?.[0].message.content as string || '',
+      toolCalls: toolCallInfo,
       ...(opts?.usage ? { usage: {
         prompt_tokens: response.usage.promptTokens,
         completion_tokens: response.usage.completionTokens,

@@ -3,9 +3,16 @@ import { Model } from './index'
 
 export type LlmRole = 'system'|'developer'|'user'|'assistant'|'tool'
 
+export type LlmToolCallInfo = {
+  name: string
+  params: any
+  result: any
+}
+
 export type LlmResponse = {
   type: 'text'|'image'
   content?: string
+  toolCalls: LlmToolCallInfo[]
   original_prompt?: string
   revised_prompt?: string
   usage?: LlmUsage

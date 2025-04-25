@@ -4,10 +4,11 @@ export * from './types/llm'
 
 import Attachment, { textFormats, imageFormats, extensionToMimeType, mimeTypeToExtension } from './models/attachment'
 import Message from './models/message'
-import { Plugin } from './plugin'
+import { Plugin, CustomToolPlugin, MultiToolPlugin } from './plugin'
 
 import LlmEngine from './engine'
 
+import Azure from './providers/azure'
 import Anthropic from './providers/anthropic'
 import Cerebras from './providers/cerebras'
 import DeepSeek from './providers/deepseek'
@@ -30,9 +31,12 @@ const logger = {
 export {
   logger,
   Plugin,
+  CustomToolPlugin,
+  MultiToolPlugin,
   Message,
   Attachment,
   LlmEngine,
+  Azure,
   Anthropic,
   Cerebras,
   DeepSeek,

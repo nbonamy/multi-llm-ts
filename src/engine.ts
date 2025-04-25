@@ -5,7 +5,7 @@ import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool
 import { PluginParameter } from 'types/plugin'
 import { minimatch } from 'minimatch'
 import Message from './models/message'
-import { Plugin } from './plugin'
+import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 
 export type LlmStreamingContextBase = {
   model: string
@@ -222,13 +222,13 @@ export default class LlmEngine {
 
       // some plugins are vendor specific and are handled
       // inside the LlmEngine concrete class
-      if (!plugin.sezializeInTools()) {
+      if (!plugin.serializeInTools()) {
         continue
       }
 
       // others
-      if (plugin.isMultiTool() || plugin.isCustomTool()) {
-        const pluginAsTool = await plugin.getTools()
+      if ('getTools' in plugin) {
+        const pluginAsTool = await (plugin as ICustomPlugin).getTools()
         if (Array.isArray(pluginAsTool)) {
           tools.push(...pluginAsTool)
         } else if (pluginAsTool) {
@@ -304,8 +304,11 @@ export default class LlmEngine {
 
     // try multi-tools
     for (const plugin of Object.values(this.plugins)) {
-      if (plugin.isMultiTool() && plugin.handlesTool(tool)) {
-        return plugin
+      if (plugin instanceof MultiToolPlugin) {
+        const multiToolPlugin = plugin as MultiToolPlugin
+        if (multiToolPlugin.handlesTool(tool)) {
+          return plugin
+        }
       }
     }
 
@@ -334,8 +337,11 @@ export default class LlmEngine {
 
     // try multi-tools
     for (const plugin of Object.values(this.plugins)) {
-      if (plugin.isMultiTool() && plugin.handlesTool(tool)) {
-        return await plugin.execute({ tool: tool, parameters: args })
+      if (plugin instanceof MultiToolPlugin) {
+        const multiToolPlugin = plugin as MultiToolPlugin
+        if (multiToolPlugin.handlesTool(tool)) {
+          return await plugin.execute({ tool: tool, parameters: args })
+        }
       }
     }
 

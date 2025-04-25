@@ -139,7 +139,8 @@ test('Anthropic completion', async () => {
   })
   expect(response).toStrictEqual({
     type: 'text',
-    content: 'response'
+    content: 'response',
+    toolCalls: [],
   })
 })
 
