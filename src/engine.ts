@@ -222,7 +222,7 @@ export default class LlmEngine {
 
       // some plugins are vendor specific and are handled
       // inside the LlmEngine concrete class
-      if (!plugin.sezializeInTools()) {
+      if (!plugin.serializeInTools()) {
         continue
       }
 
