@@ -1,4 +1,3 @@
-
 import { EngineCreateOpts, Model } from 'types/index'
 import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload, LlmStreamingResponse, LlmToolCallInfo } from 'types/llm'
 import Message from '../models/message'
@@ -275,7 +274,6 @@ export default class extends LlmEngine {
   }
 
   async doStreamNormal(context: AnthropicStreamingContext): Promise<LlmStream> {
-
     logger.log(`[anthropic] prompting model ${context.model}`)
     return this.client.messages.create({
       model: context.model,
@@ -285,7 +283,6 @@ export default class extends LlmEngine {
       ...await this.getToolOpts(context.model, context.opts),
       stream: true,
     })
-
   }
 
   async doStreamBeta(context: AnthropicStreamingContext): Promise<LlmStream> {
@@ -302,7 +299,7 @@ export default class extends LlmEngine {
   }
 
   getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<MessageCreateParamsBase, 'model'|'messages'|'stream'|'tools'|'tool_choice'> {
-    
+
     const isThinkingEnabled = this.modelIsReasoning(model) && opts?.reasoning;
     
     return {

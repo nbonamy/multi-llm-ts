@@ -1,4 +1,3 @@
-
 import { PluginParameter } from 'types/plugin'
 
 export interface ICustomPlugin {
