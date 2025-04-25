@@ -47,7 +47,7 @@ export default class extends LlmEngine {
   }
 
   modelSupportsTools(model: string): boolean {
-    return !model.startsWith('o1-')
+    return !model.startsWith('o1-') && !model.startsWith('chatgpt-');
   }
 
   modelIsReasoning(model: string): boolean {

@@ -266,7 +266,7 @@ test('Anthropic thinking', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { reasoning: true })
-  expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalledWith({
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(1, {
     model: 'model',
     system: 'instruction',
     messages: [ { role: 'user', content: 'prompt' }, ],
@@ -277,7 +277,7 @@ test('Anthropic thinking', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { reasoning: true })
-  expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalledWith({
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(2, {
     model: 'claude-3-7-sonnet-thinking',
     system: 'instruction',
     messages: [ { role: 'user', content: 'prompt' }, ],
@@ -286,6 +286,7 @@ test('Anthropic thinking', async () => {
       type: 'enabled',
       budget_tokens: 2048,
     },
+    temperature: 1,
     stream: true,
   })
 })

@@ -7,7 +7,7 @@ export interface ICustomPlugin {
 
 export class Plugin {
 
-  sezializeInTools(): boolean {
+  serializeInTools(): boolean {
     return true
   }
 
