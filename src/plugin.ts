@@ -1,7 +1,11 @@
 
 import { PluginParameter } from 'types/plugin'
 
-export default class Plugin {
+export interface ICustomPlugin {
+  getTools(): Promise<any|any[]>
+}
+
+export class Plugin {
 
   sezializeInTools(): boolean {
     return true
@@ -12,10 +16,6 @@ export default class Plugin {
   }
 
   isCustomTool(): boolean {
-    return false
-  }
-
-  isMultiTool(): boolean {
     return false
   }
 
@@ -41,18 +41,53 @@ export default class Plugin {
     throw new Error('Not implemented')
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async execute(parameters: any): Promise<any> {
+    throw new Error('Not implemented')
+  }
+
+}
+
+export class CustomToolPlugin extends Plugin implements ICustomPlugin {
+
   async getTools(): Promise<any|any[]> {
+    throw new Error('Not implemented')
+  }
+
+}
+
+export class MultiToolPlugin extends Plugin implements ICustomPlugin{
+
+  // this allows for only specific tools of a multi-tool plugin to be enabled
+  // if null, all tools are enabled
+  // if empty, no tools are enabled
+  // implementation should make sure that getTools and handlesTool
+  // check toolsEnabled when responding
+
+  // example:
+  // handlesTool(name: string): boolean {
+  //   const handled = ...
+  //   return handled && (!this.toolsEnabled || this.toolsEnabled.includes(name))
+  // }
+
+  toolsEnabled: string[]|null = null
+
+  enableTool(name: string): void {
+    if (!this.toolsEnabled) {
+      this.toolsEnabled = []
+    }
+    if (!this.toolsEnabled.includes(name)) {
+      this.toolsEnabled.push(name)
+    }
+  }
+  
+  getTools(): Promise<any[]> {
     throw new Error('Not implemented')
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   handlesTool(name: string): boolean {
     return false
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async execute(parameters: any): Promise<any> {
-    throw new Error('Not implemented')
   }
 
 }
