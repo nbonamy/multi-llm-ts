@@ -154,7 +154,7 @@ export default class extends LlmEngine {
       // prepend tool call info
       completion.toolCalls = [
         ...toolCallInfo,
-        ...completion.toolCalls,
+        ...completion.toolCalls ?? [],
       ]
 
       // cumulate usage

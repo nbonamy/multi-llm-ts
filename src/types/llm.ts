@@ -12,7 +12,7 @@ export type LlmToolCallInfo = {
 export type LlmResponse = {
   type: 'text'|'image'
   content?: string
-  toolCalls: LlmToolCallInfo[]
+  toolCalls?: LlmToolCallInfo[]
   original_prompt?: string
   revised_prompt?: string
   usage?: LlmUsage
