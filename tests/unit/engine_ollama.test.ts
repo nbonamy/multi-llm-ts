@@ -17,14 +17,24 @@ vi.mock('ollama/dist/browser.cjs', async() => {
     return { models: [
       { model: 'model2', name: 'model2' },
       { model: 'model1', name: 'model1' },
+      { model: 'model3', name: 'model3' },
     ] }
   })
   Ollama.prototype.pull = vi.fn()
   Ollama.prototype.delete = vi.fn()
-  Ollama.prototype.show = vi.fn(() => {
-    return {
-      details: { family: 'llm' },
-      model_info: {}
+  Ollama.prototype.show = vi.fn(({ model: model}) => {
+    if (model === 'model1') {
+      return {
+        details: { family: 'llm' },
+        model_info: {}
+      }
+    } else if (model === 'model3') {
+      return {
+        details: { family: 'bert' },
+        model_info: {}
+      }
+    } else {
+      throw new Error('ollama show fail')
     }
   })
   Ollama.prototype.chat = vi.fn((opts) => {
@@ -81,6 +91,9 @@ test('Ollama Load Models', async () => {
   expect(models.chat).toStrictEqual([
     { id: 'model1', name: 'model1', meta: { model: 'model1', name: 'model1' }, },
     { id: 'model2', name: 'model2', meta: { model: 'model2', name: 'model2' }, },
+  ])
+  expect(models.embedding).toStrictEqual([
+    { id: 'model3', name: 'model3', meta: { model: 'model3', name: 'model3' }, },
   ])
   expect(await loadModels('ollama', config)).toStrictEqual(models)
 })

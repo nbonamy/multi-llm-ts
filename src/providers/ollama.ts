@@ -15,6 +15,13 @@ export type OllamaStreamingContext = LlmStreamingContextTools & {
   thinking: boolean
 }
 
+export type OllamaModelInfo = {
+  details: {
+    family: string
+  }
+  model_info: Record<string, any>
+}
+
 export default class extends LlmEngine {
 
   client: Ollama
@@ -47,6 +54,7 @@ export default class extends LlmEngine {
     return [
       'athene-v2',
       'aya-expanse',
+      'cogito',
       'command-a',
       'command-r',
       'command-r-plus',
@@ -59,6 +67,7 @@ export default class extends LlmEngine {
       'granite3.1-moe',
       'granite3.2',
       'granite3.2-vision',
+      'granite3.3',
       'hermes3',
       'llama3-groq-tool-use',
       'llama3.1',
@@ -68,6 +77,7 @@ export default class extends LlmEngine {
       'mistral-large',
       'mistral-nemo',
       'mistral-small',
+      'mistral-small3.1',
       'mixtral',
       'nemotron',
       'nemotron-mini',
@@ -75,6 +85,7 @@ export default class extends LlmEngine {
       'qwen2',
       'qwen2.5',
       'qwen2.5-coder',
+      'qwen3',
       'qwq',
       'smollm2',
     ].includes(model.split(':')[0])
@@ -94,12 +105,12 @@ export default class extends LlmEngine {
     }
   }
 
-  async getModelInfo(model: string): Promise<any> {
+  async getModelInfo(model: string): Promise<OllamaModelInfo|null> {
     try {
       return await this.client.show({ model: model })
     } catch (error) {
       console.error('Error listing models:', error);
-      return
+      return null
     }
   }
 

@@ -198,7 +198,7 @@ export const loadOllamaModels = async (engineConfig: EngineCreateOpts): Promise<
   const modelInfo: { [key: string]: any } = {}
   for (const model of models) {
     const info = await ollama.getModelInfo(model.id)
-    modelInfo[model.id] = {
+    modelInfo[model.id] = !info ? null : {
       ...info.details,
       ...info.model_info,
     }
@@ -207,11 +207,11 @@ export const loadOllamaModels = async (engineConfig: EngineCreateOpts): Promise<
   // done
   return {
     chat: models
-      .filter(model => modelInfo[model.id].family.includes('bert') === false)
+      .filter(model => !modelInfo[model.id] || modelInfo[model.id].family.includes('bert') === false)
       .sort((a, b) => a.name.localeCompare(b.name)),
     image: [],
     embedding: models
-      .filter(model => modelInfo[model.id].family.includes('bert') === true)
+      .filter(model => modelInfo[model.id]?.family?.includes('bert') === true)
       .sort((a, b) => a.name.localeCompare(b.name)),
   }
 
