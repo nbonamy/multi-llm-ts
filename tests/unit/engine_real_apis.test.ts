@@ -99,7 +99,7 @@ test.concurrent('OpenRouter real test', { timeout: 1000 * 60 }, async () => {
 })
 
 test.concurrent('Groq real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('groq', process.env.GROQ_API_KEY, 'llama-3.2-1b-preview')
+  await realApiTest('groq', process.env.GROQ_API_KEY, 'llama3-8b-8192')
 })
 
 test.concurrent('Cerebras real test', { timeout: 1000 * 60 }, async () => {
