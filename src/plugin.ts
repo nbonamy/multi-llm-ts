@@ -14,10 +14,6 @@ export class Plugin {
     return false
   }
 
-  isCustomTool(): boolean {
-    return false
-  }
-
   getName(): string {
     throw new Error('Not implemented')
   }

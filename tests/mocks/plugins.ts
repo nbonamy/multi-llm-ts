@@ -1,6 +1,6 @@
 
 import { PluginParameter } from '../../src/types/plugin'
-import { Plugin } from '../../src/plugin'
+import { CustomToolPlugin, MultiToolPlugin, Plugin } from '../../src/plugin'
 
 export class Plugin1 extends Plugin {
   
@@ -143,7 +143,7 @@ export class Plugin3 extends Plugin {
   }
 }
 
-export class CustomPlugin extends Plugin {
+export class CustomPlugin extends CustomToolPlugin {
 
   isEnabled(): boolean {
     return true
@@ -151,10 +151,6 @@ export class CustomPlugin extends Plugin {
   
   getName(): string {
     return 'custom'
-  }
-
-  isCustomTool(): boolean {
-    return true
   }
 
   getDescription(): string {
@@ -175,4 +171,57 @@ export class CustomPlugin extends Plugin {
       },
     }
   }
+}
+
+export class MultiPlugin extends MultiToolPlugin {
+
+  isEnabled(): boolean {
+    return true
+  }
+
+  getName(): string {
+    return 'multi'
+  }
+
+  getDescription(): string {
+    return 'Plugin Multi'
+  }
+
+  getTools(): Promise<any|any[]> {
+    return Promise.resolve([
+      {
+        type: 'function',
+        function: {
+          name: 'multi1',
+          description: 'Tool Multi 1',
+          parameters: {
+            type: 'object',
+            properties: { },
+            required: [],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'multi2',
+          description: 'Tool Multi 2',
+          parameters: {
+            type: 'object',
+            properties: { },
+            required: [],
+          },
+        },
+      },
+    ])
+  }
+
+  handlesTool(name: string): boolean {
+    return name === 'multi1' || name === 'multi2'
+  }
+
+  async execute(parameters: any): Promise<any> {
+    return [parameters.tool, parameters.parameters]
+  }
+
 }

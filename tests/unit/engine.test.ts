@@ -1,7 +1,7 @@
 
 import { LlmChunk } from '../../src/types/llm'
 import { vi, expect, test } from 'vitest'
-import { Plugin1, Plugin2 } from '../mocks/plugins'
+import { MultiPlugin, Plugin1, Plugin2 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import OpenAI from '../../src/providers/openai'
@@ -247,4 +247,17 @@ test('Does not add the same plugin twice', async () => {
   openai.addPlugin(new Plugin2())
   openai.addPlugin(new Plugin2())
   expect(openai.plugins.length).toBe(2)
+})
+
+test('Finds plugins', async () => {
+
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin1())
+  openai.addPlugin(new Plugin2())
+  openai.addPlugin(new MultiPlugin())
+  expect(async () => await openai.callTool('plugin1', {})).not.toThrow()
+  expect(async () => await openai.callTool('plugin3', {})).rejects.toThrowError()
+  expect(async () => await openai.callTool('multi1', {})).not.toThrow()
+  expect(async () => await openai.callTool('multi3', {})).rejects.toThrowError()
+
 })

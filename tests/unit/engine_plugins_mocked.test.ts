@@ -1,6 +1,6 @@
 
 import { beforeEach, expect, test } from 'vitest'
-import { Plugin1, Plugin2, Plugin3, CustomPlugin } from '../mocks/plugins'
+import { Plugin1, Plugin2, Plugin3, CustomPlugin, MultiPlugin } from '../mocks/plugins'
 import OpenAI from '../../src/providers/openai'
 import { EngineCreateOpts } from '../../src/types/index'
 
@@ -27,8 +27,10 @@ test('Engine plugin execution', async () => {
   llm.addPlugin(new Plugin1())
   llm.addPlugin(new Plugin2())
   llm.addPlugin(new Plugin3())
+  llm.addPlugin(new MultiPlugin())
   expect(await llm.callTool('plugin1', {})).toStrictEqual('result1')
   expect(await llm.callTool('plugin2', { param1: 'a', param2: 1 })).toStrictEqual({ param1: 'a', param2: 1 })
+  expect(await llm.callTool('multi1', { param: 'value' })).toStrictEqual(['multi1', { param: 'value' }])
 })
 
 test('OpenAI Functions', async () => {
@@ -124,7 +126,7 @@ test('OpenAI Functions', async () => {
   ])
 })
 
-test('Custom Tools', async () => {
+test('Custom Tools Plugin', async () => {
   const llm = new OpenAI(config)
   llm.addPlugin(new CustomPlugin())
 
@@ -134,6 +136,40 @@ test('Custom Tools', async () => {
       function: {
         name: 'custom',
         description: 'Plugin Custom',
+        parameters: {
+          type: 'object',
+          properties: { },
+          required: [],
+        },
+      },
+    },
+  ])
+
+})
+
+test('Multi Tools Plugin', async () => {
+
+  const llm = new OpenAI(config)
+  llm.addPlugin(new MultiPlugin())
+
+  expect(await llm.getAvailableTools()).toStrictEqual([
+    {
+      type: 'function',
+      function: {
+        name: 'multi1',
+        description: 'Tool Multi 1',
+        parameters: {
+          type: 'object',
+          properties: { },
+          required: [],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'multi2',
+        description: 'Tool Multi 2',
         parameters: {
           type: 'object',
           properties: { },
