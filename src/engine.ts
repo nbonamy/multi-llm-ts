@@ -304,7 +304,7 @@ export default class LlmEngine {
 
     // try multi-tools
     for (const plugin of Object.values(this.plugins)) {
-      if (plugin instanceof MultiToolPlugin) {
+      if ('handlesTool' in MultiToolPlugin) {
         const multiToolPlugin = plugin as MultiToolPlugin
         if (multiToolPlugin.handlesTool(tool)) {
           return plugin
@@ -337,7 +337,7 @@ export default class LlmEngine {
 
     // try multi-tools
     for (const plugin of Object.values(this.plugins)) {
-      if (plugin instanceof MultiToolPlugin) {
+      if ('handlesTool' in plugin) {
         const multiToolPlugin = plugin as MultiToolPlugin
         if (multiToolPlugin.handlesTool(tool)) {
           return await plugin.execute({ tool: tool, parameters: args })
