@@ -81,6 +81,11 @@ export default class LlmEngine {
           if (msg.type === 'stream') {
             stream2 = msg.stream
           } else {
+            // if we are switching to a new stream make sure we don't send a done message
+            // (anthropic sends a 'message_stop' message when finishing current stream for example)
+            if (stream2 !== null && msg.type === 'content' && msg.done) {
+              msg.done = false
+            }
             yield msg
           }
         }
