@@ -351,7 +351,8 @@ export default class LlmEngine {
     }
 
     // too bad
-    throw new Error(`Tool ${tool} not found`)
+    return { error: `Tool ${tool} does not exist. Check the tool list and try again.` }
+
   }
 
 }

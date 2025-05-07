@@ -22,15 +22,27 @@ test('Engine plugin descriptions', () => {
   expect(llm.getToolRunningDescription('plugin2', { arg: 'arg2' })).toBe('run2')
 })
 
+test('Multi Tools Plugin', () => {
+  const plugin = new MultiPlugin()
+  expect(plugin.handlesTool('multi1')).toBe(true)
+  expect(plugin.handlesTool('multi2')).toBe(true)
+  expect(plugin.handlesTool('multi3')).toBe(false)
+})
+
 test('Engine plugin execution', async () => {
+
   const llm = new OpenAI(config)
   llm.addPlugin(new Plugin1())
   llm.addPlugin(new Plugin2())
-  llm.addPlugin(new Plugin3())
   llm.addPlugin(new MultiPlugin())
+
   expect(await llm.callTool('plugin1', {})).toStrictEqual('result1')
   expect(await llm.callTool('plugin2', { param1: 'a', param2: 1 })).toStrictEqual({ param1: 'a', param2: 1 })
-  expect(await llm.callTool('multi1', { param: 'value' })).toStrictEqual(['multi1', { param: 'value' }])
+  expect(await llm.callTool('plugin3', {})).toStrictEqual({ error: 'Tool plugin3 does not exist. Check the tool list and try again.' })
+
+  expect(await llm.callTool('multi1', { param: 'value1' })).toStrictEqual(['multi1', { param: 'value1' }])
+  expect(await llm.callTool('multi2', { param: 'value2' })).toStrictEqual(['multi2', { param: 'value2' }])
+  expect(await llm.callTool('multi3', {})).toStrictEqual({ error: 'Tool multi3 does not exist. Check the tool list and try again.' })
 })
 
 test('OpenAI Functions', async () => {
