@@ -28,6 +28,7 @@ export type AnthropicStreamingContext = LlmStreamingContextBase & {
   toolCall?: LlmToolCall,
   thinkingBlock?: string,
   thinkingSignature?: string,
+  firstTextBlockStart: boolean,
 }
 
 export default class extends LlmEngine {
@@ -221,7 +222,8 @@ export default class extends LlmEngine {
       system: thread[0].contentForModel,
       thread: this.buildPayload(model, thread, opts) as MessageParam[],
       opts: opts || {},
-      usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
+      usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+      firstTextBlockStart: true
     }
 
     // do it
@@ -372,6 +374,13 @@ export default class extends LlmEngine {
 
     // block start
     if (chunk.type == 'content_block_start') {
+
+      if (chunk.content_block.type == 'text') {
+        if (!context.firstTextBlockStart) {
+          yield { type: 'content', text: '\n\n', done: false }
+        }
+        context.firstTextBlockStart = false
+      }
 
       if (chunk.content_block.type == 'thinking') {
         context.thinkingBlock = ''
