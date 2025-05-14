@@ -14,6 +14,7 @@ import Cerebras from './providers/cerebras'
 import DeepSeek from './providers/deepseek'
 import Google from './providers/google'
 import Groq from './providers/groq'
+import Meta from './providers/meta'
 import MistralAI from './providers/mistralai'
 import Ollama from './providers/ollama'
 import OpenAI from './providers/openai'
@@ -42,6 +43,7 @@ export {
   DeepSeek,
   Google,
   Groq,
+  Meta,
   MistralAI,
   Ollama,
   OpenAI,
