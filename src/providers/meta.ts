@@ -1,33 +1,34 @@
 
-import { EngineCreateOpts, Model } from 'types/index'
-import { LlmRole } from 'types/llm'
+import { EngineCreateOpts, Model } from '../types/index'
+import { LlmRole } from '../types/llm'
 import OpenAI from './openai'
 
 //
-// https://docs.x.ai/docs/introduction#what-is-grok-and-xai-api
+// https://llama.developer.meta.com/docs/overview
 //
 
-export const xAIBaseURL = 'https://api.x.ai/v1'
+export const metaBaseURL = 'https://api.llama.com/compat/v1/'
 
 export default class extends OpenAI {
 
   constructor(config: EngineCreateOpts) {
     super(config, {
       apiKey: config.apiKey,
-      baseURL: xAIBaseURL,
+      baseURL: metaBaseURL,
     })
   }
 
   getName(): string {
-    return 'xai'
+    return 'meta'
   }
 
   getVisionModels(): string[] {
-    return [ '*vision*' ]
+    return [ '*Llama-4-*' ]
   }
   
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   modelSupportsTools(model: string): boolean {
-    return !model.includes('vision')
+    return true
   }
 
   get systemRole(): LlmRole {
@@ -43,13 +44,8 @@ export default class extends OpenAI {
     // do it
     const models = await super.getModels()
 
-    // sort and transform
-    return models
-      .sort((a: Model, b: Model) => b.meta.created - a.meta.created)
-      .map((model: Model) => ({
-        ...model,
-        name: model.name.split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')
-      }))
+    // sort
+    return models.sort((a: Model, b: Model) => b.meta.created - a.meta.created)
 
   }
 

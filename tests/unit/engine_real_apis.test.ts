@@ -60,7 +60,7 @@ const realApiTest = async (engine, apiKey, model) => {
   // iterate
   let lastChunk: LlmChunk|null = null
   for await (const chunk of stream) {
-    expect(['content', 'tool']).toContain(chunk.type)
+    expect(['reasoning', 'content', 'tool']).toContain(chunk.type)
     lastChunk = chunk
   }
 
@@ -83,7 +83,11 @@ test.concurrent('Google real test', { timeout: 1000 * 60 }, async () => {
 })
 
 test.concurrent('xAI real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('xai', process.env.XAI_API_KEY, 'grok-beta')
+  await realApiTest('xai', process.env.XAI_API_KEY, 'grok-3-mini-fast-beta')
+})
+
+test.concurrent('Meta real test', { timeout: 1000 * 60 }, async () => {
+  await realApiTest('meta', process.env.META_API_KEY, 'Llama-4-Scout-17B-16E-Instruct-FP8')
 })
 
 test.concurrent('DeepSeek real test', { timeout: 1000 * 60 }, async () => {

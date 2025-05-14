@@ -23,6 +23,7 @@ Features include:
 |**DeepSeek**|`deepseek`|yes|no|yes|yes|yes|yes|
 |**Google**|`google`|yes|yes|yes|no|yes|yes|
 |**Groq**|`groq`|yes|yes|yes|no|yes|yes|
+|**Meta/Llama**|`meta`|yes|yes|yes|no|yes|yes|
 |**MistralAI**|`mistralai`|yes|yes|yes|no|yes|yes|
 |**Ollama**|`ollama`|yes|yes|yes|yes|yes|yes|
 |**OpenAI**|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|yes|yes|yes|

@@ -7,6 +7,7 @@ import Cerebreas from './providers/cerebras'
 import DeepSeek from './providers/deepseek'
 import Google from './providers/google'
 import Groq from './providers/groq'
+import Meta from './providers/meta'
 import MistralAI from './providers/mistralai'
 import Ollama from './providers/ollama'
 import OpenAI from './providers/openai'
@@ -22,6 +23,7 @@ export const igniteEngine = (engine: string, config: EngineCreateOpts): LlmEngin
   if (engine === 'deepseek') return new DeepSeek(config)
   if (engine === 'google') return new Google(config)
   if (engine === 'groq') return new Groq(config)
+  if (engine === 'meta') return new Meta(config)
   if (engine === 'mistralai') return new MistralAI(config)
   if (engine === 'ollama') return new Ollama(config)
   if (engine === 'openai') return new OpenAI(config)
@@ -37,6 +39,7 @@ export const loadModels = async (engine: string, config: EngineCreateOpts): Prom
   if (engine === 'deepseek') return await loadDeepSeekModels(config)
   if (engine === 'google') return await loadGoogleModels(config)
   if (engine === 'groq') return await loadGroqModels(config)
+  if (engine === 'meta') return await loadMetaModels(config)
   if (engine === 'mistralai') return await loadMistralAIModels(config)
   if (engine === 'ollama') return await loadOllamaModels(config)
   if (engine === 'openai') return await loadOpenAIModels(config)
@@ -409,6 +412,29 @@ export const loadOpenRouterModels = async (engineConfig: EngineCreateOpts): Prom
   return {
     chat: models.filter((m) => m.meta?.architecture?.modality.split('>').pop().includes('text')).sort((a, b) => a.name.localeCompare(b.name)),
     image: models.filter((m) => m.meta?.architecture?.modality.split('>').pop().includes('image')).sort((a, b) => a.name.localeCompare(b.name)),
+    embedding: []
+  }
+
+}
+
+export const loadMetaModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
+  
+  let models: Model[] = []
+
+  try {
+    const meta = new Meta(engineConfig)
+    models = await meta.getModels()
+  } catch (error) {
+    console.error('Error listing Meta models:', error);
+  }
+  if (!models) {
+    return null
+  }
+
+  // done
+  return {
+    chat: models,
+    image: [],
     embedding: []
   }
 
