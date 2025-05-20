@@ -52,10 +52,8 @@ export default class extends LlmEngine {
   // https://docs.anthropic.com/en/docs/about-claude/models
   getVisionModels(): string[] {
     return [
-      'claude-3-5-sonnet-*',
-      'claude-3-sonnet-*',
-      'claude-3-opus-*',
-      'claude-3-haiku-*'
+      'claude-3-*',
+      'computer-use',
     ]
   }
 
@@ -68,6 +66,13 @@ export default class extends LlmEngine {
     return model === 'claude-3-7-sonnet-thinking' || 
            model.includes('claude-3-7') ||
            model.includes('claude-3.7');
+  }
+
+  getMaxTokens(model: string): number {
+    if (model === 'computer-use') return this.getMaxTokens(this.getComputerUseRealModel())
+    if (model.includes('claude-3-7-')) return 64000
+    if (model.includes('claude-3-5-')) return 8192
+    else return 4096
   }
 
   async getModels(): Promise<Model[]> {
@@ -90,11 +95,6 @@ export default class extends LlmEngine {
       ...(this.computerInfo ? [{ id: 'computer-use', name: 'Computer Use' }] : [])
     ]
 
-  }
-
-  getMaxTokens(model: string): number {
-    if (model.includes('claude-3-5-sonnet') || model.includes('computer-use')) return 8192
-    else return 4096
   }
 
   async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {

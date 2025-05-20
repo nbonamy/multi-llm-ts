@@ -84,14 +84,28 @@ test('Anthropic Basic', async () => {
 
 test('Anthropic Vision Model', async () => {
   const anthropic = new Anthropic(config)
+  expect(anthropic.isVisionModel('claude-3-7-sonnet-latest')).toBe(true)
   expect(anthropic.isVisionModel('claude-3-5-sonnet-latest')).toBe(true)
-  expect(anthropic.isVisionModel('claude-3-5-opus-latest')).toBe(false)
-  expect(anthropic.isVisionModel('claude-3-5-haiku-latest')).toBe(false)
+  expect(anthropic.isVisionModel('claude-3-5-haiku-latest')).toBe(true)
   expect(anthropic.isVisionModel('claude-3-sonnet-20240229')).toBe(true)
   expect(anthropic.isVisionModel('claude-3-opus-20240229')).toBe(true)
   expect(anthropic.isVisionModel('claude-3-haiku-20240307')).toBe(true)
+  expect(anthropic.isVisionModel('computer-use')).toBe(true)
+  expect(anthropic.isVisionModel('claude-2.1')).toBe(false)
+  expect(anthropic.isVisionModel('claude-2.0')).toBe(false)
 })
 
+test('Anthropic max tokens', async () => {
+  const anthropic = new Anthropic(config)
+  expect(anthropic.getMaxTokens('claude-3-7-sonnet-latest')).toBe(64000)
+  expect(anthropic.getMaxTokens('claude-3-7-haiku-latest')).toBe(64000)
+  expect(anthropic.getMaxTokens('claude-3-5-sonnet-latest')).toBe(8192)
+  expect(anthropic.getMaxTokens('claude-3-5-haiku-latest')).toBe(8192)
+  expect(anthropic.getMaxTokens('claude-3-sonnet-20240229')).toBe(4096)
+  expect(anthropic.getMaxTokens('claude-3-opus-20240229')).toBe(4096)
+  expect(anthropic.getMaxTokens('claude-3-haiku-20240307')).toBe(4096)
+  expect(anthropic.getMaxTokens('computer-use')).toBe(8192)
+})
 
 test('Anthropic buildPayload text', async () => {
   const anthropic = new Anthropic(config)
@@ -156,6 +170,7 @@ test('Anthropic nativeChunkToLlmChunk Text', async () => {
     system: 'instruction',
     thread: [],
     opts: {},
+    firstTextBlockStart: true,
     usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }
   }
   for await (const llmChunk of anthropic.nativeChunkToLlmChunk(streamChunk, context)) {
@@ -280,10 +295,10 @@ test('Anthropic thinking', async () => {
     model: 'claude-3-7-sonnet-thinking',
     system: 'instruction',
     messages: [ { role: 'user', content: 'prompt' }, ],
-    max_tokens: 4096,
+    max_tokens: 64000,
     thinking: {
       type: 'enabled',
-      budget_tokens: 2048,
+      budget_tokens: 32000,
     },
     temperature: 1,
     stream: true,
