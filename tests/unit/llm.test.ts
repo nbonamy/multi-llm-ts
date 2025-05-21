@@ -1,6 +1,6 @@
 
 import { expect, test } from 'vitest'
-import { igniteEngine, hasVisionModels, isVisionModel, loadModels } from '../../src/llm'
+import { hasVisionModels, igniteEngine, isVisionModel, loadModels } from '../../src/llm'
 import OpenAI from '../../src/providers/openai'
 import Ollama from '../../src/providers/ollama'
 import MistralAI from '../../src/providers/mistralai'

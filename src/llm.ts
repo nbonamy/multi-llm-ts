@@ -48,11 +48,15 @@ export const loadModels = async (engine: string, config: EngineCreateOpts): Prom
   throw new Error('Unknown engine: ' + engine)
 }
 
+// @deprecated: because of OpenRouter needing metadata to determine vision models
+// it is not recommended to use this anymore. a major refactor is needed (planned for 4.0)
 export const hasVisionModels = (engine: string, config: EngineCreateOpts) => {
   const instance = igniteEngine(engine, config)
   return instance.getVisionModels().length > 0
 }
 
+// @deprecated: because of OpenRouter needing metadata to determine vision models
+// it is not recommended to use this anymore. a major refactor is needed (planned for 4.0)
 export const isVisionModel = (engine: string, model: string, config: EngineCreateOpts) => {
   const instance = igniteEngine(engine, config)
   return instance.isVisionModel(model)

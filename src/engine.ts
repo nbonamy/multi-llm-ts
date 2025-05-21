@@ -48,12 +48,7 @@ export default class LlmEngine {
   }
   
   isVisionModel(model: string): boolean {
-    for (const filter of this.getVisionModels()) {
-      if (minimatch(model, filter)) {
-        return true
-      }
-    }
-    return false
+    return this.getVisionModels().some((filter) => minimatch(model, filter))
   }
 
   clearPlugins(): void {
