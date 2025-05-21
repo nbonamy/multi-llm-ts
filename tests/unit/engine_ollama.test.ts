@@ -113,8 +113,8 @@ test('Ollama buildPayload', async () => {
   const ollama = new Ollama(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  expect(ollama.buildPayload('llama', [ message ])).toStrictEqual([ { role: 'user', content: 'text' } ])
-  expect(ollama.buildPayload('llava', [ message ])).toStrictEqual([ { role: 'user', content: 'text', images: [ 'image' ]} ])
+  expect(ollama.buildPayload('llama:latest', [ message ])).toStrictEqual([ { role: 'user', content: 'text' } ])
+  expect(ollama.buildPayload('llava:latest', [ message ])).toStrictEqual([ { role: 'user', content: 'text', images: [ 'image' ]} ])
 })
 
 test('Ollama completion', async () => {

@@ -48,18 +48,18 @@ export default class extends LlmEngine {
 
   getVisionModels(): string[] {
     return [
-      'bakllava*',
-      'gemma3*',
-      'granite3.2-vision*',
-      'llama3.2-vision*',
-      'llama4*',
-      'llava*',
-      'llava-llama3*',
-      'llava-phi3*',
-      'minicpm-v*',
-      'mistral-small3.1*',
-      'moondream*',
-      'qwen2.5vl*',
+      'bakllava:*',
+      'gemma3:*',
+      'granite3.2-vision:*',
+      'llama3.2-vision:*',
+      'llama4:*',
+      'llava:*',
+      'llava-llama3:*',
+      'llava-phi3:*',
+      'minicpm-v:*',
+      'mistral-small3.1:*',
+      'moondream:*',
+      'qwen2.5vl:*',
     ]
   }
 
@@ -73,6 +73,7 @@ export default class extends LlmEngine {
       'command-r-plus',
       'command-r7b',
       'command-r7b-arabic',
+      'devstral',
       'firefunction-v2',
       'granite3-dense',
       'granite3-moe',

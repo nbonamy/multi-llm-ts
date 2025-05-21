@@ -44,7 +44,7 @@ const updateOllama = async(content, q, tr, regex, template) => {
   )
 
   fileContent = await updateOllama(
-    fileContent, 'vision', (tool) => `${tool}*`,
+    fileContent, 'vision', (tool) => `${tool}:*`,
     /getVisionModels\(\): string\[\] \{[\s\S]*?\}/,
     `getVisionModels(): string[] {
     return [
