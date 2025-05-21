@@ -1,5 +1,5 @@
 
-import { EngineCreateOpts } from '../../src/types/index'
+import { EngineCreateOpts, ModelsList } from '../../src/types/index'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import { loadModels, loadOpenRouterModels } from '../../src/llm'
@@ -19,9 +19,10 @@ vi.mock('openai', async () => {
     list: vi.fn(() => {
       return {
         data: [
-          { id: 'chat1', name: 'chat1', architecture: { modality: 'text-->text' } },
-          { id: 'chat2', name: 'chat2', architecture: { modality: 'text+image-->text' } },
-          { id: 'image', name: 'image', architecture: { modality: 'text-->image' } },
+          { id: 'chat1', name: 'chat1', architecture: { input_modalities: [ 'text' ], modality: 'text->text' } },
+          { id: 'chat2', name: 'chat2', architecture: { input_modalities: [ 'text', 'image' ], modality: 'text+image->text' } },
+          { id: 'chat3', name: 'chat3', architecture: { modality: 'text+image->text' } },
+          { id: 'image', name: 'image', architecture: { input_modalities: [ 'text' ], modality: 'text->image' } },
         ]
       }
     })
@@ -69,11 +70,12 @@ beforeEach(() => {
 test('OpenRouter Load Chat Models', async () => {
   const models = await loadOpenRouterModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'chat1', name: 'chat1', meta: { id: 'chat1', name: 'chat1', architecture: { modality: 'text-->text' } } },
-    { id: 'chat2', name: 'chat2', meta: { id: 'chat2', name: 'chat2', architecture: { modality: 'text+image-->text' } } },
+    { id: 'chat1', name: 'chat1', meta: expect.any(Object) },
+    { id: 'chat2', name: 'chat2', meta: expect.any(Object) },
+    { id: 'chat3', name: 'chat3', meta: expect.any(Object) },
   ])
   expect(models.image).toStrictEqual([
-    { id: 'image', name: 'image', meta: { id: 'image', name: 'image', architecture: { modality: 'text-->image' } } },
+    { id: 'image', name: 'image', meta: expect.any(Object) },
   ])
   expect(await loadModels('openrouter', config)).toStrictEqual(models)
 })
@@ -86,10 +88,11 @@ test('OpenRouter Basic', async () => {
 })
 
 test('OpenRouter Vision Models', async () => {
-  const openrouter = new OpenRouter(config)
-  await openrouter.initVisionModels()
+  const models: ModelsList|null = await loadOpenRouterModels(config)
+  const openrouter = new OpenRouter(config, models?.chat || [])
   expect(openrouter.isVisionModel('chat1')).toBe(false)
   expect(openrouter.isVisionModel('chat2')).toBe(true)
+  expect(openrouter.isVisionModel('chat3')).toBe(true)
   expect(openrouter.isVisionModel('image')).toBe(false)
 })
 
