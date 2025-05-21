@@ -47,7 +47,20 @@ export default class extends LlmEngine {
   }
 
   getVisionModels(): string[] {
-    return [ 'llama3.2-vision*', 'llava-llama3:latest', 'llava:latest', '*llava*' ]
+    return [
+      'bakllava*',
+      'gemma3*',
+      'granite3.2-vision*',
+      'llama3.2-vision*',
+      'llama4*',
+      'llava*',
+      'llava-llama3*',
+      'llava-phi3*',
+      'minicpm-v*',
+      'mistral-small3.1*',
+      'moondream*',
+      'qwen2.5vl*',
+    ]
   }
 
   modelSupportsTools(model: string): boolean {
@@ -73,6 +86,7 @@ export default class extends LlmEngine {
       'llama3.1',
       'llama3.2',
       'llama3.3',
+      'llama4',
       'mistral',
       'mistral-large',
       'mistral-nemo',
