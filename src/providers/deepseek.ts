@@ -1,6 +1,6 @@
 
-import { EngineCreateOpts, Model } from 'types/index'
-import { LlmRole } from 'types/llm'
+import { EngineCreateOpts, Model, ModelCapabilities, ModelDeepseek } from '../types/index'
+import { LlmRole } from '../types/llm'
 import OpenAI from './openai'
 
 //
@@ -23,40 +23,33 @@ export default class extends OpenAI {
   getVisionModels(): string[] {
     return [ ]
   }
+
+  getModelCapabilities(model: string): ModelCapabilities {
+    return {
+      tools: true,
+      vision: false,
+      reasoning: model.includes('reason'),
+    }
+  }
   
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  modelSupportsTools(model: string): boolean {
-    return true
-  }
-
-  modelIsReasoning(model: string): boolean {
-    return model.includes('reason')
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  modelSupportsReasoningEffort(model: string): boolean {
+  modelSupportsReasoningEffort(model: string|Model): boolean {
     return false
   }
-
 
   get systemRole(): LlmRole {
     return 'system'
   }
 
-  async getModels(): Promise<Model[]> {
+  async getModels(): Promise<ModelDeepseek[]> {
+    
     // need an api key
     if (!this.client.apiKey) {
       return []
     }
 
     // do it
-    const models = await super.getModels()
-
-    // translate
-    return models.map((model: Model) => ({
-      ...model,
-      name: model.name.split('-').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ').replace('Deepseek', 'DeepSeek'),
-    }))
+    return await super.getModels() as ModelDeepseek[]
 
   }
 

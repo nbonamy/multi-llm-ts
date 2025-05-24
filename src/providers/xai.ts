@@ -1,6 +1,6 @@
 
-import { EngineCreateOpts, Model } from 'types/index'
-import { LlmRole } from 'types/llm'
+import { EngineCreateOpts, ModelCapabilities, ModelxAI } from '../types/index'
+import { LlmRole } from '../types/llm'
 import OpenAI from './openai'
 
 //
@@ -22,34 +22,27 @@ export default class extends OpenAI {
     return 'xai'
   }
 
-  getVisionModels(): string[] {
-    return [ '*vision*' ]
-  }
-  
-  modelSupportsTools(model: string): boolean {
-    return !model.includes('vision')
+  getModelCapabilities(model: string): ModelCapabilities {
+    const vision = model.includes('vision')
+    return {
+      tools: !vision,
+      vision: vision,
+      reasoning: false,
+    }
   }
 
   get systemRole(): LlmRole {
     return 'system'
   }
 
-  async getModels(): Promise<Model[]> {
+  async getModels(): Promise<ModelxAI[]> {
     // need an api key
     if (!this.client.apiKey) {
       return []
     }
 
     // do it
-    const models = await super.getModels()
-
-    // sort and transform
-    return models
-      .sort((a: Model, b: Model) => b.meta.created - a.meta.created)
-      .map((model: Model) => ({
-        ...model,
-        name: model.name.split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')
-      }))
+    return await super.getModels() as ModelxAI[]
 
   }
 

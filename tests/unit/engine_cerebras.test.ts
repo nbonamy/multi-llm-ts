@@ -31,6 +31,7 @@ vi.mock('openai', async () => {
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
+  vi.clearAllMocks()
   config = {
     apiKey: '123',
   }
@@ -38,9 +39,9 @@ beforeEach(() => {
 
 test('Cerebras Load Chat Models', async () => {
   const models = await loadCerebrasModels(config)
-  expect(models.chat).toStrictEqual([
-    { id: 'llama-3.3-70b', name: 'Llama 3.3 70b', meta: expect.any(Object) },
-    { id: 'llama3.1-8b', name: 'Llama3.1 8b', meta: expect.any(Object) },
+  expect(models!.chat).toStrictEqual([
+    { id: 'llama-3.3-70b', name: 'Llama 3.3 70b', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'llama3.1-8b', name: 'Llama3.1 8b', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
   expect(await loadModels('cerebras', config)).toStrictEqual(models)
 })
@@ -52,15 +53,9 @@ test('Cerebras Basic', async () => {
   expect(cerebras.client.baseURL).toBe('https://api.cerebras.ai/v1')
 })
 
-test('Cerebras Vision Models', async () => {
-  const cerebras = new Cerebras(config)
-  expect(cerebras.isVisionModel('llama3.1-8b')).toBe(false)
-  expect(cerebras.isVisionModel('llama3.1-70b')).toBe(false)
-})
-
 test('Cerebras stream', async () => {
   const cerebras = new Cerebras(config)
-  /*const response = */await cerebras.stream('model', [
+  /*const response = */await cerebras.stream(cerebras.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_p: 4, top_k: 4})

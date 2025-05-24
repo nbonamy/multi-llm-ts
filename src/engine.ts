@@ -1,14 +1,13 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { EngineCreateOpts, Model, ModelsList } from 'types/index'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext } from 'types/llm'
-import { PluginParameter } from 'types/plugin'
-import { minimatch } from 'minimatch'
+import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
+import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext } from './types/llm'
+import { PluginParameter } from './types/plugin'
 import Message from './models/message'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 
 export type LlmStreamingContextBase = {
-  model: string
+  model: ChatModel
   thread: any[]
   opts: LlmCompletionOpts
 }
@@ -17,7 +16,7 @@ export type LlmStreamingContextTools = LlmStreamingContextBase & {
   toolCalls: LlmToolCall[]
 }
 
-export default class LlmEngine {
+export default abstract class LlmEngine {
 
   config: EngineCreateOpts
   plugins: Plugin[]
@@ -35,21 +34,25 @@ export default class LlmEngine {
     this.plugins = []
   }
 
-  getName(): string {
-    throw new Error('Not implemented')
-  }
+  abstract getName(): string
 
-  getVisionModels(): string[] {
-    throw new Error('Not implemented')
-  }
-
-  async getModels(): Promise<Model[]> {
-    throw new Error('Not implemented')
-  }
+  abstract getModelCapabilities(model: string|ModelMetadata): ModelCapabilities
   
-  isVisionModel(model: string): boolean {
-    return this.getVisionModels().some((filter) => minimatch(model, filter))
+  abstract getModels(): Promise<ModelMetadata[]>
+  
+  protected abstract chat(model: Model, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse>
+
+  protected abstract stream(model: Model, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse>
+
+  abstract stop(stream: any): Promise<void>
+
+  protected addTextToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
+    payload.content += `\n\n${message.attachment!.content}`
   }
+
+  abstract addImageToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void
+
+  protected abstract nativeChunkToLlmChunk(chunk: any, context: LlmStreamingContext): AsyncGenerator<LlmChunk, void, void>
 
   clearPlugins(): void {
     this.plugins = []
@@ -60,12 +63,12 @@ export default class LlmEngine {
     this.plugins.push(plugin)
   }
 
-  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
     const messages = this.buildPayload(model, thread, opts)
     return await this.chat(model, messages, opts)
   }
 
-  async *generate(model: string, thread: Message[], opts?: LlmCompletionOpts): AsyncIterable<LlmChunk> {
+  async *generate(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): AsyncIterable<LlmChunk> {
     const response: LlmStreamingResponse|null = await this.stream(model, thread, opts)
     let stream = response?.stream
     while (true) {
@@ -90,35 +93,10 @@ export default class LlmEngine {
     }
   }
 
-  protected async chat(model: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
-    throw new Error('Not implemented')
-  }
-
-  protected async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
-    throw new Error('Not implemented')
-  }
-
-  async stop(stream: any): Promise<void> {
-    throw new Error('Not implemented')
-  }
-
-  protected addTextToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
-    payload.content += `\n\n${message.attachment!.content}`
-  }
-
-  protected addImageToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
-    throw new Error('Not implemented')
-  }
-
-  // eslint-disable-next-line require-yield
-  protected async *nativeChunkToLlmChunk(chunk: any, context: LlmStreamingContext): AsyncGenerator<LlmChunk, void, void> {
-    throw new Error('Not implemented')
-  }
-
-  protected requiresVisionModelSwitch(thread: Message[], currentModel: string): boolean {
+  protected requiresVisionModelSwitch(thread: Message[], currentModel: ChatModel): boolean {
     
     // if we already have a vision
-    if (this.isVisionModel(currentModel)) {
+    if (currentModel.capabilities.vision) {
       return false
     }
 
@@ -127,21 +105,10 @@ export default class LlmEngine {
 
   }
 
-  findModel(models: Model[], filters: string[]): Model|null {
-    for (const filter of filters) {
-      for (const model of models) {
-        if (minimatch(model.id, filter)) {
-          return model
-        }
-      }
-    }
-    return null
-  }
-
-  protected selectModel(model: string, thread: Message[], opts?: LlmCompletionOpts): string {
+  protected selectModel(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): ChatModel {
 
     // init
-    if (!opts || !opts.autoSwitchVision) {
+    if (!opts) {
       return model
     }
 
@@ -149,16 +116,14 @@ export default class LlmEngine {
     if (this.requiresVisionModelSwitch(thread, model)) {
 
       // check
-      if (!opts.models) {
+      if (!opts.visionFallbackModel) {
         console.debug('Cannot switch to vision model as no models provided in LlmCompletionOpts')
         return model
       }
 
-      // find the vision model
-      const visionModel = this.findModel(opts.models, this.getVisionModels())
-      if (visionModel) {
-        return visionModel.id
-      }
+      // return the fallback model
+      return opts.visionFallbackModel
+
     }
 
     // no need to switch
@@ -166,7 +131,7 @@ export default class LlmEngine {
 
   }
 
-  buildPayload(model: string, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+  buildPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
     if (typeof thread === 'string') {
       return [{ role: 'user', content: thread }]
     } else {
@@ -197,7 +162,7 @@ export default class LlmEngine {
 
         // image formats
         if (msg.attachment.isImage()) {
-          if (!imageAttached && this.isVisionModel(model)) {
+          if (!imageAttached && model.capabilities.vision) {
             this.addImageToPayload(msg, payload, opts)
             imageAttached = true
           }
@@ -348,6 +313,22 @@ export default class LlmEngine {
     // too bad
     return { error: `Tool ${tool} does not exist. Check the tool list and try again.` }
 
+  }
+
+  protected toModel(model: string|ChatModel): ChatModel {
+    if (typeof model === 'object') {
+      return model
+    } else {
+      return this.buildModel(model)
+    }
+  }
+
+  buildModel(model: string): ChatModel {
+    return {
+      id: model,
+      name: model,
+      capabilities: this.getModelCapabilities(model),
+    }
   }
 
 }

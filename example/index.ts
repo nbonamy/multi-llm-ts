@@ -1,15 +1,15 @@
 
-import { EngineCreateOpts, LlmEngine, Message, igniteEngine, loadModels } from '../src/index'
+import { ChatModel, EngineCreateOpts, LlmEngine, Message, igniteEngine, loadModels } from '../src/index'
 import Answer from './answer'
 import dotenv from 'dotenv';
 dotenv.config();
 
-const completion = async (llm: LlmEngine, model: string, messages: Message[]) => {
+const completion = async (llm: LlmEngine, model: ChatModel, messages: Message[]) => {
   console.log('\n** Chat completion')
   console.log(await llm.complete(model, messages, { usage: true }))
 }
 
-const streaming = async (llm: LlmEngine, model: string, messages: Message[]) => {
+const streaming = async (llm: LlmEngine, model: ChatModel, messages: Message[]) => {
   console.log('\n** Chat streaming')
   const stream = llm.generate(model, messages, { usage: true, reasoning: true })
   let reasoning = ''
@@ -27,7 +27,7 @@ const streaming = async (llm: LlmEngine, model: string, messages: Message[]) => 
   console.log(response)
 }
 
-const conversation = async (llm: LlmEngine, model: string, messages: Message[]) => {
+const conversation = async (llm: LlmEngine, model: ChatModel, messages: Message[]) => {
   console.log('\n** Chat conversation')
   const AssistantMessage = new Message('assistant', '')
   let stream = llm.generate(model, messages)
@@ -52,7 +52,7 @@ const conversation = async (llm: LlmEngine, model: string, messages: Message[]) 
   messages.splice(2,2)
 }
 
-const completion_tools = async (llm: LlmEngine, model: string, messages: Message[]) => {
+const completion_tools = async (llm: LlmEngine, model: ChatModel, messages: Message[]) => {
   console.log('\n** Function calling non-streaming')
   const answer = new Answer()
   llm.addPlugin(answer)
@@ -61,7 +61,7 @@ const completion_tools = async (llm: LlmEngine, model: string, messages: Message
   console.log(response)
 }
 
-const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
+const tooling = async (llm: LlmEngine, model: ChatModel, messages: Message[]) => {
   console.log('\n** Function calling streaming')
   const answer = new Answer()
   llm.addPlugin(answer)
@@ -81,7 +81,7 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
 
   // initialize
   const engine = process.env.ENGINE ?? 'openai'
-  const model = process.env.MODEL ?? 'gpt-4o-mini'
+  const modelName = process.env.MODEL ?? 'gpt-4o-mini'
   const baseURL = process.env.BASE_URL ?? process.env.ENDPOINT ?? undefined
   const deployment = process.env.DEPLOYMENT ?? undefined
   const apiVersion = process.env.API_VERSION ?? undefined
@@ -118,6 +118,12 @@ const tooling = async (llm: LlmEngine, model: string, messages: Message[]) => {
   console.log(`${models!.computer?.length ?? 0} computer use models found`)
   console.log(`${models!.tts?.length ?? 0} tts models found`)
   console.log(`${models!.stt?.length ?? 0} stt models found`)
+
+  // get the model
+  const model = models!.chat.find(m => m.id === modelName)
+  if (!model) {
+    throw new Error(`Model ${modelName} not found`)
+  }
 
   // each demo
   await completion(llm, model, messages)

@@ -21,8 +21,12 @@ vi.mock('@mistralai/mistralai', async() => {
   Mistral.prototype.models = {
     list: vi.fn(() => {
       return { data: [
-        { id: 'model2', name: 'model2' },
+        { id: 'model2', name: 'model2', capabilities: { functionCalling: true } },
+        { id: 'model6', name: 'model6', capabilities: { functionCalling: false } },
         { id: 'model1', name: 'model1' },
+        { id: 'model5', name: 'model4', capabilities: { vision: true } },
+        { id: 'model3', name: 'model3', capabilities: { functionCalling: false, vision: true } },
+        { id: 'model4', name: 'model4', capabilities: { functionCalling: true, vision: true } },
       ] }
     })
   }
@@ -65,8 +69,12 @@ beforeEach(() => {
 test('MistralAI Load Models', async () => {
   const models = await loadMistralAIModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'model1', name: 'model1', meta: { id: 'model1', name: 'model1' }, },
-    { id: 'model2', name: 'model2', meta: { id: 'model2', name: 'model2' }, },
+    { id: 'model1', name: 'model1', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
+    { id: 'model2', name: 'model2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'model3', name: 'model3', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false } },
+    { id: 'model4', name: 'model4', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
+    { id: 'model5', name: 'model5', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false } },
+    { id: 'model6', name: 'model6', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
   ])
   expect(await loadModels('mistralai', config)).toStrictEqual(models)
 })
@@ -76,23 +84,17 @@ test('MistralAI Basic', async () => {
   expect(mistralai.getName()).toBe('mistralai')
 })
 
-test('MistralAI Vision Models', async () => {
-  const mistralai = new MistralAI(config)
-  expect(mistralai.isVisionModel('mistral-medium')).toBe(false)
-  expect(mistralai.isVisionModel('mistral-large')).toBe(false)
-})
-
 test('MistralAI buildPayload', async () => {
   const mistralai = new MistralAI(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  const payload = mistralai.buildPayload('mistral-large', [ message ])
+  const payload = mistralai.buildPayload(mistralai.buildModel('mistral-large'), [ message ])
   expect(payload).toStrictEqual([{ role: 'user', content: 'text' }])
 })
 
-test('MistralAI  completion', async () => {
+test('MistralAI completion', async () => {
   const mistralai = new MistralAI(config)
-  const response = await mistralai.complete('model', [
+  const response = await mistralai.complete(mistralai.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { temperature: 0.8 })
@@ -140,12 +142,16 @@ test('MistralAI stream with tools', async () => {
   mistralai.addPlugin(new Plugin1())
   mistralai.addPlugin(new Plugin2())
   mistralai.addPlugin(new Plugin3())
-  const { stream, context } = await mistralai.stream('mistral-large', [
+  const { stream, context } = await mistralai.stream({
+    id: 'model', name: 'model', capabilities: mistralai.getModelCapabilities({
+      capabilities: { functionCalling: true },
+    })
+  }, [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4 })
   expect(Mistral.prototype.chat.stream).toHaveBeenNthCalledWith(1, {
-    model: 'mistral-large',
+    model: 'model',
     messages: [
       { role: 'system', content: 'instruction' }, 
       { role: 'user', content: 'prompt' }
@@ -165,7 +171,7 @@ test('MistralAI stream with tools', async () => {
     }
   }
   expect(Mistral.prototype.chat.stream).toHaveBeenNthCalledWith(2, {
-    model: 'mistral-large',
+    model: 'model',
     messages: [
       { role: 'system', content: 'instruction' }, 
       { role: 'user', content: 'prompt' },
@@ -190,7 +196,11 @@ test('MistralAI stream without tools', async () => {
   mistralai.addPlugin(new Plugin1())
   mistralai.addPlugin(new Plugin2())
   mistralai.addPlugin(new Plugin3())
-  const { stream } = await mistralai.stream('model', [
+  const { stream } = await mistralai.stream({
+    id: 'model', name: 'model', capabilities: mistralai.getModelCapabilities({
+      capabilities: { functionCalling: false },
+    })
+  }, [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_p: 4 })
@@ -202,14 +212,18 @@ test('MistralAI stream without tools', async () => {
   expect(stream).toBeDefined()
 })
 
-test('MistralAI  stream without tools', async () => {
+test('MistralAI stream without tools', async () => {
   const mistralai = new MistralAI(config)
-  const { stream } = await mistralai.stream('mistral-large', [
+  const { stream } = await mistralai.stream({
+    id: 'model', name: 'model', capabilities: mistralai.getModelCapabilities({
+      capabilities: { functionCalling: true },
+    })
+  }, [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ])
+  ], { tools: false })
   expect(Mistral.prototype.chat.stream).toHaveBeenCalledWith({
-    model: 'mistral-large',
+    model: 'model',
     messages: [ { role: 'system', content: 'instruction' }, { role: 'user', content: 'prompt' } ],
   })
   expect(stream).toBeDefined()

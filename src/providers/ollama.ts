@@ -1,6 +1,6 @@
 
-import { EngineCreateOpts, Model, ModelsList } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from 'types/llm'
+import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelOllama, ModelsList } from '../types/index'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
@@ -8,7 +8,7 @@ import logger from '../logger'
 // we do this for so that this can be imported in a browser
 // importing from 'ollama' directly imports 'fs' which fails in browser
 import { Ollama, ChatRequest, ChatResponse, ProgressResponse } from 'ollama/dist/browser.cjs'
-import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.f6b57f53.cjs'
+import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.e009de91.cjs'
 
 export type OllamaStreamingContext = LlmStreamingContextTools & {
   usage: LlmUsage
@@ -45,26 +45,10 @@ export default class extends LlmEngine {
   getName(): string {
     return 'ollama'
   }
-
-  getVisionModels(): string[] {
-    return [
-      'bakllava:*',
-      'gemma3:*',
-      'granite3.2-vision:*',
-      'llama3.2-vision:*',
-      'llama4:*',
-      'llava:*',
-      'llava-llama3:*',
-      'llava-phi3:*',
-      'minicpm-v:*',
-      'mistral-small3.1:*',
-      'moondream:*',
-      'qwen2.5vl:*',
-    ]
-  }
-
-  modelSupportsTools(model: string): boolean {
-    return [
+  
+  getModelCapabilities(model: string): ModelCapabilities {
+    
+    const toolModels = [
       'athene-v2',
       'aya-expanse',
       'cogito',
@@ -103,17 +87,35 @@ export default class extends LlmEngine {
       'qwen3',
       'qwq',
       'smollm2',
-    ].includes(model.split(':')[0])
+    ]
+
+    const visionModels = [
+      'bakllava',
+      'gemma3',
+      'granite3.2-vision',
+      'llama3.2-vision',
+      'llama4',
+      'llava',
+      'llava-llama3',
+      'llava-phi3',
+      'minicpm-v',
+      'mistral-small3.1',
+      'moondream',
+      'qwen2.5vl',
+    ]
+
+    return {
+      tools: toolModels.includes(model.split(':')[0]),
+      vision: visionModels.some((m) => model.match(m)),
+      reasoning: false,
+    }
+
   }
 
-  async getModels(): Promise<Model[]> {
+  async getModels(): Promise<ModelOllama[]> {
     try {
       const response = await this.client.list()
-      return response.models.map((model: any) => ({
-        id: model.model,
-        name: model.name,
-        meta: model,
-      }))
+      return response.models
     } catch (error) {
       console.error('Error listing models:', error);
       return [] 
@@ -149,16 +151,16 @@ export default class extends LlmEngine {
     }
   }
 
-  async chat(model: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
     
     // call
-    logger.log(`[ollama] prompting model ${model}`)
+    logger.log(`[ollama] prompting model ${model.id}`)
     const response = await this.client.chat({
       ...this.buildChatOptions({
-        model: model,
+        model: model.id,
         messages: thread,
         opts: opts || null,
       }),
@@ -228,7 +230,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
+  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
 
     // model: switch to vision if needed
     model = this.selectModel(model, thread, opts)
@@ -257,10 +259,10 @@ export default class extends LlmEngine {
     context.thinking = false
 
     // call
-    logger.log(`[ollama] prompting model ${context.model}`)
+    logger.log(`[ollama] prompting model ${context.model.id}`)
     const stream = this.client.chat({
       ...this.buildChatOptions({
-        model: context.model,
+        model: context.model.id,
         messages: context.thread,
         opts: context.opts
       }),
@@ -302,10 +304,10 @@ export default class extends LlmEngine {
     return chatOptions
   }
 
-  async getToolOpts(model: string, opts?: LlmCompletionOpts): Promise<Omit<ChatRequest, 'model'>> {
+  async getToolOpts(model: ChatModel, opts?: LlmCompletionOpts): Promise<Omit<ChatRequest, 'model'>> {
 
     // disabled?
-    if (opts?.tools === false || !this.modelSupportsTools(model)) {
+    if (opts?.tools === false || !model.capabilities.tools) {
       return {}
     }
 

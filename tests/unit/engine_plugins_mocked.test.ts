@@ -1,11 +1,12 @@
 
-import { beforeEach, expect, test } from 'vitest'
+import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3, CustomPlugin, MultiPlugin } from '../mocks/plugins'
 import OpenAI from '../../src/providers/openai'
 import { EngineCreateOpts } from '../../src/types/index'
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
+  vi.clearAllMocks()
   config = {
     apiKey: '123',
   }

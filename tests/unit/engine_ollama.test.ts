@@ -15,26 +15,25 @@ vi.mock('ollama/dist/browser.cjs', async() => {
   const Ollama = vi.fn()
   Ollama.prototype.list = vi.fn(() => {
     return { models: [
-      { model: 'model2', name: 'model2' },
-      { model: 'model1', name: 'model1' },
-      { model: 'model3', name: 'model3' },
+      { model: 'model:7b', name: 'model' },
+      { model: 'gemma3:latest', name: 'gemma3' },
+      { model: 'cogito:latest', name: 'cogito' },
+      { model: 'embed:latest', name: 'embed' },
     ] }
   })
   Ollama.prototype.pull = vi.fn()
   Ollama.prototype.delete = vi.fn()
   Ollama.prototype.show = vi.fn(({ model: model}) => {
-    if (model === 'model1') {
-      return {
-        details: { family: 'llm' },
-        model_info: {}
-      }
-    } else if (model === 'model3') {
+    if (model === 'embed:latest') {
       return {
         details: { family: 'bert' },
         model_info: {}
       }
     } else {
-      throw new Error('ollama show fail')
+      return {
+        details: { family: 'llm' },
+        model_info: {}
+      }
     }
   })
   Ollama.prototype.chat = vi.fn((opts) => {
@@ -89,11 +88,12 @@ beforeEach(() => {
 test('Ollama Load Models', async () => {
   const models = await loadOllamaModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'model1', name: 'model1', meta: { model: 'model1', name: 'model1' }, },
-    { id: 'model2', name: 'model2', meta: { model: 'model2', name: 'model2' }, },
+    { id: 'cogito:latest', name: 'cogito', meta: { model: 'cogito:latest', name: 'cogito' }, capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'gemma3:latest', name: 'gemma3', meta: { model: 'gemma3:latest', name: 'gemma3' }, capabilities: { tools: false, vision: true, reasoning: false } },
+    { id: 'model:7b', name: 'model', meta: { model: 'model:7b', name: 'model' }, capabilities: { tools: false, vision: false, reasoning: false } },
   ])
   expect(models.embedding).toStrictEqual([
-    { id: 'model3', name: 'model3', meta: { model: 'model3', name: 'model3' }, },
+    { id: 'embed:latest', name: 'embed', meta: { model: 'embed:latest', name: 'embed' }, capabilities: { tools: false, vision: false, reasoning: false } },
   ])
   expect(await loadModels('ollama', config)).toStrictEqual(models)
 })
@@ -103,23 +103,17 @@ test('Ollama Basic', async () => {
   expect(ollama.getName()).toBe('ollama')
 })
 
-test('Ollama Vision Models', async () => {
-  const ollama = new Ollama(config)
-  expect(ollama.isVisionModel('llava:latest')).toBe(true)
-  expect(ollama.isVisionModel('llama2:latest')).toBe(false)
-})
-
 test('Ollama buildPayload', async () => {
   const ollama = new Ollama(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  expect(ollama.buildPayload('llama:latest', [ message ])).toStrictEqual([ { role: 'user', content: 'text' } ])
-  expect(ollama.buildPayload('llava:latest', [ message ])).toStrictEqual([ { role: 'user', content: 'text', images: [ 'image' ]} ])
+  expect(ollama.buildPayload(ollama.buildModel('llama:latest'), [ message ])).toStrictEqual([ { role: 'user', content: 'text' } ])
+  expect(ollama.buildPayload(ollama.buildModel('llava:latest'), [ message ])).toStrictEqual([ { role: 'user', content: 'text', images: [ 'image' ]} ])
 })
 
 test('Ollama completion', async () => {
   const ollama = new Ollama(config)
-  const response = await ollama.complete('model', [
+  const response = await ollama.complete(ollama.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { temperature: 0.8 })
@@ -144,7 +138,7 @@ test('Ollama stream without tools', async () => {
   ollama.addPlugin(new Plugin1())
   ollama.addPlugin(new Plugin2())
   ollama.addPlugin(new Plugin3())
-  const { stream, context } = await ollama.stream('model', [
+  const { stream, context } = await ollama.stream(ollama.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4 })
@@ -184,7 +178,7 @@ test('Ollama stream with tools', async () => {
   ollama.addPlugin(new Plugin1())
   ollama.addPlugin(new Plugin2())
   ollama.addPlugin(new Plugin3())
-  const { stream, context } = await ollama.stream('llama3-groq-tool-use', [
+  const { stream, context } = await ollama.stream(ollama.buildModel('llama3-groq-tool-use'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4 })
@@ -239,7 +233,7 @@ test('Ollama stream with tools disabled', async () => {
   ollama.addPlugin(new Plugin1())
   ollama.addPlugin(new Plugin2())
   ollama.addPlugin(new Plugin3())
-  await ollama.stream('llama3-groq-tool-use', [
+  await ollama.stream(ollama.buildModel('llama3-groq-tool-use'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4, tools: false })
@@ -257,7 +251,7 @@ test('Ollama stream with tools disabled', async () => {
 
 test('Ollama stream without tools and options', async () => {
   const ollama = new Ollama(config)
-  const { stream } = await ollama.stream('llama3-groq-tool-use', [
+  const { stream } = await ollama.stream(ollama.buildModel('llama3-groq-tool-use'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { contextWindowSize: 4096, top_p: 4 })

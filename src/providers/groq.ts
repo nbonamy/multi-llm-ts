@@ -1,6 +1,6 @@
 
-import { EngineCreateOpts, Model } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from 'types/llm'
+import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGroq } from '../types/index'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
@@ -9,6 +9,7 @@ import Groq from 'groq-sdk'
 import { ChatCompletionMessageParam, ChatCompletionChunk } from 'groq-sdk/resources/chat'
 import { ChatCompletionCreateParamsBase } from 'groq-sdk/resources/chat/completions'
 import { Stream } from 'groq-sdk/lib/streaming'
+import { minimatch } from 'minimatch'
 
 //
 // https://console.groq.com/docs/api-reference#chat-create
@@ -32,11 +33,21 @@ export default class extends LlmEngine {
   }
 
   // https://console.groq.com/docs/models
-  getVisionModels(): string[] {
-    return [ 'llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview' ]
+
+  getModelCapabilities(model: string): ModelCapabilities {
+    const visionGlobs = [
+      'meta-llama/llama-4-scout-17b-16e-instruct',
+      'meta-llama/llama-4-maverick-17b-128e-instruct',
+    ]
+    return {
+      tools: true,
+      vision: visionGlobs.some((m) => minimatch(model, m)),
+      reasoning: model.startsWith('o')
+    }
   }
 
-  async getModels(): Promise<Model[]> {
+
+  async getModels(): Promise<ModelGroq[]> {
 
     // need an api key
     if (!this.client.apiKey) {
@@ -51,22 +62,18 @@ export default class extends LlmEngine {
       .filter((model: any) => model.active)
       .filter((model: any) => !model.id.includes('whisper'))
       .sort((a: any, b: any) => b.created - a.created)
-      .map((model: any) => ({
-        id: model.id,
-        name: model.id.split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
-        meta: model
-      }))
+
   }
 
-  async chat(model: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
     
     // call
-    logger.log(`[groq] prompting model ${model}`)
+    logger.log(`[groq] prompting model ${model.id}`)
     const response = await this.client.chat.completions.create({
-      model: model,
+      model: model.id,
       messages: thread as ChatCompletionMessageParam[],
       ...this.getCompletionOpts(model, opts),
       ...await this.getToolOpts(model, opts),
@@ -151,7 +158,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
+  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
 
     // model: switch to vision if needed
     model = this.selectModel(model, thread, opts)
@@ -178,9 +185,9 @@ export default class extends LlmEngine {
     context.toolCalls = []
 
     // call
-    logger.log(`[groq] prompting model ${context.model}`)
+    logger.log(`[groq] prompting model ${context.model.id}`)
     const stream = this.client.chat.completions.create({
-      model: context.model,
+      model: context.model.id,
       messages: context.thread as ChatCompletionMessageParam[],
       ...this.getCompletionOpts(context.model, context.opts),
       ...await this.getToolOpts(context.model, context.opts),
@@ -192,7 +199,7 @@ export default class extends LlmEngine {
 
   }
 
-  getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'> {
+  getCompletionOpts(model: ChatModel, opts?: LlmCompletionOpts): Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'> {
     return {
       ...(opts?.maxTokens ? { max_tokens: opts?.maxTokens } : {} ),
       ...(opts?.temperature ? { temperature: opts?.temperature } : {} ),
@@ -201,7 +208,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async getToolOpts(model: string, opts?: LlmCompletionOpts): Promise<Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'>> {
+  async getToolOpts(model: ChatModel, opts?: LlmCompletionOpts): Promise<Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'>> {
 
     // disabled?
     if (opts?.tools === false) {
@@ -373,7 +380,7 @@ export default class extends LlmEngine {
     }
   }
 
-  buildPayload(model: string, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+  buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {
 
     // default
     let payload: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)

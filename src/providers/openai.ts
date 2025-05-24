@@ -1,5 +1,5 @@
-import { EngineCreateOpts, Model } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from 'types/llm'
+import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata } from '../types/index'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
@@ -8,6 +8,7 @@ import OpenAI, { ClientOptions } from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import { Stream } from 'openai/streaming'
+import { minimatch } from 'minimatch'
 
 const defaultBaseUrl = 'https://api.openai.com/v1'
 
@@ -37,48 +38,71 @@ export default class extends LlmEngine {
   }
 
   // https://openai.com/api/pricing/
-  getVisionModels(): string[] {
-    return [ 'o1', '*gpt-4o', '*vision*', 'gpt-4.5*' ]
+
+  getModelCapabilities(model: string|ModelMetadata): ModelCapabilities {
+    
+    // openai itself only uses string
+    if (typeof model !== 'string') {
+      throw new Error('[openai] Model capabilities parsing not available')
+    }
+    
+    const visionGlobs = [
+      '*vision*',
+      'gpt-4-turbo*',
+      'gpt-4-0125*',
+      'gpt-4-1106-vision-preview',
+      'gpt-4o*',
+      'chatgpt-4o',
+      'gpt-4.1*',
+      'gpt-4.5*',
+      'o1*',
+      'o3*',
+      'o4*',
+    ]
+
+    const excludeVisionGlobs = [
+      'gpt-4o-mini-audio*',
+      'o1-mini*',
+      'o3-mini*'
+    ]
+    
+    return {
+      tools: !model.startsWith('chatgpt-') && !model.startsWith('o1-mini'),
+      vision: visionGlobs.some((m) => minimatch(model, m)) && !excludeVisionGlobs.some((m) => minimatch(model, m)),
+      reasoning: model.startsWith('o')
+    }
   }
 
   modelAcceptsSystemRole(model: string): boolean {
     return !model.startsWith('o1')
   }
 
-  modelSupportsTools(model: string): boolean {
-    return !model.startsWith('o1-') && !model.startsWith('chatgpt-');
-  }
-
-  modelIsReasoning(model: string): boolean {
-    return model.startsWith('o')
-  }
-
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  modelSupportsMaxTokens(model: string): boolean {
+  modelSupportsMaxTokens(model: ChatModel): boolean {
     return true
   }
 
-  modelSupportsTemperature(model: string): boolean {
-    return !this.modelIsReasoning(model)
+  modelSupportsTemperature(model: ChatModel): boolean {
+    return !model.capabilities.reasoning
   }
 
-  modelSupportsTopP(model: string): boolean {
-    return !this.modelIsReasoning(model)
+  modelSupportsTopP(model: ChatModel): boolean {
+    return !model.capabilities.reasoning
   }
 
-  modelSupportsTopK(model: string): boolean {
-    return !this.modelIsReasoning(model)
+  modelSupportsTopK(model: ChatModel): boolean {
+    return !model.capabilities.reasoning
   }
 
-  modelSupportsReasoningEffort(model: string): boolean {
-    return this.modelIsReasoning(model)
+  modelSupportsReasoningEffort(model: ChatModel): boolean {
+    return model.capabilities.reasoning
   }
 
   get systemRole(): LlmRole {
     return 'system'//'developer'
   }
 
-  async getModels(): Promise<Model[]> {
+  async getModels(): Promise<ModelMetadata[]> {
 
     // // need an api key
     // if (!this.client.apiKey) {
@@ -87,6 +111,7 @@ export default class extends LlmEngine {
 
     // do it
     try {
+    
       const response = await this.client.models.list()
       let models = response.data
       if (models === null || models.length === 0) {
@@ -96,11 +121,10 @@ export default class extends LlmEngine {
           models = response.body as OpenAI.Model[]
         }
       }
-      return models.map((model: any) => ({
-        id: model.id,
-        name: model.id,
-        meta: model,
-      }))
+
+      // done
+      return models
+    
     } catch (error) {
       console.error('Error listing models:', error);
       return []
@@ -113,9 +137,9 @@ export default class extends LlmEngine {
     }
   }
 
-  buildPayload(model: string, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+  buildPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
     let payload = super.buildPayload(model, thread, opts)
-    if (!this.modelAcceptsSystemRole(model)) {
+    if (!this.modelAcceptsSystemRole(model.id)) {
       payload = payload.filter((msg: LLmCompletionPayload) => msg.role !== 'system')
     } else if (this.systemRole !== 'system') {
       payload = payload.map((msg: LLmCompletionPayload) => {
@@ -128,7 +152,7 @@ export default class extends LlmEngine {
     return payload
   }
 
-  async chat(model: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // set baseURL on client
     this.setBaseURL()
@@ -137,9 +161,9 @@ export default class extends LlmEngine {
     const toolCallInfo: LlmToolCallInfo[] = []
     
     // call
-    logger.log(`[${this.getName()}] prompting model ${model}`)
+    logger.log(`[${this.getName()}] prompting model ${model.id}`)
     const response = await this.client.chat.completions.create({
-      model: model,
+      model: model.id,
       messages: thread,
       ...this.getCompletionOpts(model, opts),
       ...await this.getToolsOpts(model, opts),
@@ -236,7 +260,7 @@ export default class extends LlmEngine {
 
   }
 
-  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
+  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
 
     // set baseURL on client
     this.setBaseURL()
@@ -265,9 +289,9 @@ export default class extends LlmEngine {
     context.toolCalls = []
 
     // call
-    logger.log(`[${this.getName()}] prompting model ${context.model}`)
+    logger.log(`[${this.getName()}] prompting model ${context.model.id}`)
     const stream = this.client.chat.completions.create({
-      model: context.model,
+      model: context.model.id,
       messages: context.thread,
       ...this.getCompletionOpts(context.model, context.opts),
       ...await this.getToolsOpts(context.model, context.opts),
@@ -280,7 +304,7 @@ export default class extends LlmEngine {
 
   }
 
-  getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'> {
+  getCompletionOpts(model: ChatModel, opts?: LlmCompletionOpts): Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'> {
     return {
       ...(this.modelSupportsMaxTokens(model) && opts?.maxTokens ? { max_completion_tokens: opts?.maxTokens } : {} ),
       ...(this.modelSupportsTemperature(model) && opts?.temperature ? { temperature: opts?.temperature } : {} ),
@@ -291,10 +315,10 @@ export default class extends LlmEngine {
     }
   }
 
-  async getToolsOpts(model: string, opts?: LlmCompletionOpts): Promise<Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'>> {
+  async getToolsOpts(model: ChatModel, opts?: LlmCompletionOpts): Promise<Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'>> {
 
     // check if enabled
-    if (opts?.tools === false || !this.modelSupportsTools(model)) {
+    if (opts?.tools === false || !model.capabilities?.tools) {
       return {}
     }
 

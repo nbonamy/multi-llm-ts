@@ -1,6 +1,6 @@
 
-import { EngineCreateOpts, Model } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from 'types/llm'
+import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMistralAI } from '../types/index'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
@@ -34,11 +34,20 @@ export default class extends LlmEngine {
     return 'mistralai'
   }
 
-  getVisionModels(): string[] {
-    return []
+  getModelCapabilities(model: string|ModelMistralAI): ModelCapabilities {
+
+    if (typeof model === 'string') {
+      return { tools: false, vision: false, reasoning: false }
+    }
+
+    return {
+      tools: model.capabilities?.functionCalling ?? false,
+      vision: model.capabilities?.vision ?? false,
+      reasoning: false,
+    }
   }
 
-  async getModels(): Promise<Model[]> {
+  async getModels(): Promise<ModelMistralAI[]> {
 
     // need an api key
     // if (!this.client.options$.apiKey) {
@@ -47,27 +56,23 @@ export default class extends LlmEngine {
 
     // do it
     try {
-      const response = await this.client.models.list()
-      return (response.data ?? []).map((model: any) => ({
-        id: model.id,
-        name: model.id,
-        meta: model,
-      }))
+      const models =  await this.client.models.list()
+      return models.data ?? []
     } catch (error) {
       console.error('Error listing models:', error);
       return []
     }
   }
 
-  async chat(model: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
     
     // call
-    logger.log(`[mistralai] prompting model ${model}`)
+    logger.log(`[mistralai] prompting model ${model.id}`)
     const response = await this.client.chat.complete({
-      model: model,
+      model: model.id,
       messages: thread as MistralMessages,
       ...this.getCompletionOpts(model, opts),
       ...await this.getToolOpts(model, opts),
@@ -140,7 +145,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
+  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
 
     // model: switch to vision if needed
     model = this.selectModel(model, thread, opts)
@@ -167,9 +172,9 @@ export default class extends LlmEngine {
     context.toolCalls = []
 
     // call
-    logger.log(`[mistralai] prompting model ${context.model}`)
+    logger.log(`[mistralai] prompting model ${context.model.id}`)
     const stream = this.client.chat.stream({
-      model: context.model,
+      model: context.model.id,
       messages: context.thread,
       ...this.getCompletionOpts(context.model, context.opts),
       ...await this.getToolOpts(context.model, context.opts),
@@ -180,7 +185,7 @@ export default class extends LlmEngine {
 
   }
 
-  getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<ChatCompletionStreamRequest, 'model'|'messages'|'stream'> {
+  getCompletionOpts(model: ChatModel, opts?: LlmCompletionOpts): Omit<ChatCompletionStreamRequest, 'model'|'messages'|'stream'> {
     return {
       maxTokens: opts?.maxTokens,
       temperature: opts?.temperature,
@@ -188,15 +193,15 @@ export default class extends LlmEngine {
     }
   }
 
-  async getToolOpts<T>(model: string, opts?: LlmCompletionOpts): Promise<Omit<T, 'model'|'messages'|'stream'>> {
+  async getToolOpts<T>(model: ChatModel, opts?: LlmCompletionOpts): Promise<Omit<T, 'model'|'messages'|'stream'>> {
 
     // disabled?
-    if (opts?.tools === false) {
+    if (opts?.tools === false || !model.capabilities?.tools) {
       return {} as T
     }
 
     // tools
-    const tools = await this.getAvailableToolsForModel(model)
+    const tools = await this.getAvailableTools()
     return tools.length ? {
       tools: tools,
       toolChoice: 'auto',
@@ -341,12 +346,4 @@ export default class extends LlmEngine {
     }
   }
 
-   
-  async getAvailableToolsForModel(model: string): Promise<any[]> {
-    if (model.includes('mistral-large') || model.includes('mixtral-8x22b')) {
-      return await this.getAvailableTools()
-    } else {
-      return []
-    }
-  }
 }

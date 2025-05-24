@@ -19,6 +19,7 @@ vi.mock('groq-sdk', async() => {
       return { data: [
         { id: 'model1-9b', active: true, created: 1 },
         { id: 'model2-70b-preview', active: true, created: 2 },
+        { id: 'meta-llama/llama-4-scout-17b-16e-instruct', active: true, created: 5 },
         { id: 'model3', active: false, created: 3 },
         { id: 'whisper', active: true, created: 4 },
       ]}
@@ -69,9 +70,10 @@ beforeEach(() => {
 
 test('Groq Load Models', async () => {
   const models = await loadGroqModels(config)
-  expect(models.chat).toStrictEqual([
-    { id: 'model2-70b-preview', name: 'Model2 70b Preview', meta: expect.any(Object) },
-    { id: 'model1-9b', name: 'Model1 9b', meta: expect.any(Object) },
+  expect(models!.chat).toStrictEqual([
+    { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Meta Llama/llama 4 Scout 17b 16e Instruct', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
+    { id: 'model2-70b-preview', name: 'Model2 70b Preview', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'model1-9b', name: 'Model1 9b', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
   expect(await loadModels('groq', config)).toStrictEqual(models)
 })
@@ -81,18 +83,9 @@ test('Groq Basic', async () => {
   expect(groq.getName()).toBe('groq')
 })
 
-test('Groq Vision Models', async () => {
-  const groq = new Groq(config)
-  const models = await groq.getModels()
-  const vision = [ 'llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview' ]
-  for (const model of models) {
-    expect(groq.isVisionModel(model.id)).toBe(vision.includes(model.id))
-  }
-})
-
 test('Groq completion', async () => {
   const groq = new Groq(config)
-  const response = await groq.complete('model', [
+  const response = await groq.complete(groq.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { temperature: 0.8 })
@@ -116,7 +109,7 @@ test('Groq stream', async () => {
   groq.addPlugin(new Plugin1())
   groq.addPlugin(new Plugin2())
   groq.addPlugin(new Plugin3())
-  const { stream, context } = await groq.stream('model', [
+  const { stream, context } = await groq.stream(groq.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4, top_p: 4 })
@@ -171,7 +164,7 @@ test('Groq stream tools disabled', async () => {
   groq.addPlugin(new Plugin1())
   groq.addPlugin(new Plugin2())
   groq.addPlugin(new Plugin3())
-  await groq.stream('model', [
+  await groq.stream(groq.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4, top_p: 4, tools: false })
@@ -189,7 +182,7 @@ test('Groq stream tools disabled', async () => {
 
 test('Groq stream without tools', async () => {
   const groq = new Groq(config)
-  const { stream } = await groq.stream('model', [
+  const { stream } = await groq.stream(groq.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_p: 4 })

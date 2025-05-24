@@ -59,6 +59,7 @@ vi.mock('openai', async () => {
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
+  vi.clearAllMocks()
   config = {
     apiKey: '123',
   }
@@ -66,11 +67,11 @@ beforeEach(() => {
 
 test('Meta Load Chat Models', async () => {
   const models = await loadMetaModels(config)
-  expect(models.chat).toStrictEqual([
-    { id: 'Llama-4-Maverick-17B-128E-Instruct-FP8', name: 'Llama-4-Maverick-17B-128E-Instruct-FP8', meta: expect.any(Object) },
-    { id: 'Llama-3.3-8B-Instruct', name: 'Llama-3.3-8B-Instruct', meta: expect.any(Object) },
+  expect(models!.chat).toStrictEqual([
+    { id: 'Llama-4-Maverick-17B-128E-Instruct-FP8', name: 'Llama-4-Maverick-17B-128E-Instruct-FP8', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
+    { id: 'Llama-3.3-8B-Instruct', name: 'Llama-3.3-8B-Instruct', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
-  expect(models.image).toStrictEqual([])
+  expect(models!.image).toStrictEqual([])
   expect(await loadModels('meta', config)).toStrictEqual(models)
 })
 
@@ -81,18 +82,12 @@ test('Meta Basic', async () => {
   expect(meta.client.baseURL).toBe('https://api.llama.com/compat/v1/')
 })
 
-test('Meta Vision Models', async () => {
-  const meta = new Meta(config)
-  expect(meta.isVisionModel('Llama-3.3-8B-Instruct')).toBe(false)
-  expect(meta.isVisionModel('Llama-4-Maverick-17B-128E-Instruct-FP8')).toBe(true)
-})
-
 test('Meta stream', async () => {
   const meta = new Meta(config)
   meta.addPlugin(new Plugin1())
   meta.addPlugin(new Plugin2())
   meta.addPlugin(new Plugin3())
-  const { stream, context } = await meta.stream('model', [
+  const { stream, context } = await meta.stream(meta.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
@@ -130,7 +125,7 @@ test('Meta stream', async () => {
 
 test('Meta stream without tools', async () => {
   const meta = new Meta(config)
-  const { stream } = await meta.stream('model', [
+  const { stream } = await meta.stream(meta.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])

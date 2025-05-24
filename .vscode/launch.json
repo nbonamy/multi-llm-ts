@@ -12,8 +12,11 @@
         "example"
       ],
       "env": {
-        "ENGINE": "openai",
-        "MODEL": "gpt-4o"
+        "ENGINE": "azure",
+        "ENDPOINT": "https://ai-nicolas7878ai792805921169.openai.azure.com/",
+        "DEPLOYMENT": "gpt-4o-mini",
+        "API_VERSION": "2024-04-01-preview",
+        "MODEL": "gpt-466"
       },
       "runtimeExecutable": "npm",
       "skipFiles": [

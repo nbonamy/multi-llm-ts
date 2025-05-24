@@ -1,5 +1,6 @@
 
-import { EngineCreateOpts, Model } from '../types/index'
+import { minimatch } from 'minimatch'
+import { EngineCreateOpts, ModelCapabilities, ModelMeta } from '../types/index'
 import { LlmRole } from '../types/llm'
 import OpenAI from './openai'
 
@@ -22,30 +23,27 @@ export default class extends OpenAI {
     return 'meta'
   }
 
-  getVisionModels(): string[] {
-    return [ '*Llama-4-*' ]
-  }
-  
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  modelSupportsTools(model: string): boolean {
-    return true
+  getModelCapabilities(model: string): ModelCapabilities {
+    const visionGlobs = [ '*Llama-4-*' ]
+    return {
+      tools: true,
+      vision: visionGlobs.some((m) => minimatch(model, m)),
+      reasoning: false,
+    }
   }
 
   get systemRole(): LlmRole {
     return 'system'
   }
 
-  async getModels(): Promise<Model[]> {
+  async getModels(): Promise<ModelMeta[]> {
     // need an api key
     if (!this.client.apiKey) {
       return []
     }
 
     // do it
-    const models = await super.getModels()
-
-    // sort
-    return models.sort((a: Model, b: Model) => b.meta.created - a.meta.created)
+    return await super.getModels() as ModelMeta[]
 
   }
 

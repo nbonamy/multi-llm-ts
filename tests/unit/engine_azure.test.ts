@@ -52,6 +52,7 @@ vi.mock('openai', async () => {
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
+  vi.clearAllMocks()
   config = {
     apiKey: '123',
   }
@@ -60,7 +61,7 @@ beforeEach(() => {
 test('Azure Load Chat Models', async () => {
   const models = await loadAzureModels(config)
   expect(models.chat).toStrictEqual([
-    { id: 'default', name: 'default' },
+    { id: 'default', name: 'default', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
   expect(models.image).toStrictEqual([])
   expect(await loadModels('azure', config)).toStrictEqual(models)
@@ -72,18 +73,12 @@ test('Azure Basic', async () => {
   expect(azure.client.apiKey).toBe('123')
 })
 
-test('Azure Vision Models', async () => {
-  const azure = new Azure(config)
-  expect(azure.isVisionModel('grok-beta')).toBe(false)
-  expect(azure.isVisionModel('grok-vision-beta')).toBe(true)
-})
-
 test('Azure stream', async () => {
   const azure = new Azure(config)
   azure.addPlugin(new Plugin1())
   azure.addPlugin(new Plugin2())
   azure.addPlugin(new Plugin3())
-  const { stream, context } = await azure.stream('model', [
+  const { stream, context } = await azure.stream(azure.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
@@ -121,7 +116,7 @@ test('Azure stream', async () => {
 
 test('Azure stream without tools', async () => {
   const azure = new Azure(config)
-  const { stream } = await azure.stream('model', [
+  const { stream } = await azure.stream(azure.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])

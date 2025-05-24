@@ -22,6 +22,7 @@ global.fetch = vi.fn((): Promise<Response> => Promise.resolve(new Response(JSON.
     { name: 'models/gemini-1.5', displayName: 'Gemini 1.5', description: '', supportedGenerationMethods: ['generateContent'] },
     { name: 'models/gemini-1.5-latest', displayName: 'Gemini 1.5', description: '', supportedGenerationMethods: ['generateContent'] },
     { name: 'models/gemini-2.0', displayName: 'Gemini 2.0', supportedGenerationMethods: ['generateContent', 'bidiGenerateContent'] },
+    { name: 'models/gemini-2.5-tts', displayName: 'Gemini 2.5 TTS', supportedGenerationMethods: [ 'generateContent'] },
     { name: 'models/image-model', displayName: 'New Model', description: '', supportedGenerationMethods: ['bidiGenerateContent'] },
   ]
 }))))
@@ -67,16 +68,19 @@ beforeEach(() => {
 
 test('Google Load Models', async () => {
   const models = await loadGoogleModels(config)
-  expect(models.chat).toStrictEqual([
-    { id: 'gemini-2.0', name: 'Gemini 2.0', meta: expect.any(Object) },
-    { id: 'gemini-1.5-latest', name: 'Gemini 1.5', meta: expect.any(Object) },
+  expect(models!.chat).toStrictEqual([
+    { id: 'gemini-1.5-latest', name: 'Gemini 1.5', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'gemini-1.5', name: 'Gemini 1.5', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
-  expect(models.image).toStrictEqual([
-    { id: 'image-model', name: 'New Model', meta: expect.any(Object) },
-    { id: 'gemini-2.0', name: 'Gemini 2.0', meta: expect.any(Object) },
+  expect(models!.image).toStrictEqual([
+    { id: 'image-model', name: 'New Model', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'gemini-2.0', name: 'Gemini 2.0', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
-  expect(models.embedding).toStrictEqual([
-    { id: 'embed-content', name: 'Non Generate Content', meta: expect.any(Object) },
+  expect(models!.embedding).toStrictEqual([
+    { id: 'embed-content', name: 'Non Generate Content', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+  ])
+  expect(models!.tts).toStrictEqual([
+    { id: 'gemini-2.5-tts', name: 'Gemini 2.5 TTS', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
   expect(await loadModels('google', config)).toStrictEqual(models)
 })
@@ -86,31 +90,9 @@ test('Google Basic', async () => {
   expect(google.getName()).toBe('google')
 })
 
-test('Google Vision Model', async () => {
-  const google = new Google(config)
-  expect(google.isVisionModel('gemini-pro')).toBe(false)
-  expect(google.isVisionModel('gemini-1.5-flash-latest')).toBe(true)
-  expect(google.isVisionModel('gemini-1.5-pro-latest')).toBe(true)
-  expect(google.isVisionModel('gemini-2.0-flash-exp')).toBe(true)
-  expect(google.isVisionModel('gemini-exp-1206')).toBe(true)
-  expect(google.isVisionModel('gemini-2.0-flash-thinking-exp-1219')).toBe(true)
-  expect(google.isVisionModel('gemini-2.0-flash-thinking-exp-01-21')).toBe(true)
-})
-
-test('Google Tools Support', async () => {
-  const google = new Google(config)
-  expect(google.supportsTools('gemini-pro')).toBe(true)
-  expect(google.supportsTools('gemini-1.5-flash-latest')).toBe(true)
-  expect(google.supportsTools('gemini-1.5-pro-latest')).toBe(true)
-  expect(google.supportsTools('gemini-2.0-flash-exp')).toBe(true)
-  expect(google.supportsTools('gemini-exp-1206')).toBe(true)
-  expect(google.supportsTools('gemini-2.0-flash-thinking-exp-1219')).toBe(false)
-  expect(google.supportsTools('gemini-2.0-flash-thinking-exp-01-21')).toBe(false)
-})
-
 test('Google completion', async () => {
   const google = new Google(config)
-  const response = await google.complete('model', [
+  const response = await google.complete(google.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { temperature: 0.8 })
@@ -252,7 +234,7 @@ test('Google stream', async () => {
   google.addPlugin(new Plugin1())
   google.addPlugin(new Plugin2())
   google.addPlugin(new Plugin3())
-  const { stream, context } = await google.stream('model', [
+  const { stream, context } = await google.stream(google.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { temperature: 1.0, top_k: 4 })
@@ -307,7 +289,7 @@ test('Google stream tools disabled', async () => {
   google.addPlugin(new Plugin1())
   google.addPlugin(new Plugin2())
   google.addPlugin(new Plugin3())
-  await google.stream('model', [
+  await google.stream(google.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { temperature: 1.0, top_k: 4, tools: false })
@@ -320,7 +302,7 @@ test('Google stream tools disabled', async () => {
 
 test('Google stream without tools', async () => {
   const google = new Google(config)
-  await google.stream('model', [
+  await google.stream(google.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_p: 4 })
@@ -341,7 +323,7 @@ test('Google stream without tools', async () => {
 
 test('Google Text Attachments', async () => {
   const google = new Google(config)
-  await google.stream('model', [
+  await google.stream(google.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt1', new Attachment('text1', 'text/plain')),
     new Message('assistant', 'response1'),
@@ -358,7 +340,7 @@ test('Google Text Attachments', async () => {
 
 test('Google Image Attachments', async () => {
   const google = new Google(config)
-  await google.stream('gemini-1.5-pro-latest', [
+  await google.stream(google.buildModel('gemini-1.5-pro-latest'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt1', new Attachment('image1', 'image/png')),
     new Message('assistant', 'response1'),

@@ -1,5 +1,5 @@
 
-import { Model } from './index'
+import { ChatModel } from './index'
 
 export type LlmRole = 'system'|'developer'|'user'|'assistant'|'tool'
 
@@ -65,9 +65,8 @@ export type LlmModelOpts = {
 } & LlmOpenAIModelOpts & LlmAnthropicModelOpts
 
 export type LlmCompletionOpts = {
-  models?: Model[]
   tools?: boolean
-  autoSwitchVision?: boolean
+  visionFallbackModel?: ChatModel
   usage?: boolean
   citations?: boolean
 } & LlmModelOpts

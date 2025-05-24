@@ -1,6 +1,6 @@
 
-import { EngineCreateOpts, Model } from 'types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from 'types/llm'
+import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGoogle } from '../types/index'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
 import LlmEngine from '../engine'
@@ -8,6 +8,7 @@ import logger from '../logger'
 
 import { Content, EnhancedGenerateContentResponse, GenerativeModel, GoogleGenerativeAI, ModelParams, Part, FunctionResponsePart, SchemaType, FunctionDeclarationSchemaProperty, FunctionCallingMode, GenerationConfig } from '@google/generative-ai'
 import type { FunctionDeclaration } from '@google/generative-ai/dist/types'
+import { minimatch } from 'minimatch'
 
 //
 // https://ai.google.dev/gemini-api/docs
@@ -36,17 +37,35 @@ export default class extends LlmEngine {
   }
 
   // https://ai.google.dev/gemini-api/docs/models/gemini
-  getVisionModels(): string[] {
-    return [
+
+  getModelCapabilities(model: string): ModelCapabilities {
+
+    const visionGlobs = [
+      'gemma-3*',
       'gemini-1.5-pro-latest',
       'gemini-1.5-flash-*',
       'gemini-2.0-flash-*',
       'gemini-exp-1206',
       'gemini-2.0-flash-thinking-*',
+      'gemini-2.5-*',
     ]
+
+    const excludeVisionGlobs = [
+      'gemma-3-1b*',
+      '*tts',
+    ]
+    
+    const reasoning = model.includes('thinking')
+
+    return {
+      tools: !reasoning,
+      vision: visionGlobs.some((m) => minimatch(model, m)) && !excludeVisionGlobs.some((m) => minimatch(model, m)),
+      reasoning: reasoning,
+    }
+    
   }
 
-  async getModels(): Promise<Model[]> {
+  async getModels(): Promise<ModelGoogle[]> {
 
     // need an api key
     if (!this.client.apiKey) {
@@ -58,17 +77,13 @@ export default class extends LlmEngine {
     const json = await response.json()
 
     // filter
-    const models = []
+    const models: ModelGoogle[] = []
     for (const model of json.models) {
       if (model.name?.match(/\d\d\d$/)) continue
       if (model.name?.includes('tuning')) continue
       if (model.description?.includes('deprecated')) continue
       if (model.description?.includes('discontinued')) continue
-      models.push({
-        id: model.name.replace('models/', ''),
-        name: model.displayName,
-        meta: model
-      })
+      models.push(model)
     }
 
     // reverse
@@ -88,20 +103,20 @@ export default class extends LlmEngine {
     
   }
 
-  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
     const messages = this.threadToHistory(thread, model, opts)
     return await this.chat(model, messages, opts)
   }
 
-  async chat(modelName: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
     
     // call
-    logger.log(`[google] prompting model ${modelName}`)
-    const model = await this.getModel(modelName, thread[0].contentForModel, opts)
-    const response = await model.generateContent({
+    logger.log(`[google] prompting model ${model.id}`)
+    const googleModel = await this.getModel(model, thread[0].contentForModel, opts)
+    const response = await googleModel.generateContent({
       contents: thread,
       generationConfig: this.getGenerationConfig(opts),
     })
@@ -149,7 +164,7 @@ export default class extends LlmEngine {
       })
 
       // prompt again
-      const completion = await this.chat(modelName, thread, opts)
+      const completion = await this.chat(model, thread, opts)
 
       // prepend tool call info
       completion.toolCalls = [
@@ -180,15 +195,15 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(modelName: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
+  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
 
     // model: switch to vision if needed
-    modelName = this.selectModel(modelName, thread, opts)
+    model = this.selectModel(model, thread, opts)
 
     // context
     const context: GoogleStreamingContext = {
-      model: await this.getModel(modelName, thread[0].contentForModel, opts),
-      content: this.threadToHistory(thread, modelName, opts),
+      model: await this.getModel(model, thread[0].contentForModel, opts),
+      content: this.threadToHistory(thread, model, opts),
       opts: opts || {},
       toolCalls: [],
     }
@@ -226,19 +241,15 @@ export default class extends LlmEngine {
     return false
   }
 
-  private supportsInstructions(model: string): boolean {
-    return this.modelStartsWith(model, ['models/gemini-pro']) == false
+  private supportsInstructions(model: ChatModel): boolean {
+    return this.modelStartsWith(model.id, ['models/gemini-pro']) == false
   }
 
-  supportsTools(model: string): boolean {
-    return model.includes('thinking') == false
-  }
-
-  async getModel(model: string, instructions: string, opts?: LlmCompletionOpts): Promise<GenerativeModel> {
+  async getModel(model: ChatModel, instructions: string, opts?: LlmCompletionOpts): Promise<GenerativeModel> {
 
     // model params
     const modelParams: ModelParams = {
-      model: model,
+      model: model.id,
     }
 
     // add instructions
@@ -247,7 +258,7 @@ export default class extends LlmEngine {
     }
 
     // add tools
-    if (opts?.tools !== false && this.supportsTools(model)) {
+    if (opts?.tools !== false && model.capabilities.tools) {
 
       const tools = await this.getAvailableTools();
       if (tools.length) {
@@ -315,9 +326,9 @@ export default class extends LlmEngine {
     return Object.keys(config).length ? config : undefined
   }
 
-  threadToHistory(thread: Message[], modelName: string, opts?: LlmCompletionOpts): Content[] {
-    const hasInstructions = this.supportsInstructions(modelName)
-    const payload = this.buildPayload(modelName, thread.slice(hasInstructions ? 1 : 0), opts).map((p) => {
+  threadToHistory(thread: Message[], model: ChatModel, opts?: LlmCompletionOpts): Content[] {
+    const hasInstructions = this.supportsInstructions(model)
+    const payload = this.buildPayload(model, thread.slice(hasInstructions ? 1 : 0), opts).map((p) => {
       if (p.role === 'system') p.role = 'user'
       return p
     })

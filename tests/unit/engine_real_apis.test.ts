@@ -11,7 +11,7 @@ beforeAll(() => {
   dotenv.config()
 })
 
-const realApiTest = async (engine, apiKey, model) => {
+const realApiTest = async (engine: string, apiKey: string|undefined, modelName: string) => {
 
   // check flag
   if (!process.env.REAL_API) {
@@ -29,6 +29,9 @@ const realApiTest = async (engine, apiKey, model) => {
   const llm = igniteEngine(engine, {
     apiKey,
   })
+
+  // build model
+  const model = llm.buildModel(modelName)
 
   // add plugins
   llm.addPlugin(new Plugin1())

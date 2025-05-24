@@ -1,6 +1,6 @@
 
-import { EngineCreateOpts, Model } from 'types/index'
-import { LlmRole } from 'types/llm'
+import { EngineCreateOpts, ModelCapabilities, ModelOpenRouter } from '../types/index'
+import { LlmRole } from '../types/llm'
 import OpenAI from './openai'
 
 //
@@ -9,54 +9,38 @@ import OpenAI from './openai'
 
 export default class extends OpenAI {
 
-  models: Model[]
-
-  constructor(config: EngineCreateOpts, models: Model[] = []) {
+  constructor(config: EngineCreateOpts) {
     super(config, {
       apiKey: config.apiKey,
       baseURL: 'https://openrouter.ai/api/v1',
     })
-    this.models = models
   }
 
   getName(): string {
     return 'openrouter'
   }
 
-  async getModels(): Promise<Model[]> {
-    this.models = await super.getModels()
-    return this.models
+  async getModels(): Promise<ModelOpenRouter[]> {
+    return await super.getModels() as ModelOpenRouter[]
   }
 
-  _isVisionModel(modelId: string): boolean {
+  getModelCapabilities(model: string|ModelOpenRouter): ModelCapabilities {
 
-    // find meta data
-    const model = this.models?.find((m) => m.id === modelId)
-    if (model?.meta?.architecture) {
-      
-      // check input modalities 1st
-      let input_modalities = model.meta.architecture.input_modalities
-      if (!input_modalities && model.meta.architecture.modality) {
-        input_modalities = model.meta.architecture.modality.split('->')[0].split('+')
-      }
-
-      // if we have a valid input modalities, check if it includes image
-      if (input_modalities) {
-        return input_modalities.includes('image')
-      }
+    if (typeof model === 'string') {
+      return { tools: false, vision: false, reasoning: false }
     }
-    
-    // we don't know
-    return false
-  }
 
-  getVisionModels(): string[] {
-    return this.models.filter((model) => this._isVisionModel(model.id)).map((model) => model.id)
-  }
-  
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  modelSupportsTools(model: string): boolean {
-    return true
+    let input_modalities: string[] = model.architecture?.input_modalities
+    if (!input_modalities && model.architecture.modality) {
+      input_modalities = model.architecture.modality.split('->')[0].split('+')
+    }
+
+    return {
+      tools: model.supported_parameters?.includes('tools') ?? false,
+      vision: input_modalities?.includes('image') ?? false,
+      reasoning: model.supported_parameters?.includes('reasoning') ?? false,
+    }
+
   }
 
   get systemRole(): LlmRole {

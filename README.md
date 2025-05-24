@@ -13,6 +13,17 @@ Features include:
 - Function calling
 - Usage reporting (tokens count)
 
+## <span style="color: red">4.0 Breaking Changes</span>
+
+Version 4.0 has introduced some breaking changes. Please check section below for details before upgrading.
+
+Prior to 4.0, you could call `LlmEngine.complete` and `LlmGenerate.generate` passing a simple string for the model name. This is not possible anymore: those methods require a `ChatModel` object which indicates the capabilties of the model. For now, 3 capabilities are supported:
+- `tools` (function calling)
+- `vision` (image analysis)
+- `reasoning` (chain-of-thought models)
+
+Those capabilities are filled when you use the `loadModels` function. You can also just build a `ChatModel` from a string using `LlmEngine.buildModel`. For most providers, this will be enough to get the pre-4.0 behavior. MistralAI and OpenRouter are a bit more convoluted and all three capabilities will be disabled when using `LlmEngine.buildModel`.
+
 ## Providers supported
 
 |Provider|id|Completion<br>&&nbsp;Streaming|Vision|Function calling|Reasoning|Parametrization<sup>1</sup>|Usage reporting|
@@ -71,21 +82,23 @@ console.log(models.chat)
 
 ```js
 const llm = igniteEngine('PROVIDER_ID', { apiKey: 'YOUR_API_KEY' })
+const models = await loadModels('PROVIDER_ID', config)
 const messages = [
   new Message('system', 'You are a helpful assistant'),
   new Message('user', 'What is the capital of France?'),
 ]
-await llm.complete('MODEL_ID', messages)
+await llm.complete(models.chat[0], messages)
 ```
 
 ### Chat streaming
 ```js
 const llm = igniteEngine('PROVIDER_ID', { apiKey: 'YOUR_API_KEY' })
+const models = await loadModels('PROVIDER_ID', config)
 const messages = [
   new Message('system', 'You are a helpful assistant'),
   new Message('user', 'What is the capital of France?'),
 ]
-const stream = llm.generate('MODEL_ID', messages)
+const stream = llm.generate(models.chat[0], messages)
 for await (const chunk of stream) {
   console.log(chunk)
 }
@@ -95,12 +108,13 @@ for await (const chunk of stream) {
 
 ```js
 const llm = igniteEngine('PROVIDER_ID', { apiKey: 'YOUR_API_KEY' })
+const models = await loadModels('PROVIDER_ID', config)
 llm.addPlugin(new MyPlugin())
 const messages = [
   new Message('system', 'You are a helpful assistant'),
   new Message('user', 'What is the capital of France?'),
 ]
-const stream = llm.generate('MODEL_ID', messages)
+const stream = llm.generate(models.chat[0], messages)
 for await (const chunk of stream) {
   // use chunk.type to decide what to do
   // type == 'tool' => tool usage status information

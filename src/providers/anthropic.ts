@@ -1,5 +1,6 @@
-import { EngineCreateOpts, Model } from 'types/index'
-import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload, LlmStreamingResponse, LlmToolCallInfo } from 'types/llm'
+import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCapabilities } from '../types/index'
+import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload, LlmStreamingResponse, LlmToolCallInfo } from '../types/llm'
+import { minimatch } from 'minimatch'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextBase } from '../engine'
 import { Plugin } from '../plugin'
@@ -48,34 +49,44 @@ export default class extends LlmEngine {
   getName(): string {
     return 'anthropic'
   }
-  
+
   // https://docs.anthropic.com/en/docs/about-claude/models
-  getVisionModels(): string[] {
-    return [
+
+  getModelCapabilities(model: string): ModelCapabilities {
+
+    const visionGlobs = [
       'claude-3-*',
+      'claude-*-4-*',
       'computer-use',
     ]
-  }
 
+    const reasoning = model === 'claude-3-7-sonnet-thinking' || 
+      model.includes('claude-3-7') ||
+      model.includes('claude-3.7') || 
+      minimatch(model, 'claude-*-4-*');
+
+    return {
+      tools: true,
+      vision: visionGlobs.some((m) => minimatch(model, m)),
+      reasoning
+    }
+
+  }
+  
   getComputerUseRealModel(): string {
     return 'claude-3-5-sonnet-20241022'
   }
 
-  modelIsReasoning(model: string): boolean {
-    // Support both the specific test model and any Claude 3.7 model
-    return model === 'claude-3-7-sonnet-thinking' || 
-           model.includes('claude-3-7') ||
-           model.includes('claude-3.7');
-  }
-
   getMaxTokens(model: string): number {
     if (model === 'computer-use') return this.getMaxTokens(this.getComputerUseRealModel())
+    if (model.includes('claude-opus-4')) return 32000
+    if (model.includes('claude-sonnet-4')) return 64000
     if (model.includes('claude-3-7-')) return 64000
     if (model.includes('claude-3-5-')) return 8192
     else return 4096
   }
 
-  async getModels(): Promise<Model[]> {
+  async getModels(): Promise<ModelAnthropic[]> {
 
     // need an api key
     if (!this.client.apiKey) {
@@ -87,37 +98,35 @@ export default class extends LlmEngine {
 
     // transform
     return [
-      ...models.data.map((model) => ({
-        id: model.id,
-        name: model.display_name,
-        meta: model
-      })),
-      ...(this.computerInfo ? [{ id: 'computer-use', name: 'Computer Use' }] : [])
+      ...models.data,
+      ...(this.computerInfo ? [{
+        'type': 'model',  id: 'computer-use', display_name: 'Computer Use', created_at: '1970-01-01T00:00:00Z'
+      }] : [])
     ]
 
   }
 
-  async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async complete(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
     return await this.chat(model, [
       thread[0],
       ...this.buildPayload(model, thread, opts)
     ], opts)
   }
 
-  async chat(model: string, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // model
-    if (model === 'computer-use') {
-      model = this.getComputerUseRealModel()
+    if (model.id === 'computer-use') {
+      model = this.toModel(this.getComputerUseRealModel())
     }
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
     
     // call
-    logger.log(`[anthropic] prompting model ${model}`)
+    logger.log(`[anthropic] prompting model ${model.id}`)
     const response = await this.client.messages.create({
-      model: model,
+      model: model.id,
       system: thread[0].contentForModel,
       messages: thread.slice(1) as MessageParam[],
       ...this.getCompletionOpts(model, opts),
@@ -203,13 +212,13 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
+  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
 
     // model: switch to vision if needed
     model = this.selectModel(model, thread, opts)
 
     // add computer tools
-    if (this.computerInfo && model === 'computer-use') {
+    if (this.computerInfo && model.id === 'computer-use') {
       const computerUse = this.plugins.find((p) => p.getName() === this.computerInfo!.plugin.getName())
       if (!computerUse) {
         this.plugins.push(this.computerInfo.plugin)
@@ -255,7 +264,7 @@ export default class extends LlmEngine {
     })
 
     // add computer tools
-    if (this.computerInfo && context.model === 'computer-use') {
+    if (this.computerInfo && context.model.id === 'computer-use') {
       const scaledScreenSize = this.computerInfo.screenSize()
       tools.push({
         name: 'computer',
@@ -267,7 +276,7 @@ export default class extends LlmEngine {
     }
 
     // call
-    if (context.model === 'computer-use') {
+    if (context.model.id === 'computer-use') {
       return this.doStreamBeta(context)
     } else {
       return this.doStreamNormal(context)
@@ -276,9 +285,9 @@ export default class extends LlmEngine {
   }
 
   async doStreamNormal(context: AnthropicStreamingContext): Promise<LlmStream> {
-    logger.log(`[anthropic] prompting model ${context.model}`)
+    logger.log(`[anthropic] prompting model ${context.model.id}`)
     return this.client.messages.create({
-      model: context.model,
+      model: context.model.id,
       system: context.system,
       messages: context.thread,
       ...this.getCompletionOpts(context.model, context.opts),
@@ -288,7 +297,7 @@ export default class extends LlmEngine {
   }
 
   async doStreamBeta(context: AnthropicStreamingContext): Promise<LlmStream> {
-    logger.log(`[anthropic] prompting model ${context.model}`)
+    logger.log(`[anthropic] prompting model ${context.model.id}`)
     return this.client.beta.messages.create({
       model: this.getComputerUseRealModel(),
       betas: [ 'computer-use-2024-10-22' ],
@@ -300,25 +309,25 @@ export default class extends LlmEngine {
     })
   }
 
-  getCompletionOpts(model: string, opts?: LlmCompletionOpts): Omit<MessageCreateParamsBase, 'model'|'messages'|'stream'|'tools'|'tool_choice'> {
+  getCompletionOpts(model: ChatModel, opts?: LlmCompletionOpts): Omit<MessageCreateParamsBase, 'model'|'messages'|'stream'|'tools'|'tool_choice'> {
 
-    const isThinkingEnabled = this.modelIsReasoning(model) && opts?.reasoning;
+    const isThinkingEnabled = model.capabilities?.reasoning && opts?.reasoning;
     
     return {
-      max_tokens: opts?.maxTokens ?? this.getMaxTokens(model),
+      max_tokens: opts?.maxTokens ?? this.getMaxTokens(model.id),
       ...(opts?.temperature ? { temperature: opts.temperature } : (isThinkingEnabled ? { temperature: 1.0 } : {})),
       ...(opts?.top_k ? { top_k: opts?.top_k } : {} ),
       ...(opts?.top_p ? { top_p: opts?.top_p } : {} ),
       ...(isThinkingEnabled ? {
         thinking: {
           type: 'enabled',
-          budget_tokens: opts.reasoningBudget || (opts?.maxTokens || this.getMaxTokens(model)) / 2,
+          budget_tokens: opts.reasoningBudget || (opts?.maxTokens || this.getMaxTokens(model.id)) / 2,
         }
       } : {}),
     }
   }
 
-  async getToolOpts<T>(model: string, opts?: LlmCompletionOpts): Promise<Omit<T, 'max_tokens'|'model'|'messages'|'stream'>> {
+  async getToolOpts<T>(model: ChatModel, opts?: LlmCompletionOpts): Promise<Omit<T, 'max_tokens'|'model'|'messages'|'stream'>> {
 
     if (opts?.tools === false) {
       return {} as T
@@ -552,7 +561,7 @@ export default class extends LlmEngine {
     ]
   }
 
-  buildPayload(model: string, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+  buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {
     const payload: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
     return payload.filter((payload) => payload.role != 'system').map((payload): LLmCompletionPayload => {
       //if (payload.role == 'system') return null

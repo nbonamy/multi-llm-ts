@@ -1,5 +1,5 @@
 
-import { EngineCreateOpts, Model } from '../types/index'
+import { EngineCreateOpts, ModelOpenAI } from '../types/index'
 import { AzureOpenAI } from 'openai'
 import OpenAI from './openai'
 
@@ -20,9 +20,9 @@ export default class extends OpenAI {
     return 'azure'
   }
 
-  async getModels(): Promise<Model[]> {
+  async getModels(): Promise<ModelOpenAI[]> {
     return [
-      { id: 'default', name: 'default' },
+      { id: 'default', object: 'model', created: 0, owned_by: 'system' },
     ]
   }
 

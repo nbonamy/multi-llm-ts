@@ -35,22 +35,18 @@ const updateOllama = async(content, q, tr, regex, template) => {
 
   fileContent = await updateOllama(
     fileContent, 'tools', (tool) => tool,
-    /modelSupportsTools\(model: string\): boolean \{[\s\S]*?\}/,
-    `modelSupportsTools(model: string): boolean {
-    return [
+    /const toolModels = [\s\S]*?\]/,
+    `const toolModels = [
 {{models}}
-    ].includes(model.split(':')[0])
-  }`
+    ]`
   )
 
   fileContent = await updateOllama(
-    fileContent, 'vision', (tool) => `${tool}:*`,
-    /getVisionModels\(\): string\[\] \{[\s\S]*?\}/,
-    `getVisionModels(): string[] {
-    return [
+    fileContent, 'vision', (tool) => tool,
+    /const visionModels = [\s\S]*?\]/,
+    `const visionModels = [
 {{models}}
-    ]
-  }`
+    ]`
   )
 
   fs.writeFileSync(filePath, fileContent, 'utf8');

@@ -1,5 +1,5 @@
 
-import { LlmRole, LlmChunkContent } from 'types/llm'
+import { LlmRole, LlmChunkContent } from '../types/llm'
 import Attachment from './attachment'
 
 export default class Message {

@@ -1,6 +1,6 @@
 
 import { expect, test } from 'vitest'
-import { hasVisionModels, igniteEngine, isVisionModel, loadModels } from '../../src/llm'
+import { igniteEngine, loadModels } from '../../src/llm'
 import OpenAI from '../../src/providers/openai'
 import Ollama from '../../src/providers/ollama'
 import MistralAI from '../../src/providers/mistralai'
@@ -31,22 +31,4 @@ test('Ignite Engine', async () => {
   expect(await igniteEngine('groq', config)).toBeInstanceOf(Groq)
   expect(await igniteEngine('cerebras', config)).toBeInstanceOf(Cerebras)
   await expect(async() => await igniteEngine('aws', config)).rejects.toThrowError(/Unknown engine/)
-})
-
-test('Has Vision Models', async () => {
-  expect(hasVisionModels('openai', config)).toBe(true)
-  expect(hasVisionModels('ollama', config)).toBe(true)
-  expect(hasVisionModels('mistralai', config)).toBe(false)
-  expect(hasVisionModels('anthropic', config)).toBe(true)
-  expect(hasVisionModels('google', config)).toBe(true)
-  expect(hasVisionModels('xai', config)).toBe(true)
-  expect(hasVisionModels('deepseek', config)).toBe(false)
-  expect(hasVisionModels('openrouter', config)).toBe(false)
-  expect(hasVisionModels('groq', config)).toBe(true)
-  expect(hasVisionModels('cerebras', config)).toBe(false)
-})
-
-test('Is Vision Model', async () => {
-  expect(isVisionModel('openai', 'model', config)).toBe(false)
-  expect(isVisionModel('openai', 'vision', config)).toBe(true)
 })

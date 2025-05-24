@@ -66,6 +66,7 @@ vi.mock('openai', async () => {
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
+  vi.clearAllMocks()
   config = {
     apiKey: '123',
   }
@@ -73,9 +74,9 @@ beforeEach(() => {
 
 test('DeepSeek Load Chat Models', async () => {
   const models = await loadDeepSeekModels(config)
-  expect(models.chat).toStrictEqual([
-    { id: 'deepseek-chat', name: 'DeepSeek Chat', meta: expect.any(Object) },
-    { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', meta: expect.any(Object) },
+  expect(models!.chat).toStrictEqual([
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: true } },
   ])
   expect(await loadModels('deepseek', config)).toStrictEqual(models)
 })
@@ -87,14 +88,9 @@ test('DeepSeek Basic', async () => {
   expect(deepseek.client.baseURL).toBe('https://api.deepseek.com/v1')
 })
 
-test('DeepSeek Vision Models', async () => {
-  const deepseek = new DeepSeek(config)
-  expect(deepseek.isVisionModel('deepseek-chat')).toBe(false)
-})
-
 test('DeepSeek completion', async () => {
   const deepseek = new DeepSeek(config)
-  const response = await deepseek.complete('model', [
+  const response = await deepseek.complete(deepseek.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { temperature: 0.8, reasoningEffort: 'high' })
@@ -118,7 +114,7 @@ test('DeepSeek stream', async () => {
   deepseek.addPlugin(new Plugin1())
   deepseek.addPlugin(new Plugin2())
   deepseek.addPlugin(new Plugin3())
-  const { stream, context } = await deepseek.stream('model', [
+  const { stream, context } = await deepseek.stream(deepseek.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4, reasoningEffort: 'low' })
@@ -161,7 +157,7 @@ test('DeepSeek stream', async () => {
 
 test('DeepSeek stream without tools', async () => {
   const deepseek = new DeepSeek(config)
-  const { stream } = await deepseek.stream('model', [
+  const { stream } = await deepseek.stream(deepseek.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_p: 4 })

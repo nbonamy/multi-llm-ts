@@ -106,62 +106,62 @@ beforeEach(() => {
 test('OpenAI Load Models', async () => {
   const models = await loadOpenAIModels(config)
   expect(_openai.default.prototype.models.list).toHaveBeenCalled()
-  expect(models.chat).toStrictEqual([
-    { id: 'chatgpt-model', name: 'chatgpt-model', meta: { id: 'chatgpt-model' } },
-    { id: 'gpt-model1', name: 'gpt-model1', meta: { id: 'gpt-model1' } },
-    { id: 'gpt-model2', name: 'gpt-model2', meta: { id: 'gpt-model2' } },
-    { id: 'o1', name: 'o1', meta: { id: 'o1' } },
-    { id: 'o1-model', name: 'o1-model', meta: { id: 'o1-model' } },
-    { id: 'o13-model', name: 'o13-model', meta: { id: 'o13-model' } },
+  expect(models!.chat).toStrictEqual([
+    { id: 'chatgpt-model', name: 'chatgpt-model', meta: { id: 'chatgpt-model' }, capabilities: { tools: false, vision: false, reasoning: false } },
+    { id: 'gpt-model1', name: 'gpt-model1', meta: { id: 'gpt-model1' }, capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'gpt-model2', name: 'gpt-model2', meta: { id: 'gpt-model2' }, capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'o1', name: 'o1', meta: { id: 'o1' }, capabilities: { tools: true, vision: true, reasoning: true } },
+    { id: 'o1-model', name: 'o1-model', meta: { id: 'o1-model' }, capabilities: { tools: true, vision: true, reasoning: true } },
+    { id: 'o13-model', name: 'o13-model', meta: { id: 'o13-model' }, capabilities: { tools: true, vision: true, reasoning: true } },
   ])
-  expect(models.image).toStrictEqual([
-    { id: 'gpt-image-1', name: 'GPT Image', meta: { } },
-    { id: 'dall-e-model1', name: 'dall-e-model1', meta: { id: 'dall-e-model1' } },
-    { id: 'dall-e-model2', name: 'dall-e-model2', meta: { id: 'dall-e-model2' } },
+  expect(models!.image).toStrictEqual([
+    { id: 'gpt-image-1', name: 'GPT Image', meta: expect.any(Object), capabilities: expect.any(Object) },
+    { id: 'dall-e-model1', name: 'dall-e-model1', meta: { id: 'dall-e-model1' }, capabilities: { tools: true, vision: false, reasoning: false }  },
+    { id: 'dall-e-model2', name: 'dall-e-model2', meta: { id: 'dall-e-model2' }, capabilities: { tools: true, vision: false, reasoning: false }  },
   ])
-  expect(models.embedding).toStrictEqual([
-    { id: 'text-embedding-1', name: 'text-embedding-1', meta: { id: 'text-embedding-1' } },
-    { id: 'text-embedding-2', name: 'text-embedding-2', meta: { id: 'text-embedding-2' } },
+  expect(models!.embedding).toStrictEqual([
+    { id: 'text-embedding-1', name: 'text-embedding-1', meta: { id: 'text-embedding-1' }, capabilities: { tools: true, vision: false, reasoning: false }  },
+    { id: 'text-embedding-2', name: 'text-embedding-2', meta: { id: 'text-embedding-2' }, capabilities: { tools: true, vision: false, reasoning: false }  },
   ])
-  expect(models.realtime).toStrictEqual([
-    { id: 'realtime-model', name: 'realtime-model', meta: { id: 'realtime-model' } },
+  expect(models!.realtime).toStrictEqual([
+    { id: 'realtime-model', name: 'realtime-model', meta: { id: 'realtime-model' }, capabilities: { tools: true, vision: false, reasoning: false }  },
   ])
-  expect(models.computer).toStrictEqual([
-    { id: 'computer-use-preview', name: 'computer-use-preview', meta: { id: 'computer-use-preview' } },
+  expect(models!.computer).toStrictEqual([
+    { id: 'computer-use-preview', name: 'computer-use-preview', meta: { id: 'computer-use-preview' }, capabilities: { tools: true, vision: false, reasoning: false }  },
   ])
-  expect(models.tts).toStrictEqual([
-    { id: 'chatgpt-tts', name: 'chatgpt-tts', meta: { id: 'chatgpt-tts' } },
+  expect(models!.tts).toStrictEqual([
+    { id: 'chatgpt-tts', name: 'chatgpt-tts', meta: { id: 'chatgpt-tts' }, capabilities: { tools: false, vision: false, reasoning: false }  },
   ])
-  expect(models.stt).toStrictEqual([
-    { id: 'transcribe-french', name: 'transcribe-french', meta: { id: 'transcribe-french' } },
-    { id: 'whisper-english', name: 'whisper-english', meta: { id: 'whisper-english' } },
+  expect(models!.stt).toStrictEqual([
+    { id: 'transcribe-french', name: 'transcribe-french', meta: { id: 'transcribe-french' }, capabilities: { tools: true, vision: false, reasoning: false }  },
+    { id: 'whisper-english', name: 'whisper-english', meta: { id: 'whisper-english' }, capabilities: { tools: true, vision: false, reasoning: false }  },
   ])
   expect(await loadModels('openai', config)).toStrictEqual(models)
 })
 
 test('OpenAI together load models', async () => {
   const models = await loadOpenAIModels({ baseURL: 'api.together.xyz' })
-  expect(models.chat).toStrictEqual([
-    { id: 'chat', name: 'chat', meta: { id: 'chat', type: 'chat' } },
-    { id: 'code', name: 'code', meta: { id: 'code', type: 'code' } },
-    { id: 'language', name: 'language', meta: { id: 'language', type: 'language' } },
+  expect(models!.chat).toStrictEqual([
+    { id: 'chat', name: 'chat', meta: { id: 'chat', type: 'chat' }, capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'code', name: 'code', meta: { id: 'code', type: 'code' }, capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'language', name: 'language', meta: { id: 'language', type: 'language' }, capabilities: { tools: true, vision: false, reasoning: false } },
   ])
-  expect(models.image).toStrictEqual([
-    { id: 'image', name: 'image', meta: { id: 'image', type: 'image' } },
+  expect(models!.image).toStrictEqual([
+    { id: 'image', name: 'image', meta: { id: 'image', type: 'image' }, capabilities: { tools: true, vision: false, reasoning: false } },
   ])
-  expect(models.embedding).toStrictEqual([
-    { id: 'embedding', name: 'embedding', meta: { id: 'embedding', type: 'embedding' } },
+  expect(models!.embedding).toStrictEqual([
+    { id: 'embedding', name: 'embedding', meta: { id: 'embedding', type: 'embedding' }, capabilities: { tools: true, vision: false, reasoning: false } },
   ])
 })
 
 test('OpenAI compatibility mode', async () => {
   const models = await loadOpenAIModels({ baseURL: 'api.unknown.com' })
-  expect(models.chat).toStrictEqual([
-    { id: 'chat', name: 'chat', meta: { id: 'chat', type: 'chat' } },
-    { id: 'code', name: 'code', meta: { id: 'code', type: 'code' } },
-    { id: 'embedding', name: 'embedding', meta: { id: 'embedding', type: 'embedding' } },
-    { id: 'image', name: 'image', meta: { id: 'image', type: 'image' } },
-    { id: 'language', name: 'language', meta: { id: 'language', type: 'language' } },
+  expect(models!.chat).toStrictEqual([
+    { id: 'chat', name: 'chat', meta: { id: 'chat', type: 'chat' }, capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'code', name: 'code', meta: { id: 'code', type: 'code' }, capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'embedding', name: 'embedding', meta: { id: 'embedding', type: 'embedding' }, capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'image', name: 'image', meta: { id: 'image', type: 'image' }, capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'language', name: 'language', meta: { id: 'language', type: 'language' }, capabilities: { tools: true, vision: false, reasoning: false } },
   ])
 })
 
@@ -172,21 +172,9 @@ test('OpenAI Basic', async () => {
   expect(openai.client.baseURL).toBe('https://api.openai.com/v1')
 })
 
-test('OpenAI Vision Model', async () => {
-  const openai = new OpenAI(config)
-  expect(openai.isVisionModel('gpt-3.5')).toBe(false)
-  expect(openai.isVisionModel('gpt-4-turbo')).toBe(false)
-  expect(openai.isVisionModel('gpt-vision')).toBe(true)
-  expect(openai.isVisionModel('gpt-4o')).toBe(true)
-  expect(openai.isVisionModel('gpt-4o-mini')).toBe(false)
-  expect(openai.isVisionModel('gpt-4.5-preview-2025-02-27')).toBe(true)
-  expect(openai.isVisionModel('o1-preview')).toBe(false)
-  expect(openai.isVisionModel('o1-mini')).toBe(false)
-})
-
 test('OpenAI system prompt for most models', async () => {
   const openai = new OpenAI(config)
-  const payload = openai.buildPayload('model', [
+  const payload = openai.buildPayload(openai.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
@@ -198,7 +186,7 @@ test('OpenAI system prompt for most models', async () => {
 
 test('OpenAI no system prompt for most o1 models', async () => {
   const openai = new OpenAI(config)
-  const payload = openai.buildPayload('o1-mini', [
+  const payload = openai.buildPayload(openai.buildModel('o1-mini'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
@@ -211,8 +199,8 @@ test('OpenAI buildPayload', async () => {
   const openai = new OpenAI(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  expect(openai.buildPayload('gpt-3.5', [ message ])).toStrictEqual([{ role: 'user', content: 'text' }])
-  expect(openai.buildPayload('gpt-4o', [ message ])).toStrictEqual([{ role: 'user', content: [
+  expect(openai.buildPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([{ role: 'user', content: 'text' }])
+  expect(openai.buildPayload(openai.buildModel('gpt-4o'), [ message ])).toStrictEqual([{ role: 'user', content: [
     { type: 'text', text: 'text' },
     { type: 'image_url', image_url: { url: 'data:image/png;base64,image' } }
   ]}])
@@ -220,7 +208,7 @@ test('OpenAI buildPayload', async () => {
 
 test('OpenAI completion', async () => {
   const openai = new OpenAI(config)
-  const response = await openai.complete('model', [
+  const response = await openai.complete(openai.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { temperature: 0.8, tools: false })
@@ -249,7 +237,7 @@ test('OpenAI nativeChunkToLlmChunk Text', async () => {
     choices: [{ index: 0, delta: { content: 'response' }, finish_reason: null }],
   }
   const context = {
-    model: 'model',
+    model: openai.buildModel('model'),
     thread: [],
     opts: {},
     toolCalls: [],
@@ -269,7 +257,7 @@ test('OpenAI stream', async () => {
   openai.addPlugin(new Plugin1())
   openai.addPlugin(new Plugin2())
   openai.addPlugin(new Plugin3())
-  const { stream, context } = await openai.stream('model', [
+  const { stream, context } = await openai.stream(openai.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4 })
@@ -332,7 +320,7 @@ test('OpenAI stream tools disabled', async () => {
   openai.addPlugin(new Plugin1())
   openai.addPlugin(new Plugin2())
   openai.addPlugin(new Plugin3())
-  await openai.stream('model', [
+  await openai.stream(openai.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4, tools: false })
@@ -357,7 +345,7 @@ test('OpenAI stream no tools for o1', async () => {
   openai.addPlugin(new Plugin1())
   openai.addPlugin(new Plugin2())
   openai.addPlugin(new Plugin3())
-  const { stream } = await openai.stream('o1-mini', [
+  const { stream } = await openai.stream(openai.buildModel('o1-mini'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { maxTokens: 200, temperature: 1.0, top_k: 4, top_p: 4 })
@@ -376,7 +364,7 @@ test('OpenAI stream no tools for o1', async () => {
 
 test('OpenAI stream without tools', async () => {
   const openai = new OpenAI(config)
-  const { stream } = await openai.stream('model', [
+  const { stream } = await openai.stream(openai.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
@@ -396,13 +384,13 @@ test('OpenAI stream without tools', async () => {
 
 test('OpenAI reasoning effort', async () => {
   const openai = new OpenAI(config)
-  await openai.stream('model', [
+  await openai.stream(openai.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { reasoningEffort: 'low' })
   // @ts-expect-error mock
   expect(_openai.default.prototype.chat.completions.create.mock.calls[0][0].reasoning_effort).toBeUndefined()
-  await openai.stream('o1', [
+  await openai.stream(openai.buildModel('o1'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { reasoningEffort: 'low' })
@@ -412,7 +400,7 @@ test('OpenAI reasoning effort', async () => {
 
 test('OpenAI custom options', async () => {
   const openai = new OpenAI(config)
-  await openai.stream('model', [
+  await openai.stream(openai.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { customOpts: { mirostat: true } })

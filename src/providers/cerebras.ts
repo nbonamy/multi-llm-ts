@@ -1,6 +1,6 @@
 
-import { EngineCreateOpts, Model } from 'types/index'
-import { LlmRole } from 'types/llm'
+import { EngineCreateOpts, Model, ModelCerebras } from '../types/index'
+import { LlmRole } from '../types/llm'
 import OpenAI from './openai'
 
 //
@@ -25,7 +25,7 @@ export default class extends OpenAI {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  modelSupportsTopK(model: string): boolean {
+  modelSupportsTopK(model: Model): boolean {
     return false
   }
   
@@ -33,23 +33,16 @@ export default class extends OpenAI {
     return 'system'
   }
 
-  async getModels(): Promise<Model[]> {
+  async getModels(): Promise<ModelCerebras[]> {
+    
     // need an api key
     if (!this.client.apiKey) {
       return []
     }
 
     // do it
-    const models = await super.getModels()
+    return await super.getModels() as ModelCerebras[]
 
-    // translate
-    return models
-      .sort((a: Model, b: Model) => b.meta.created - a.meta.created)
-      .map((model: Model) => ({
-        ...model,
-        name: model.name.split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')
-      }))
-    
   }
 
   protected setBaseURL() {

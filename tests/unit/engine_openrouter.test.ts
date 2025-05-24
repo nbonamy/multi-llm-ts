@@ -1,5 +1,5 @@
 
-import { EngineCreateOpts, ModelsList } from '../../src/types/index'
+import { EngineCreateOpts } from '../../src/types/index'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import { loadModels, loadOpenRouterModels } from '../../src/llm'
@@ -20,8 +20,8 @@ vi.mock('openai', async () => {
       return {
         data: [
           { id: 'chat1', name: 'chat1', architecture: { input_modalities: [ 'text' ], modality: 'text->text' } },
-          { id: 'chat2', name: 'chat2', architecture: { input_modalities: [ 'text', 'image' ], modality: 'text+image->text' } },
-          { id: 'chat3', name: 'chat3', architecture: { modality: 'text+image->text' } },
+          { id: 'chat2', name: 'chat2', architecture: { input_modalities: [ 'text', 'image' ], modality: 'text+image->text' }, supported_parameters: ['tools'] },
+          { id: 'chat3', name: 'chat3', architecture: { modality: 'text+image->text' }, supported_parameters: ['top_k'] },
           { id: 'image', name: 'image', architecture: { input_modalities: [ 'text' ], modality: 'text->image' } },
         ]
       }
@@ -62,6 +62,7 @@ vi.mock('openai', async () => {
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
+  vi.clearAllMocks()
   config = {
     apiKey: '123',
   }
@@ -69,13 +70,13 @@ beforeEach(() => {
 
 test('OpenRouter Load Chat Models', async () => {
   const models = await loadOpenRouterModels(config)
-  expect(models.chat).toStrictEqual([
-    { id: 'chat1', name: 'chat1', meta: expect.any(Object) },
-    { id: 'chat2', name: 'chat2', meta: expect.any(Object) },
-    { id: 'chat3', name: 'chat3', meta: expect.any(Object) },
+  expect(models!.chat).toStrictEqual([
+    { id: 'chat1', name: 'chat1', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
+    { id: 'chat2', name: 'chat2', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
+    { id: 'chat3', name: 'chat3', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false } },
   ])
-  expect(models.image).toStrictEqual([
-    { id: 'image', name: 'image', meta: expect.any(Object) },
+  expect(models!.image).toStrictEqual([
+    { id: 'image', name: 'image', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
   ])
   expect(await loadModels('openrouter', config)).toStrictEqual(models)
 })
@@ -87,21 +88,17 @@ test('OpenRouter Basic', async () => {
   expect(openrouter.client.baseURL).toBe('https://openrouter.ai/api/v1')
 })
 
-test('OpenRouter Vision Models', async () => {
-  const models: ModelsList|null = await loadOpenRouterModels(config)
-  const openrouter = new OpenRouter(config, models?.chat || [])
-  expect(openrouter.isVisionModel('chat1')).toBe(false)
-  expect(openrouter.isVisionModel('chat2')).toBe(true)
-  expect(openrouter.isVisionModel('chat3')).toBe(true)
-  expect(openrouter.isVisionModel('image')).toBe(false)
-})
-
 test('OpenRouter stream', async () => {
   const openrouter = new OpenRouter(config)
   openrouter.addPlugin(new Plugin1())
   openrouter.addPlugin(new Plugin2())
   openrouter.addPlugin(new Plugin3())
-  const { stream, context } = await openrouter.stream('model', [
+  const { stream, context } = await openrouter.stream({
+    id: 'model', name: 'model', capabilities: openrouter.getModelCapabilities({
+      architecture: { input_modalities: [ 'text' ] },
+      supported_parameters: ['tools'],
+    })
+  }, [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
@@ -139,7 +136,12 @@ test('OpenRouter stream', async () => {
 
 test('OpenRouter stream without tools', async () => {
   const openrouter = new OpenRouter(config)
-  const { stream } = await openrouter.stream('model', [
+  const { stream } = await openrouter.stream({
+    id: 'model', name: 'model', capabilities: openrouter.getModelCapabilities({
+      architecture: { input_modalities: [ 'text' ] },
+      supported_parameters: ['topK'],
+    })
+  }, [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])

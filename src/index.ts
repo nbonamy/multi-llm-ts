@@ -29,6 +29,13 @@ const logger = {
   set: _logger.default.setLogger,
 }
 
+import { ModelCapabilities } from './types/index'
+const defaultCapabilities: ModelCapabilities = {
+  tools: false,
+  vision: false,
+  reasoning: false,
+}
+
 export {
   logger,
   Plugin,
@@ -54,4 +61,5 @@ export {
   imageFormats,
   extensionToMimeType,
   mimeTypeToExtension,
+  defaultCapabilities,
 }

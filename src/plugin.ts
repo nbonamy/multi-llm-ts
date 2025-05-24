@@ -1,4 +1,4 @@
-import { PluginParameter } from 'types/plugin'
+import { PluginParameter } from './types/plugin'
 
 export interface ICustomPlugin {
   getTools(): Promise<any|any[]>

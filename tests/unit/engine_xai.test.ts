@@ -21,6 +21,7 @@ vi.mock('openai', async () => {
         data: [
           {'id': 'grok-1', 'created': 1, 'object': 'model', 'owned_by': 'xai'},
           {'id': 'grok-2', 'created': 2, 'object': 'model', 'owned_by': 'xai'},
+          {'id': 'grok-2-vision', 'created': 4, 'object': 'model', 'owned_by': 'xai'},
           {'id': 'grok-2-image', 'created': 3, 'object': 'model', 'owned_by': 'xai'},
         ]
       }
@@ -60,6 +61,7 @@ vi.mock('openai', async () => {
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
+  vi.clearAllMocks()
   config = {
     apiKey: '123',
   }
@@ -67,12 +69,13 @@ beforeEach(() => {
 
 test('xAI Load Chat Models', async () => {
   const models = await loadXAIModels(config)
-  expect(models.chat).toStrictEqual([
-    { id: 'grok-2', name: 'Grok 2', meta: expect.any(Object) },
-    { id: 'grok-1', name: 'Grok 1', meta: expect.any(Object) },
+  expect(models!.chat).toStrictEqual([
+    { id: 'grok-2-vision', name: 'Grok 2 Vision', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false } },
+    { id: 'grok-2', name: 'Grok 2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'grok-1', name: 'Grok 1', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
-  expect(models.image).toStrictEqual([
-    { id: 'grok-2-image', name: 'Grok 2 Image', meta: expect.any(Object) },
+  expect(models!.image).toStrictEqual([
+    { id: 'grok-2-image', name: 'Grok 2 Image', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
   expect(await loadModels('xai', config)).toStrictEqual(models)
 })
@@ -84,18 +87,12 @@ test('xAI Basic', async () => {
   expect(xai.client.baseURL).toBe('https://api.x.ai/v1')
 })
 
-test('xAI Vision Models', async () => {
-  const xai = new XAI(config)
-  expect(xai.isVisionModel('grok-beta')).toBe(false)
-  expect(xai.isVisionModel('grok-vision-beta')).toBe(true)
-})
-
 test('xAI stream', async () => {
   const xai = new XAI(config)
   xai.addPlugin(new Plugin1())
   xai.addPlugin(new Plugin2())
   xai.addPlugin(new Plugin3())
-  const { stream, context } = await xai.stream('model', [
+  const { stream, context } = await xai.stream(xai.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
@@ -133,7 +130,7 @@ test('xAI stream', async () => {
 
 test('xAI stream without tools', async () => {
   const xai = new XAI(config)
-  const { stream } = await xai.stream('model', [
+  const { stream } = await xai.stream(xai.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
