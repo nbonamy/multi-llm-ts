@@ -17,7 +17,7 @@
     "lint": "eslint '**/*.ts'",
     "test": "vitest",
     "ollama": "node ./tools/update_ollama_models.js",
-    "check": "npm run lint && npx vitest --run && npm run build",
+    "dist": "npm run lint && npx vitest --run && npm run build",
     "testui": "vitest --ui --coverage.enabled=true",
     "testreal": "REAL_API=1 vitest tests/unit/engine_real_apis.test.ts",
     "example": "tsx ./example/index.ts"
