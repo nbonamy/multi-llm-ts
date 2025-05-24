@@ -4,7 +4,7 @@
   "description": "Library to query multiple LLM providers in a consistent way",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nbonamy/multi-llm-ts.git"
+    "url": "git+https://github.com/nbonamy/multi-llm-ts.git"
   },
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
