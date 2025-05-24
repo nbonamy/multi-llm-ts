@@ -63,7 +63,7 @@ test('Cerebras stream', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     top_p: 4,
     stream: true,

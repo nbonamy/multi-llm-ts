@@ -87,12 +87,12 @@ beforeEach(() => {
 
 test('Ollama Load Models', async () => {
   const models = await loadOllamaModels(config)
-  expect(models.chat).toStrictEqual([
+  expect(models!.chat).toStrictEqual([
     { id: 'cogito:latest', name: 'cogito', meta: { model: 'cogito:latest', name: 'cogito' }, capabilities: { tools: true, vision: false, reasoning: false } },
     { id: 'gemma3:latest', name: 'gemma3', meta: { model: 'gemma3:latest', name: 'gemma3' }, capabilities: { tools: false, vision: true, reasoning: false } },
     { id: 'model:7b', name: 'model', meta: { model: 'model:7b', name: 'model' }, capabilities: { tools: false, vision: false, reasoning: false } },
   ])
-  expect(models.embedding).toStrictEqual([
+  expect(models!.embedding).toStrictEqual([
     { id: 'embed:latest', name: 'embed', meta: { model: 'embed:latest', name: 'embed' }, capabilities: { tools: false, vision: false, reasoning: false } },
   ])
   expect(await loadModels('ollama', config)).toStrictEqual(models)
@@ -107,8 +107,8 @@ test('Ollama buildPayload', async () => {
   const ollama = new Ollama(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  expect(ollama.buildPayload(ollama.buildModel('llama:latest'), [ message ])).toStrictEqual([ { role: 'user', content: 'text' } ])
-  expect(ollama.buildPayload(ollama.buildModel('llava:latest'), [ message ])).toStrictEqual([ { role: 'user', content: 'text', images: [ 'image' ]} ])
+  expect(ollama.buildPayload(ollama.buildModel('llama:latest'), [ message ])).toStrictEqual([ { role: 'user', content: [ { type: 'text', text: 'text' } ] } ])
+  expect(ollama.buildPayload(ollama.buildModel('llava:latest'), [ message ])).toStrictEqual([ { role: 'user', content: [ { type: 'text', text: 'text' } ], images: [ 'image' ]} ])
 })
 
 test('Ollama completion', async () => {
@@ -121,7 +121,7 @@ test('Ollama completion', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     options: { temperature : 0.8 },
     stream: false,
@@ -146,7 +146,7 @@ test('Ollama stream without tools', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     options: { top_k: 4 },
     stream: true,
@@ -186,7 +186,7 @@ test('Ollama stream with tools', async () => {
     model: 'llama3-groq-tool-use',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     //tool_choice: 'auto',
     tools: expect.any(Array),
@@ -200,7 +200,7 @@ test('Ollama stream with tools', async () => {
   let lastMsg: LlmChunkContent|null = null
   for await (const chunk of stream) {
     for await (const msg of ollama.nativeChunkToLlmChunk(chunk, context)) {
-      lastMsg = msg
+      lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text || ''
       if (msg.type === 'tool') toolCalls.push(msg)
     }
@@ -209,7 +209,7 @@ test('Ollama stream with tools', async () => {
     model: 'llama3-groq-tool-use',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' },
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] },
       { role: 'assistant', content: '', done: false, tool_calls: [ { function: { name: 'plugin2', arguments: [ 'arg' ] } } ] },
       { role: 'tool', content: '"result2"' },
     ],
@@ -241,7 +241,7 @@ test('Ollama stream with tools disabled', async () => {
     model: 'llama3-groq-tool-use',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     options: { top_k: 4 },
     stream: true,
@@ -259,7 +259,7 @@ test('Ollama stream without tools and options', async () => {
     model: 'llama3-groq-tool-use',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     stream: true,
     options: {
@@ -277,11 +277,11 @@ test('Ollama nativeChunkToLlmChunk Text', async () => {
     done: false
   }
   const context: OllamaStreamingContext = {
-    model: 'model',
+    model: ollama.buildModel('model'),
     thread: [],
     opts: {},
     toolCalls: [],
-    usage: {},
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
     thinking: false,
   }
   for await (const llmChunk of ollama.nativeChunkToLlmChunk(streamChunk, context)) {

@@ -33,7 +33,9 @@ export type LlmToolResponse = {
 
 export type LlmNonStreamingResponse = LlmResponse | LlmToolResponse
 
-export type LlmStream = AsyncIterable<any>
+export type LlmStream = AsyncIterable<any> & {
+  controller?: AbortController;
+}
 
 export type LlmStreamingContext = any
 
@@ -73,7 +75,7 @@ export type LlmCompletionOpts = {
 
 export type LLmCompletionPayload = {
   role: LlmRole
-  content?: string|LlmContentPayload[]
+  content: string|LlmContentPayload[]
   images?: string[]
   tool_call_id?: string
   tool_calls?: any[]

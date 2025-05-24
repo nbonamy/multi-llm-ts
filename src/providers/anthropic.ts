@@ -7,9 +7,9 @@ import { Plugin } from '../plugin'
 import logger from '../logger'
 
 import Anthropic from '@anthropic-ai/sdk'
-import { Stream } from '@anthropic-ai/sdk/streaming'
 import { Tool, MessageParam, MessageStreamEvent, TextBlock, InputJSONDelta, Usage, RawMessageStartEvent, RawMessageDeltaEvent, MessageDeltaUsage, ToolUseBlock } from '@anthropic-ai/sdk/resources'
 import { BetaToolUnion, MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/beta/messages/messages'
+import Attachment from 'models/attachment'
 
 //
 // https://docs.anthropic.com/en/api/getting-started
@@ -352,8 +352,8 @@ export default class extends LlmEngine {
     } as T : {} as T 
   }
   
-  async stop(stream: Stream<any>) {
-    stream.controller.abort()
+  async stop(stream: LlmStream): Promise<void> {
+    stream.controller?.abort()
   }
    
   async *nativeChunkToLlmChunk(chunk: MessageStreamEvent, context: AnthropicStreamingContext): AsyncGenerator<LlmChunk, void, void> {
@@ -532,33 +532,34 @@ export default class extends LlmEngine {
 
   }
 
-  addTextToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
-    payload.content = [
-      { type: 'text', text: message.contentForModel },
-      {
+  addTextToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
+    if (Array.isArray(payload.content)) {
+      payload.content.push({
         type: 'document',
         source: {
           type: 'text',
           media_type: 'text/plain',
-          data: message.attachment!.content,
+          data: attachment!.content,
         },
-        ...(message.attachment!.title.length ? { title: message.attachment!.title } : {}),
-        ...(message.attachment!.context.length ? { context: message.attachment!.context } : {}),
+        ...(attachment!.title.length ? { title: attachment!.title } : {}),
+        ...(attachment!.context.length ? { context: attachment!.context } : {}),
         ...(opts ? { citations: { enabled: opts?.citations ?? false } } : {})
-      }
-    ]
+      })
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addImageToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
-    payload.content = [
-      { type: 'text', text: message.contentForModel },
-      { type: 'image', source: {
-        type: 'base64',
-        media_type: message.attachment!.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-        data: message.attachment!.content,
-      }}
-    ]
+  addImageToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
+    if (Array.isArray(payload.content)) {
+      payload.content.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: attachment!.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+          data: attachment!.content,
+        }
+      })
+    }
   }
 
   buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {

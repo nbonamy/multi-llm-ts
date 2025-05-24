@@ -259,7 +259,7 @@ test('Google stream', async () => {
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
     for await (const msg of google.nativeChunkToLlmChunk(chunk, context)) {
-      lastMsg = msg
+      lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
     }
@@ -331,9 +331,9 @@ test('Google Text Attachments', async () => {
   ])
   expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({
     contents: [
-      { role: 'user', parts: [{ text: 'prompt1\n\ntext1' }] },
+      { role: 'user', parts: [{ text: 'prompt1' }, { text: 'text1' }] },
       { role: 'model', parts: [{ text: 'response1' }] },
-      { role: 'user', parts: [{ text: 'prompt2\n\ntext2' }] },
+      { role: 'user', parts: [{ text: 'prompt2', }, { text: 'text2' }] },
     ]
   })
 })
@@ -348,7 +348,7 @@ test('Google Image Attachments', async () => {
   ])
   expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({
     contents: [
-      { role: 'user', parts: [{ text: 'prompt1' }] },
+      { role: 'user', parts: [{ text: 'prompt1' }, { inlineData: { data: 'image1', mimeType: 'image/png' } }] },
       { role: 'model', parts: [{ text: 'response1' }] },
       { role: 'user', parts: [{ text: 'prompt2' }, { inlineData: { data: 'image2', mimeType: 'image/png' } }] },
     ]

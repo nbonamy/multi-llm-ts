@@ -7,8 +7,8 @@ import logger from '../logger'
 import OpenAI, { ClientOptions } from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
-import { Stream } from 'openai/streaming'
 import { minimatch } from 'minimatch'
+import Attachment from 'models/attachment'
 
 const defaultBaseUrl = 'https://api.openai.com/v1'
 
@@ -331,7 +331,7 @@ export default class extends LlmEngine {
 
   }
 
-  async stop(stream: Stream<any>) {
+  async stop(stream: LlmStream) {
     stream?.controller?.abort()
   }
 
@@ -503,22 +503,12 @@ export default class extends LlmEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addTextToPayload(message: Message, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
-    if (message.attachment) {
-      payload.content = [
-        { type: 'text', text: message.contentForModel },
-        { type: 'text', text: message.attachment.content }
-      ]
-    }
-  }
-  
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addImageToPayload(message: Message, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
-    if (message.attachment) {
-      payload.content = [
-        { type: 'text', text: message.contentForModel },
-        { type: 'image_url', image_url: { url: `data:${message.attachment.mimeType};base64,${message.attachment.content}` } }
-      ]
+  addImageToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
+    if (Array.isArray(payload.content)) {
+      payload.content.push({
+        type: 'image_url',
+        image_url: { url: `data:${attachment.mimeType};base64,${attachment.content}` }
+      })
     }
   }
 

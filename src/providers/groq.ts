@@ -8,7 +8,6 @@ import logger from '../logger'
 import Groq from 'groq-sdk'
 import { ChatCompletionMessageParam, ChatCompletionChunk } from 'groq-sdk/resources/chat'
 import { ChatCompletionCreateParamsBase } from 'groq-sdk/resources/chat/completions'
-import { Stream } from 'groq-sdk/lib/streaming'
 import { minimatch } from 'minimatch'
 
 //
@@ -224,8 +223,8 @@ export default class extends LlmEngine {
 
   }
 
-  async stop(stream: Stream<any>) {
-    stream.controller.abort()
+  async stop(stream: LlmStream): Promise<void> {
+    stream.controller?.abort()
   }
 
   async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: LlmStreamingContextTools): AsyncGenerator<LlmChunk, void, void> {
@@ -360,31 +359,11 @@ export default class extends LlmEngine {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addTextToPayload(message: Message, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
-    if (message.attachment) {
-      payload.content = [
-        { type: 'text', text: message.contentForModel },
-        { type: 'text', text: message.attachment.content }
-      ]
-    }
-  }
-  
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addImageToPayload(message: Message, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
-    if (message.attachment) {
-      payload.content = [
-        { type: 'text', text: message.contentForModel },
-        { type: 'image_url', image_url: { url: `data:${message.attachment.mimeType};base64,${message.attachment.content}` } }
-      ]
-    }
-  }
-
   buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {
 
     // default
     let payload: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
-    
+
     // when using vision models, we cannot use a system prompt (!!)
     let hasImages = false
     for (const p of payload) {

@@ -95,6 +95,7 @@ test('OpenRouter stream', async () => {
   openrouter.addPlugin(new Plugin3())
   const { stream, context } = await openrouter.stream({
     id: 'model', name: 'model', capabilities: openrouter.getModelCapabilities({
+      // @ts-expect-error mock
       architecture: { input_modalities: [ 'text' ] },
       supported_parameters: ['tools'],
     })
@@ -106,7 +107,7 @@ test('OpenRouter stream', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     tool_choice: 'auto',
     tools: expect.any(Array),
@@ -131,13 +132,14 @@ test('OpenRouter stream', async () => {
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'run2', done: false })
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await openrouter.stop(stream)
-  expect(stream.controller.abort).toHaveBeenCalled()
+  expect(stream.controller!.abort).toHaveBeenCalled()
 })
 
 test('OpenRouter stream without tools', async () => {
   const openrouter = new OpenRouter(config)
   const { stream } = await openrouter.stream({
     id: 'model', name: 'model', capabilities: openrouter.getModelCapabilities({
+      // @ts-expect-error mock
       architecture: { input_modalities: [ 'text' ] },
       supported_parameters: ['topK'],
     })
@@ -149,7 +151,7 @@ test('OpenRouter stream without tools', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     stream: true,
     stream_options: {

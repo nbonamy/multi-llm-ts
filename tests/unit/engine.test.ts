@@ -92,7 +92,7 @@ test('Valid Configuration', () => {
 test('Build payload no attachment', async () => {
   const openai = new OpenAI(config)
   expect(openai.buildPayload(openai.buildModel('gpt-model1'), [])).toStrictEqual([]) 
-  expect(openai.buildPayload(openai.buildModel('gpt-model1'), 'content')).toStrictEqual([{ role: 'user', content: 'content' }])
+  expect(openai.buildPayload(openai.buildModel('gpt-model1'), 'content')).toStrictEqual([{ role: 'user', content: [{ type: 'text', text: 'content' }] }])
   expect(openai.buildPayload(openai.buildModel('gpt-model1'), [
     new Message('system', 'instructions'),
     new Message('user', 'prompt1'),
@@ -101,9 +101,9 @@ test('Build payload no attachment', async () => {
     new Message('assistant', 'response2'),
   ])).toStrictEqual([
     { role: 'system', content: 'instructions' },
-    { role: 'user', content: 'prompt1' },
+    { role: 'user', content: [{ type: 'text', text: 'prompt1' }] },
     { role: 'assistant', content: 'response1' },
-    { role: 'user', content: 'prompt2' },
+    { role: 'user', content: [{ type: 'text', text: 'prompt2' }] },
     { role: 'assistant', content: 'response2' }
   ])
 })
@@ -133,7 +133,7 @@ test('Build payload with image attachment', async () => {
   messages[1].attach(new Attachment('image', 'image/png'))
   expect(openai.buildPayload(openai.buildModel('gpt-model1'), messages)).toStrictEqual([
     { role: 'system', content: 'instructions' },
-    { role: 'user', content: 'prompt1' },
+    { role: 'user', content: [{ type: 'text', text: 'prompt1' }] }
   ])
   expect(openai.buildPayload(openai.buildModel('gpt-4-vision'), messages)).toStrictEqual([
     { role: 'system', content: 'instructions' },
@@ -190,10 +190,13 @@ test('Switch to vision when model provided', async () => {
   for await (const chunk of stream) { }
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model-vision', stream: true, stream_options: { include_usage: false },
-    messages: [ { role: 'system', content: 'instructions' }, { role: 'user', content: [
-      { type: 'text', text: 'prompt1' },
-      { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,image' } },
-    ]}]
+    messages: [
+      { role: 'system', content: 'instructions' },
+      { role: 'user', content: [
+        { type: 'text', text: 'prompt1' },
+        { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,image' } },
+      ]}
+    ]
   })
 })
 
@@ -209,7 +212,10 @@ test('Cannot switch to vision if not models provided', async () => {
   for await (const chunk of stream) { }
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'model-no-tool', stream: true, stream_options: { include_usage: false },
-    messages: [ { role: 'system', content: 'instructions' }, { role: 'user', content: 'prompt1' } ]
+    messages: [
+      { role: 'system', content: 'instructions' },
+      { role: 'user', content: [{ type: 'text', text: 'prompt1' }] }
+    ]
   })
 })
 

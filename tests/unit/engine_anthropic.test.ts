@@ -73,7 +73,7 @@ beforeEach(() => {
 
 test('Anthropic Load Models', async () => {
   const models = await loadAnthropicModels(config)
-  expect(models.chat).toStrictEqual([
+  expect(models!.chat).toStrictEqual([
     { id: 'claude-2.0', name: 'Claude 2.0', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
     { id: 'claude-3-model-date', name: 'Claude Model 3', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
     { id: 'claude-3-5-model-date', name: 'Claude Model 3.5', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
@@ -106,8 +106,8 @@ test('Anthropic buildPayload text', async () => {
   const anthropic = new Anthropic(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('document', 'text/plain'))
-  message.attachment!.title = 'title'
-  message.attachment!.context = 'context'
+  message.attachments[0]!.title = 'title'
+  message.attachments[0]!.context = 'context'
   expect(anthropic.buildPayload(anthropic.buildModel('claude'), [ message ])).toStrictEqual([ { role: 'user', content: [
     { type: 'text', text: 'text' },
     { type: 'document', source: {
@@ -122,7 +122,7 @@ test('Anthropic build payload image', async () => {
   const anthropic = new Anthropic(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  expect(anthropic.buildPayload(anthropic.buildModel('claude'), [ message ])).toStrictEqual([ { role: 'user', content: 'text' }])
+  expect(anthropic.buildPayload(anthropic.buildModel('claude'), [ message ])).toStrictEqual([ { role: 'user', content: [{ type: 'text', text: 'text' }] }])
   expect(anthropic.buildPayload(anthropic.buildModel('claude-3-5-sonnet-latest'), [ message ])).toStrictEqual([ { role: 'user', content: [
     { type: 'text', text: 'text' },
     { type: 'image', source: {
@@ -143,7 +143,7 @@ test('Anthropic completion', async () => {
     max_tokens: 4096,
     model: 'model',
     system: 'instruction',
-    messages: [ { role: 'user', content: 'prompt' } ],
+    messages: [ { role: 'user', content: [{ type: 'text', text: 'prompt' }] } ],
     temperature: 0.8,
   })
   expect(response).toStrictEqual({
@@ -161,7 +161,7 @@ test('Anthropic nativeChunkToLlmChunk Text', async () => {
     delta: { type: 'text_delta', text: 'response' }
   }
   const context: AnthropicStreamingContext = {
-    model: 'model',
+    model: anthropic.buildModel('model'),
     system: 'instruction',
     thread: [],
     opts: {},
@@ -191,7 +191,7 @@ test('Anthropic stream', async () => {
     max_tokens: 4096,
     model: 'model',
     system: 'instruction',
-    messages: [ { role: 'user', content: 'prompt' } ],
+    messages: [ { role: 'user', content: [{ type: 'text', text: 'prompt' }] } ],
     tools: expect.any(Array),
     tool_choice: { type: 'auto' },
     top_k: 4,
@@ -203,7 +203,7 @@ test('Anthropic stream', async () => {
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
     for await (const msg of anthropic.nativeChunkToLlmChunk(chunk, context)) {
-      lastMsg = msg
+      lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
     }
@@ -213,7 +213,7 @@ test('Anthropic stream', async () => {
     model: 'model',
     system: 'instruction',
     messages: [
-      { role: 'user', content: 'prompt' },
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] },
       { role: 'assistant', content: [ { type: 'tool_use', id: 1, name: 'plugin2', input: [ 'arg' ], } ] },
       { role: 'user', content: [ { type: 'tool_result', tool_use_id: 1, content: '"result2"' } ] },
     ],
@@ -229,7 +229,7 @@ test('Anthropic stream', async () => {
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'run2', done: false })
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await anthropic.stop(stream)
-  expect(stream.controller.abort).toHaveBeenCalled()
+  expect(stream.controller!.abort).toHaveBeenCalled()
 })
 
 test('Anthropic stream tools disabled', async () => {
@@ -245,7 +245,7 @@ test('Anthropic stream tools disabled', async () => {
     max_tokens: 4096,
     model: 'model',
     system: 'instruction',
-    messages: [ { role: 'user', content: 'prompt' } ],
+    messages: [ { role: 'user', content: [{ type: 'text', text: 'prompt' }] } ],
     top_k: 4,
     stream: true,
   })
@@ -262,7 +262,7 @@ test('Anthropic stream without tools', async () => {
     max_tokens: 4096,
     model: 'model',
     system: 'instruction',
-    messages: [ { role: 'user', content: 'prompt' }, ],
+    messages: [ { role: 'user', content: [{ type: 'text', text: 'prompt' }] }, ],
     top_p: 4,
     stream: true,
   })
@@ -278,7 +278,7 @@ test('Anthropic thinking', async () => {
   expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(1, {
     model: 'model',
     system: 'instruction',
-    messages: [ { role: 'user', content: 'prompt' }, ],
+    messages: [ { role: 'user', content: [{ type: 'text', text: 'prompt' }] }, ],
     max_tokens: 4096,
     stream: true,
   })
@@ -289,7 +289,7 @@ test('Anthropic thinking', async () => {
   expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(2, {
     model: 'claude-3-7-sonnet-thinking',
     system: 'instruction',
-    messages: [ { role: 'user', content: 'prompt' }, ],
+    messages: [ { role: 'user', content: [{ type: 'text', text: 'prompt' }] }, ],
     max_tokens: 64000,
     thinking: {
       type: 'enabled',

@@ -7,7 +7,7 @@ export default class Message {
   role: LlmRole
   content: string
   reasoning: string|null
-  attachment: Attachment|null
+  attachments: Attachment[]
 
   get contentForModel(): string {
     return this.content
@@ -17,11 +17,18 @@ export default class Message {
     this.role = role
     this.reasoning = null
     this.content = (content !== null) ? content : ''
-    this.attachment = attachment || null
+    this.attachments = attachment ? [attachment] : []
   }
 
   attach(attachment: Attachment) {
-    this.attachment = attachment
+    this.attachments.push(attachment)
+  }
+
+  detach(attachment: Attachment) {
+    const index = this.attachments.indexOf(attachment)
+    if (index > -1) {
+      this.attachments.splice(index, 1)
+    }
   }
 
   appendText(chunk: LlmChunkContent) {

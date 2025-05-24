@@ -60,10 +60,10 @@ beforeEach(() => {
 
 test('Azure Load Chat Models', async () => {
   const models = await loadAzureModels(config)
-  expect(models.chat).toStrictEqual([
+  expect(models!.chat).toStrictEqual([
     { id: 'default', name: 'default', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
-  expect(models.image).toStrictEqual([])
+  expect(models!.image).toStrictEqual([])
   expect(await loadModels('azure', config)).toStrictEqual(models)
 })
 
@@ -86,7 +86,7 @@ test('Azure stream', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     tool_choice: 'auto',
     tools: expect.any(Array),
@@ -111,7 +111,7 @@ test('Azure stream', async () => {
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'run2', done: false })
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await azure.stop(stream)
-  expect(stream.controller.abort).toHaveBeenCalled()
+  expect(stream.controller?.abort).toHaveBeenCalled()
 })
 
 test('Azure stream without tools', async () => {
@@ -124,7 +124,7 @@ test('Azure stream without tools', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     stream: true,
     stream_options: {

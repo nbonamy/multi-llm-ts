@@ -93,7 +93,7 @@ test('Groq completion', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     temperature : 0.8
   })
@@ -117,7 +117,7 @@ test('Groq stream', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     tool_choice: 'auto',
     tools: expect.any(Array),
@@ -131,7 +131,7 @@ test('Groq stream', async () => {
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
     for await (const msg of groq.nativeChunkToLlmChunk(chunk, context)) {
-      lastMsg = msg
+      lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text || ''
       if (msg.type === 'tool') toolCalls.push(msg)
     }
@@ -140,7 +140,7 @@ test('Groq stream', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' },
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] },
       { role: 'assistant', content: '', tool_calls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "arg" ]' } } ] },
       { role: 'tool', content: '"result2"', name: 'plugin2', tool_call_id: 1 }
     ],
@@ -156,7 +156,7 @@ test('Groq stream', async () => {
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'run2', done: false })
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await groq.stop(stream)
-  expect(stream.controller.abort).toHaveBeenCalled()
+  expect(stream.controller!.abort).toHaveBeenCalled()
 })
 
 test('Groq stream tools disabled', async () => {
@@ -172,7 +172,7 @@ test('Groq stream tools disabled', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     top_p: 4,
     stream: true,
@@ -190,7 +190,7 @@ test('Groq stream without tools', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     top_p: 4,
     stream: true,
@@ -205,7 +205,7 @@ test('Groq nativeChunkToLlmChunk Text', async () => {
     choices: [{ index: 0, delta: { content: 'response' }, finish_reason: null }],
   }
   const context = {
-    model: 'mode1',
+    model: groq.buildModel('model'),
     thread: [],
     opts: {},
     toolCalls: []

@@ -180,7 +180,7 @@ test('OpenAI system prompt for most models', async () => {
   ])
   expect(payload).toStrictEqual([
     { role: 'system', content: 'instruction' },
-    { role: 'user', content: 'prompt' },
+    { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
   ])
 })
 
@@ -191,7 +191,7 @@ test('OpenAI no system prompt for most o1 models', async () => {
     new Message('user', 'prompt'),
   ])
   expect(payload).toStrictEqual([
-    { role: 'user', content: 'prompt' },
+    { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
   ])
 })
 
@@ -199,7 +199,7 @@ test('OpenAI buildPayload', async () => {
   const openai = new OpenAI(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  expect(openai.buildPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([{ role: 'user', content: 'text' }])
+  expect(openai.buildPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([{ role: 'user', content: [{ type: 'text', text: 'text' }] }])
   expect(openai.buildPayload(openai.buildModel('gpt-4o'), [ message ])).toStrictEqual([{ role: 'user', content: [
     { type: 'text', text: 'text' },
     { type: 'image_url', image_url: { url: 'data:image/png;base64,image' } }
@@ -216,7 +216,7 @@ test('OpenAI completion', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     temperature : 0.8
   })
@@ -265,7 +265,7 @@ test('OpenAI stream', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     tool_choice: 'auto',
     tools: expect.any(Array),
@@ -283,7 +283,7 @@ test('OpenAI stream', async () => {
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
     for await (const msg of openai.nativeChunkToLlmChunk(chunk, context)) {
-      lastMsg = msg
+      lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text || ''
       if (msg.type === 'tool') toolCalls.push(msg)
     }
@@ -292,7 +292,7 @@ test('OpenAI stream', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' },
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] },
       { role: 'assistant', content: '', tool_calls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "arg" ]' } } ] },
       { role: 'tool', content: '"result2"', name: 'plugin2', tool_call_id: 1 }
     ],
@@ -312,7 +312,7 @@ test('OpenAI stream', async () => {
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'run2', done: false })
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await openai.stop(stream)
-  expect(stream.controller.abort).toHaveBeenCalled()
+  expect(stream.controller!.abort).toHaveBeenCalled()
 })
 
 test('OpenAI stream tools disabled', async () => {
@@ -328,7 +328,7 @@ test('OpenAI stream tools disabled', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     logprobs: true,
     top_logprobs: 4,
@@ -351,7 +351,9 @@ test('OpenAI stream no tools for o1', async () => {
   ], { maxTokens: 200, temperature: 1.0, top_k: 4, top_p: 4 })
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
     model: 'o1-mini',
-    messages: [ { role: 'user', content: 'prompt' } ],
+    messages: [
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
+    ],
     max_completion_tokens: 200,
     stream: true,
     stream_options: {
@@ -372,7 +374,7 @@ test('OpenAI stream without tools', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: 'prompt' }
+      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     stream: true,
     stream_options: {

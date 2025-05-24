@@ -9,6 +9,7 @@ import logger from '../logger'
 // importing from 'ollama' directly imports 'fs' which fails in browser
 import { Ollama, ChatRequest, ChatResponse, ProgressResponse } from 'ollama/dist/browser.cjs'
 import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.e009de91.cjs'
+import Attachment from 'models/attachment'
 
 export type OllamaStreamingContext = LlmStreamingContextTools & {
   usage: LlmUsage
@@ -437,10 +438,9 @@ export default class extends LlmEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addImageToPayload(message: Message, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
-    if (message.attachment) {
-      payload.images = [ message.attachment.content ]
-    }
+  addImageToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
+    if (!payload.images) payload.images = []
+    payload.images.push(attachment!.content)
   }
 
 }

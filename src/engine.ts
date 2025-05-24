@@ -5,6 +5,7 @@ import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool
 import { PluginParameter } from './types/plugin'
 import Message from './models/message'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
+import Attachment from 'models/attachment'
 
 export type LlmStreamingContextBase = {
   model: ChatModel
@@ -46,11 +47,23 @@ export default abstract class LlmEngine {
 
   abstract stop(stream: any): Promise<void>
 
-  protected addTextToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
-    payload.content += `\n\n${message.attachment!.content}`
+  protected addTextToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
+    if (Array.isArray(payload.content)) {
+      payload.content.push({
+        type: 'text',
+        text: attachment.content,
+      })
+    }
   }
 
-  abstract addImageToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void
+  protected addImageToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
+    if (Array.isArray(payload.content)) {
+      payload.content.push({
+        type: 'image_url',
+        image_url: { url: `data:${attachment.mimeType};base64,${attachment.content}` }
+      })
+    }
+  }
 
   protected abstract nativeChunkToLlmChunk(chunk: any, context: LlmStreamingContext): AsyncGenerator<LlmChunk, void, void>
 
@@ -101,7 +114,7 @@ export default abstract class LlmEngine {
     }
 
     // check if amy of the messages in the thread have an attachment
-    return thread.some((msg) => msg.attachment && msg.attachment.isImage())
+    return thread.some((msg) => msg.attachments.some(a => a.isImage()))
 
   }
 
@@ -132,46 +145,48 @@ export default abstract class LlmEngine {
   }
 
   buildPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+
     if (typeof thread === 'string') {
-      return [{ role: 'user', content: thread }]
+
+      return [{ role: 'user', content: [{ type: 'text', text: thread }] }]
+
     } else {
 
-      // we only want to upload the last image attachment
-      // so build messages in reverse order
-      // and then reverse the array
-
-      let imageAttached = false
-      return thread.toReversed().filter((msg) => msg.contentForModel !== null).map((msg): LLmCompletionPayload => {
-        const payload: LLmCompletionPayload = { role: msg.role, content: msg.contentForModel }
+      return thread.filter((msg) => msg.contentForModel !== null).map((msg): LLmCompletionPayload => {
         
-        // if there is no attachment, return
-        if (!msg.attachment) {
-          return payload
+        // init the payload
+        const payload: LLmCompletionPayload = {
+          role: msg.role,
+          content: ['system', 'assistant'].includes(msg.role) ? msg.contentForModel : [{
+            type: 'text',
+            text: msg.contentForModel 
+          }]
         }
-
-        // this can be a loaded chat where contents is not present
-        if (msg.attachment.content === null || msg.attachment.content === undefined) {
-          console.warn('Attachment contents not available. Skipping attachment.')
-          return payload
-        }
-
-        // text formats
-        if (msg.attachment.isText()) {
-          this.addTextToPayload(msg, payload, opts)
-        }
-
-        // image formats
-        if (msg.attachment.isImage()) {
-          if (!imageAttached && model.capabilities.vision) {
-            this.addImageToPayload(msg, payload, opts)
-            imageAttached = true
+        
+        for (const attachment of msg.attachments) {
+        
+          // this can be a loaded chat where contents is not present
+          if (attachment.content === null || attachment.content === undefined) {
+            console.warn('Attachment contents not available. Skipping attachment.')
+            continue
           }
+
+          // text formats
+          if (attachment.isText()) {
+            this.addTextToPayload(attachment, payload, opts)
+          }
+
+          // image formats
+          if (attachment.isImage() && model.capabilities.vision) {
+            this.addImageToPayload(attachment, payload, opts)
+          }
+
         }
 
         // done
         return payload
       
-      }).reverse()
+      })
     }
   }
 

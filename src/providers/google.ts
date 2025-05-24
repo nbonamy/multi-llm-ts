@@ -1,6 +1,6 @@
 
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGoogle } from '../types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
+import { LLmCompletionPayload, LLmContentPayloadText, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
 import LlmEngine from '../engine'
@@ -338,7 +338,7 @@ export default class extends LlmEngine {
   messageToContent(payload: LLmCompletionPayload): Content {
     const content: Content = {
       role: payload.role == 'assistant' ? 'model' : payload.role,
-      parts: [ { text: payload.content as string } ]
+      parts: Array.isArray(payload.content) ? payload.content.map((c) => ({ text: (c as LLmContentPayloadText).text })) : [ { text: payload.content as string } ],
     }
     for (const index in payload.images) {
       content.parts.push({
@@ -373,7 +373,7 @@ export default class extends LlmEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async stop(stream: AsyncGenerator<any>) {
+  async stop(stream: LlmStream) {
     //await stream?.controller?.abort()
   }
    
@@ -487,8 +487,9 @@ export default class extends LlmEngine {
 
    
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addImageToPayload(message: Message, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
-    payload.images = [ message.attachment!.content ]
+  addImageToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
+    if (!payload.images) payload.images = []
+    payload.images.push(attachment!.content)
   }
 
 }
