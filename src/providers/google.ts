@@ -38,7 +38,7 @@ export default class extends LlmEngine {
 
   // https://ai.google.dev/gemini-api/docs/models/gemini
 
-  getModelCapabilities(model: string): ModelCapabilities {
+  getModelCapabilities(model: ModelGoogle): ModelCapabilities {
 
     const visionGlobs = [
       'gemma-3*',
@@ -54,13 +54,19 @@ export default class extends LlmEngine {
       'gemma-3-1b*',
       '*tts',
     ]
+
+    const reasoningGlobs = [
+      'gemini-2.5-flash*',
+      'gemini-2.5-pro*',
+      '*thinking*',
+    ]
     
-    const reasoning = model.includes('thinking')
+    const modelName = model.name.replace('models/', '')
 
     return {
-      tools: !reasoning,
-      vision: visionGlobs.some((m) => minimatch(model, m)) && !excludeVisionGlobs.some((m) => minimatch(model, m)),
-      reasoning: reasoning,
+      tools: !modelName.includes('tts'),
+      vision: visionGlobs.some((m) => minimatch(modelName, m)) && !excludeVisionGlobs.some((m) => minimatch(modelName, m)),
+      reasoning: reasoningGlobs.some((m) => minimatch(modelName, m)),
     }
     
   }

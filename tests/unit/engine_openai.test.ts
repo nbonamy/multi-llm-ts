@@ -22,32 +22,32 @@ vi.mock('openai', async () => {
       if (OpenAI.prototype.baseURL == 'api.together.xyz' || OpenAI.prototype.baseURL == 'api.unknown.com') {
         return {
           data: [
-            { id: 'chat', type: 'chat' },
-            { id: 'language', type: 'language' },
-            { id: 'code', type: 'code' },
-            { id: 'image', type: 'image' },
-            { id: 'embedding', type: 'embedding' },
+            { id: 'chat', type: 'chat', created: 1 },
+            { id: 'language', type: 'language', created: 2 },
+            { id: 'code', type: 'code', created: 3 },
+            { id: 'image', type: 'image', created: 4 },
+            { id: 'embedding', type: 'embedding', created: 5 },
           ]
         }
       }
       return {
         data: [
-          { id: 'chatgpt-model' },
-          { id: 'gpt-model2' },
-          { id: 'gpt-model1' },
-          { id: 'o1' },
-          { id: 'o1-model' },
-          { id: 'o13-model' },
-          { id: 'realtime-model' },
-          { id: 'computer-use-preview' },
-          { id: 'chatgpt-tts' },
-          { id: 'moderation-model' },
-          { id: 'whisper-english' },
-          { id: 'transcribe-french' },
-          { id: 'dall-e-model2' },
-          { id: 'dall-e-model1' },
-          { id: 'text-embedding-1' },
-          { id: 'text-embedding-2' },
+          { id: 'chatgpt-model', created: 1 },
+          { id: 'gpt-model2', created: 3 },
+          { id: 'gpt-model1', created: 2 },
+          { id: 'o1', created: 4 },
+          { id: 'o1-model', created: 5 },
+          { id: 'o13-model', created: 6 },
+          { id: 'realtime-model', created: 7 },
+          { id: 'computer-use-preview', created: 8 },
+          { id: 'chatgpt-tts', created: 9 },
+          { id: 'moderation-model', created: 10 },
+          { id: 'whisper-english', created: 11 },
+          { id: 'transcribe-french', created: 12 },
+          { id: 'dall-e-model2', created: 14 },
+          { id: 'dall-e-model1', created: 13 },
+          { id: 'text-embedding-1', created: 15 },
+          { id: 'text-embedding-2', created: 16 },
         ]
       }
     })
@@ -107,34 +107,34 @@ test('OpenAI Load Models', async () => {
   const models = await loadOpenAIModels(config)
   expect(_openai.default.prototype.models.list).toHaveBeenCalled()
   expect(models!.chat).toStrictEqual([
-    { id: 'chatgpt-model', name: 'chatgpt-model', meta: { id: 'chatgpt-model' }, capabilities: { tools: false, vision: false, reasoning: false } },
-    { id: 'gpt-model1', name: 'gpt-model1', meta: { id: 'gpt-model1' }, capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'gpt-model2', name: 'gpt-model2', meta: { id: 'gpt-model2' }, capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'o1', name: 'o1', meta: { id: 'o1' }, capabilities: { tools: true, vision: true, reasoning: true } },
-    { id: 'o1-model', name: 'o1-model', meta: { id: 'o1-model' }, capabilities: { tools: true, vision: true, reasoning: true } },
-    { id: 'o13-model', name: 'o13-model', meta: { id: 'o13-model' }, capabilities: { tools: true, vision: true, reasoning: true } },
+    { id: 'o13-model', name: 'o13-model', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: true } },
+    { id: 'o1-model', name: 'o1-model', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: true } },
+    { id: 'o1', name: 'o1', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: true } },
+    { id: 'gpt-model2', name: 'gpt-model2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'gpt-model1', name: 'gpt-model1', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'chatgpt-model', name: 'chatgpt-model', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
   ])
   expect(models!.image).toStrictEqual([
     { id: 'gpt-image-1', name: 'GPT Image', meta: expect.any(Object), capabilities: expect.any(Object) },
-    { id: 'dall-e-model1', name: 'dall-e-model1', meta: { id: 'dall-e-model1' }, capabilities: { tools: true, vision: false, reasoning: false }  },
-    { id: 'dall-e-model2', name: 'dall-e-model2', meta: { id: 'dall-e-model2' }, capabilities: { tools: true, vision: false, reasoning: false }  },
+    { id: 'dall-e-model2', name: 'dall-e-model2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false }  },
+    { id: 'dall-e-model1', name: 'dall-e-model1', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false }  },
   ])
   expect(models!.embedding).toStrictEqual([
-    { id: 'text-embedding-1', name: 'text-embedding-1', meta: { id: 'text-embedding-1' }, capabilities: { tools: true, vision: false, reasoning: false }  },
-    { id: 'text-embedding-2', name: 'text-embedding-2', meta: { id: 'text-embedding-2' }, capabilities: { tools: true, vision: false, reasoning: false }  },
+    { id: 'text-embedding-2', name: 'text-embedding-2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false }  },
+    { id: 'text-embedding-1', name: 'text-embedding-1', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false }  },
   ])
   expect(models!.realtime).toStrictEqual([
-    { id: 'realtime-model', name: 'realtime-model', meta: { id: 'realtime-model' }, capabilities: { tools: true, vision: false, reasoning: false }  },
+    { id: 'realtime-model', name: 'realtime-model', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false }  },
   ])
   expect(models!.computer).toStrictEqual([
-    { id: 'computer-use-preview', name: 'computer-use-preview', meta: { id: 'computer-use-preview' }, capabilities: { tools: true, vision: false, reasoning: false }  },
+    { id: 'computer-use-preview', name: 'computer-use-preview', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false }  },
   ])
   expect(models!.tts).toStrictEqual([
-    { id: 'chatgpt-tts', name: 'chatgpt-tts', meta: { id: 'chatgpt-tts' }, capabilities: { tools: false, vision: false, reasoning: false }  },
+    { id: 'chatgpt-tts', name: 'chatgpt-tts', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false }  },
   ])
   expect(models!.stt).toStrictEqual([
-    { id: 'transcribe-french', name: 'transcribe-french', meta: { id: 'transcribe-french' }, capabilities: { tools: true, vision: false, reasoning: false }  },
-    { id: 'whisper-english', name: 'whisper-english', meta: { id: 'whisper-english' }, capabilities: { tools: true, vision: false, reasoning: false }  },
+    { id: 'transcribe-french', name: 'transcribe-french', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false }  },
+    { id: 'whisper-english', name: 'whisper-english', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false }  },
   ])
   expect(await loadModels('openai', config)).toStrictEqual(models)
 })
@@ -142,26 +142,26 @@ test('OpenAI Load Models', async () => {
 test('OpenAI together load models', async () => {
   const models = await loadOpenAIModels({ baseURL: 'api.together.xyz' })
   expect(models!.chat).toStrictEqual([
-    { id: 'chat', name: 'chat', meta: { id: 'chat', type: 'chat' }, capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'code', name: 'code', meta: { id: 'code', type: 'code' }, capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'language', name: 'language', meta: { id: 'language', type: 'language' }, capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'code', name: 'code', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'language', name: 'language', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'chat', name: 'chat', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
   expect(models!.image).toStrictEqual([
-    { id: 'image', name: 'image', meta: { id: 'image', type: 'image' }, capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'image', name: 'image', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
   expect(models!.embedding).toStrictEqual([
-    { id: 'embedding', name: 'embedding', meta: { id: 'embedding', type: 'embedding' }, capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'embedding', name: 'embedding', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
 })
 
 test('OpenAI compatibility mode', async () => {
   const models = await loadOpenAIModels({ baseURL: 'api.unknown.com' })
   expect(models!.chat).toStrictEqual([
-    { id: 'chat', name: 'chat', meta: { id: 'chat', type: 'chat' }, capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'code', name: 'code', meta: { id: 'code', type: 'code' }, capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'embedding', name: 'embedding', meta: { id: 'embedding', type: 'embedding' }, capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'image', name: 'image', meta: { id: 'image', type: 'image' }, capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'language', name: 'language', meta: { id: 'language', type: 'language' }, capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'embedding', name: 'embedding', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'image', name: 'image', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'code', name: 'code', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'language', name: 'language', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'chat', name: 'chat', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
 })
 

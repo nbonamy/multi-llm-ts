@@ -16,11 +16,11 @@ vi.mock('@anthropic-ai/sdk', async() => {
   Anthropic.prototype.models = {
     list: vi.fn(() => {
       return { data: [
-        { id: 'claude-2.0', display_name: 'Claude 2.0' },
-        { id: 'claude-3-model-date', display_name: 'Claude Model 3' },
-        { id: 'claude-3-5-model-date', display_name: 'Claude Model 3.5' },
-        { id: 'claude-3-7-model-date', display_name: 'Claude Model 3.7' },
-        { id: 'claude-model-4-date', display_name: 'Claude Model 4' },
+        { id: 'claude-2.0', display_name: 'Claude 2.0', created_at: '0' },
+        { id: 'claude-3-model-date', display_name: 'Claude Model 3', created_at: '1' },
+        { id: 'claude-3-5-model-date', display_name: 'Claude Model 3.5', created_at: '2' },
+        { id: 'claude-3-7-model-date', display_name: 'Claude Model 3.7', created_at: '3' },
+        { id: 'claude-model-4-date', display_name: 'Claude Model 4', created_at: '4' },
       ] }
     })
   }
@@ -74,11 +74,11 @@ beforeEach(() => {
 test('Anthropic Load Models', async () => {
   const models = await loadAnthropicModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'claude-2.0', name: 'Claude 2.0', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'claude-3-model-date', name: 'Claude Model 3', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
-    { id: 'claude-3-5-model-date', name: 'Claude Model 3.5', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
-    { id: 'claude-3-7-model-date', name: 'Claude Model 3.7', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: true } },
     { id: 'claude-model-4-date', name: 'Claude Model 4', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: true } },
+    { id: 'claude-3-7-model-date', name: 'Claude Model 3.7', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: true } },
+    { id: 'claude-3-5-model-date', name: 'Claude Model 3.5', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
+    { id: 'claude-3-model-date', name: 'Claude Model 3', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
+    { id: 'claude-2.0', name: 'Claude 2.0', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
   expect(await loadModels('anthropic', config)).toStrictEqual(models)
 })

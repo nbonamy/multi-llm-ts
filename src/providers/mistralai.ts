@@ -35,12 +35,7 @@ export default class extends LlmEngine {
     return 'mistralai'
   }
 
-  getModelCapabilities(model: string|ModelMistralAI): ModelCapabilities {
-
-    if (typeof model === 'string') {
-      return { tools: false, vision: false, reasoning: false }
-    }
-
+  getModelCapabilities(model: ModelMistralAI): ModelCapabilities {
     return {
       tools: model.capabilities?.functionCalling ?? false,
       vision: model.capabilities?.vision ?? false,

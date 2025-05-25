@@ -33,15 +33,15 @@ export default class extends LlmEngine {
 
   // https://console.groq.com/docs/models
 
-  getModelCapabilities(model: string): ModelCapabilities {
+  getModelCapabilities(model: ModelGroq): ModelCapabilities {
     const visionGlobs = [
       'meta-llama/llama-4-scout-17b-16e-instruct',
       'meta-llama/llama-4-maverick-17b-128e-instruct',
     ]
     return {
       tools: true,
-      vision: visionGlobs.some((m) => minimatch(model, m)),
-      reasoning: model.startsWith('o')
+      vision: visionGlobs.some((m) => minimatch(model.id, m)),
+      reasoning: model.id.startsWith('o')
     }
   }
 

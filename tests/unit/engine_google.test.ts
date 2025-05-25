@@ -80,7 +80,7 @@ test('Google Load Models', async () => {
     { id: 'embed-content', name: 'Non Generate Content', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
   expect(models!.tts).toStrictEqual([
-    { id: 'gemini-2.5-tts', name: 'Gemini 2.5 TTS', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'gemini-2.5-tts', name: 'Gemini 2.5 TTS', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
   ])
   expect(await loadModels('google', config)).toStrictEqual(models)
 })

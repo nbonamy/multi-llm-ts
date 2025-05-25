@@ -22,8 +22,8 @@ export default class extends OpenAI {
     return 'xai'
   }
 
-  getModelCapabilities(model: string): ModelCapabilities {
-    const vision = model.includes('vision')
+  getModelCapabilities(model: ModelxAI): ModelCapabilities {
+    const vision = model.id.includes('vision')
     return {
       tools: !vision,
       vision: vision,

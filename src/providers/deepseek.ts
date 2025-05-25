@@ -24,11 +24,11 @@ export default class extends OpenAI {
     return [ ]
   }
 
-  getModelCapabilities(model: string): ModelCapabilities {
+  getModelCapabilities(model: ModelDeepseek): ModelCapabilities {
     return {
       tools: true,
       vision: false,
-      reasoning: model.includes('reason'),
+      reasoning: model.id.includes('reason'),
     }
   }
   

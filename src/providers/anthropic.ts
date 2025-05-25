@@ -52,7 +52,7 @@ export default class extends LlmEngine {
 
   // https://docs.anthropic.com/en/docs/about-claude/models
 
-  getModelCapabilities(model: string): ModelCapabilities {
+  getModelCapabilities(model: ModelAnthropic): ModelCapabilities {
 
     const visionGlobs = [
       'claude-3-*',
@@ -60,14 +60,14 @@ export default class extends LlmEngine {
       'computer-use',
     ]
 
-    const reasoning = model === 'claude-3-7-sonnet-thinking' || 
-      model.includes('claude-3-7') ||
-      model.includes('claude-3.7') || 
-      minimatch(model, 'claude-*-4-*');
+    const reasoning = model.id === 'claude-3-7-sonnet-thinking' || 
+      model.id.includes('claude-3-7') ||
+      model.id.includes('claude-3.7') || 
+      minimatch(model.id, 'claude-*-4-*');
 
     return {
       tools: true,
-      vision: visionGlobs.some((m) => minimatch(model, m)),
+      vision: visionGlobs.some((m) => minimatch(model.id, m)),
       reasoning
     }
 

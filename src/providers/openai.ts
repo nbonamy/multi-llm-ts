@@ -1,4 +1,4 @@
-import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata } from '../types/index'
+import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpenAI } from '../types/index'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
@@ -39,12 +39,7 @@ export default class extends LlmEngine {
 
   // https://openai.com/api/pricing/
 
-  getModelCapabilities(model: string|ModelMetadata): ModelCapabilities {
-    
-    // openai itself only uses string
-    if (typeof model !== 'string') {
-      throw new Error('[openai] Model capabilities parsing not available')
-    }
+  getModelCapabilities(model: ModelMetadata): ModelCapabilities {
     
     const visionGlobs = [
       '*vision*',
@@ -65,11 +60,13 @@ export default class extends LlmEngine {
       'o1-mini*',
       'o3-mini*'
     ]
+
+    const modelId = (model as ModelOpenAI).id
     
     return {
-      tools: !model.startsWith('chatgpt-') && !model.startsWith('o1-mini'),
-      vision: visionGlobs.some((m) => minimatch(model, m)) && !excludeVisionGlobs.some((m) => minimatch(model, m)),
-      reasoning: model.startsWith('o')
+      tools: !modelId.startsWith('chatgpt-') && !modelId.startsWith('o1-mini'),
+      vision: visionGlobs.some((m) => minimatch(modelId, m)) && !excludeVisionGlobs.some((m) => minimatch(modelId, m)),
+      reasoning: modelId.startsWith('o')
     }
   }
 

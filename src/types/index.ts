@@ -34,6 +34,11 @@ export type ChatModel = Model & {
   capabilities: ModelCapabilities
 }
 
+export type ModelGeneric = {
+  id: string
+  name: string
+}
+
 export type ModelAnthropic = {
   type: string
   id: string
@@ -192,7 +197,7 @@ export type ModelxAI = {
   owned_by: string
 }
 
-export type ModelMetadata =  { id: string } |
+export type ModelMetadata =  ModelGeneric |
   ModelAnthropic | ModelCerebras | ModelDeepseek | ModelGoogle |
   ModelGroq | ModelMeta | ModelMistralAI | ModelOllama | ModelOpenAI |
   ModelOpenRouter | ModelTogether | ModelxAI

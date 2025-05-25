@@ -37,7 +37,7 @@ export default abstract class LlmEngine {
 
   abstract getName(): string
 
-  abstract getModelCapabilities(model: string|ModelMetadata): ModelCapabilities
+  abstract getModelCapabilities(model: ModelMetadata): ModelCapabilities
   
   abstract getModels(): Promise<ModelMetadata[]>
   
@@ -342,7 +342,10 @@ export default abstract class LlmEngine {
     return {
       id: model,
       name: model,
-      capabilities: this.getModelCapabilities(model),
+      capabilities: this.getModelCapabilities({
+        id: model,
+        name: model,
+      }),
     }
   }
 

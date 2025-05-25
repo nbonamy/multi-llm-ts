@@ -10,6 +10,7 @@ import logger from '../logger'
 import { Ollama, ChatRequest, ChatResponse, ProgressResponse } from 'ollama/dist/browser.cjs'
 import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.e009de91.cjs'
 import Attachment from 'models/attachment'
+import { minimatch } from 'minimatch'
 
 export type OllamaStreamingContext = LlmStreamingContextTools & {
   usage: LlmUsage
@@ -47,7 +48,7 @@ export default class extends LlmEngine {
     return 'ollama'
   }
   
-  getModelCapabilities(model: string): ModelCapabilities {
+  getModelCapabilities(model: ModelOllama): ModelCapabilities {
     
     const toolModels = [
       'athene-v2',
@@ -105,10 +106,20 @@ export default class extends LlmEngine {
       'qwen2.5vl',
     ]
 
+    const reasoningModels = [
+      'cogito:*',
+      'deepseek-r1:*',
+      'openthinker:*',
+      'phi:*',
+      'qwq:*',
+      '*thinking*',
+      '*reasoning*'
+    ]
+
     return {
-      tools: toolModels.includes(model.split(':')[0]),
-      vision: visionModels.some((m) => model.match(m)),
-      reasoning: false,
+      tools: toolModels.includes(model.name.split(':')[0]),
+      vision: visionModels.some((m) => model.name.match(m)),
+      reasoning: reasoningModels.some((m) => minimatch(model.name, m)),
     }
 
   }

@@ -66,9 +66,9 @@ export const loadAnthropicModels = async (engineConfig: EngineCreateOpts, comput
   const models: ChatModel[] = metas.map(m => ({
     id: m.id,
     name: m.display_name,
-    capabilities: anthropic.getModelCapabilities(m.id),
+    capabilities: anthropic.getModelCapabilities(m),
     meta: m,
-  }))
+  })).sort((a, b) => b.meta.created_at.localeCompare(a.meta.created_at))
 
   // done
   return {
@@ -98,7 +98,7 @@ export const loadAzureModels = async (engineConfig: EngineCreateOpts): Promise<M
   const models: ChatModel[] = metas.map(m => ({
     id: m.id,
     name: m.id,
-    capabilities: azure.getModelCapabilities(m.id),
+    capabilities: azure.getModelCapabilities(m),
     meta: m,
   })).sort((a, b) => a.name.localeCompare(b.name))
 
@@ -132,7 +132,7 @@ export const loadCerebrasModels = async (engineConfig: EngineCreateOpts): Promis
   const models: ChatModel[] = metas.map(m => ({
     id: m.id,
     name: m.id.split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
-    capabilities: cerebras.getModelCapabilities(m.id),
+    capabilities: cerebras.getModelCapabilities(m),
     meta: m,
   })).sort((a, b) => b.meta.created - a.meta.created)
 
@@ -163,7 +163,7 @@ export const loadDeepSeekModels = async (engineConfig: EngineCreateOpts): Promis
   const models: ChatModel[] = metas.map(m => ({
     id: m.id,
     name: m.id.split('-').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ').replace('Deepseek', 'DeepSeek'),
-    capabilities: deepseek.getModelCapabilities(m.id),
+    capabilities: deepseek.getModelCapabilities(m),
     meta: m,
   }))
 
@@ -194,9 +194,9 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
   const models: ChatModel[] = metas.map(m => ({
     id: m.name.replace('models/', ''),
     name: m.displayName,
-    capabilities: google.getModelCapabilities(m.name.replace('models/', '')),
+    capabilities: google.getModelCapabilities(m),
     meta: m,
-  }))
+  })).filter(m => !m.id.includes('generation')) // remove generation models
 
   const imageModels = models.filter((m) => (m.meta as ModelGoogle).supportedGenerationMethods?.includes('bidiGenerateContent'))
   const embeddingModels = models.filter((m) => (m.meta as ModelGoogle).supportedGenerationMethods?.includes('embedContent'))
@@ -209,6 +209,12 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
         !embeddingModels.includes(model) &&
         !ttsModels.includes(model)
       )
+    .sort((a, b) => {
+      if (a.id.includes('gemini') && !b.id.includes('gemini')) {
+        return -1
+      }
+      return b.name.localeCompare(a.name)
+    })
 
   // done
   return {
@@ -238,9 +244,9 @@ export const loadGroqModels = async (engineConfig: EngineCreateOpts): Promise<Mo
   const models: ChatModel[] = metas.map(m => ({
     id: m.id,
     name: m.id.split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
-    capabilities: groq.getModelCapabilities(m.id),
+    capabilities: groq.getModelCapabilities(m),
     meta: m,
-  }))
+  })).sort((a, b) => b.meta.created - a.meta.created)
 
   // specialized models
   const ttsModels = models.filter(model => model.id.includes('tts'))
@@ -281,7 +287,7 @@ export const loadMetaModels = async (engineConfig: EngineCreateOpts): Promise<Mo
   const models: ChatModel[] = metas.map(m => ({
     id: m.id,
     name: m.id,
-    capabilities: meta.getModelCapabilities(m.id),
+    capabilities: meta.getModelCapabilities(m),
     meta: m,
   })).sort((a, b) => b.meta.created - a.meta.created)
 
@@ -314,7 +320,7 @@ export const loadMistralAIModels = async (engineConfig: EngineCreateOpts): Promi
     name: m.id,
     capabilities: mistralai.getModelCapabilities(m),
     meta: m,
-  }))
+  })).sort((a, b) => (b.meta?.created??0) - (a.meta?.created??0))
 
   // done
   return {
@@ -344,7 +350,7 @@ export const loadOllamaModels = async (engineConfig: EngineCreateOpts): Promise<
   const models: ChatModel[] = metas.map(m => ({
     id: m.model,
     name: m.name,
-    capabilities: ollama.getModelCapabilities(m.model),
+    capabilities: ollama.getModelCapabilities(m),
     meta: m,
   }))
 
@@ -389,9 +395,9 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
   let models: ChatModel[] = metas.map(m => ({
     id: m.id,
     name: m.id,
-    capabilities: openAI.getModelCapabilities(m.id),
+    capabilities: openAI.getModelCapabilities(m),
     meta: m,
-  })).sort((a, b) => a.name.localeCompare(b.name))
+  })).sort((a, b) => b.meta.created - a.meta.created)
 
   // depends on the provider
   if (!engineConfig.baseURL || engineConfig.baseURL.includes('api.openai.com')) {
@@ -520,7 +526,7 @@ export const loadXAIModels = async (engineConfig: EngineCreateOpts): Promise<Mod
   const models: ChatModel[] = metas.map(m => ({
     id: m.id,
     name: m.id.split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
-    capabilities: xai.getModelCapabilities(m.id),
+    capabilities: xai.getModelCapabilities(m),
     meta: m,
   })).sort((a, b) => b.meta.created - a.meta.created)
   

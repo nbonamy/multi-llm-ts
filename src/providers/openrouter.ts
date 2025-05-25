@@ -24,11 +24,7 @@ export default class extends OpenAI {
     return await super.getModels() as ModelOpenRouter[]
   }
 
-  getModelCapabilities(model: string|ModelOpenRouter): ModelCapabilities {
-
-    if (typeof model === 'string') {
-      return { tools: false, vision: false, reasoning: false }
-    }
+  getModelCapabilities(model: ModelOpenRouter): ModelCapabilities {
 
     let input_modalities: string[] = model.architecture?.input_modalities
     if (!input_modalities && model.architecture.modality) {

@@ -23,11 +23,11 @@ export default class extends OpenAI {
     return 'meta'
   }
 
-  getModelCapabilities(model: string): ModelCapabilities {
+  getModelCapabilities(model: ModelMeta): ModelCapabilities {
     const visionGlobs = [ '*Llama-4-*' ]
     return {
       tools: true,
-      vision: visionGlobs.some((m) => minimatch(model, m)),
+      vision: visionGlobs.some((m) => minimatch(model.id, m)),
       reasoning: false,
     }
   }
