@@ -95,17 +95,17 @@ export default class extends LlmEngine {
     // reverse
     models.reverse()
 
-    // now remove duplicated based on name
-    const names: string[] = []
-    const filtered = []
-    for (const model of models) {
-      if (names.includes(model.name)) continue
-      names.push(model.name)
-      filtered.push(model)
-    }
+    // // remove duplicated based on name
+    // const names: string[] = []
+    // const filtered = []
+    // for (const model of models) {
+    //   if (names.includes(model.displayName)) continue
+    //   names.push(model.displayName)
+    //   filtered.push(model)
+    // }
 
     // done
-    return filtered
+    return models
     
   }
 

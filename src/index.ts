@@ -30,10 +30,12 @@ const logger = {
 }
 
 import { ModelCapabilities } from './types/index'
-const defaultCapabilities: ModelCapabilities = {
-  tools: false,
-  vision: false,
-  reasoning: false,
+const defaultCapabilities: { capabilities: ModelCapabilities } = {
+  capabilities: {
+    tools: false,
+    vision: false,
+    reasoning: false,
+  }
 }
 
 export {
