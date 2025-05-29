@@ -7,7 +7,7 @@ import logger from '../logger'
 
 // we do this for so that this can be imported in a browser
 // importing from 'ollama' directly imports 'fs' which fails in browser
-import { Ollama, ChatRequest, ChatResponse, ProgressResponse } from 'ollama/dist/browser.cjs'
+import { Ollama, ChatRequest, ChatResponse, ProgressResponse, ShowResponse } from 'ollama/dist/browser.cjs'
 import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.e009de91.cjs'
 import Attachment from 'models/attachment'
 import { minimatch } from 'minimatch'
@@ -134,7 +134,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async getModelInfo(model: string): Promise<OllamaModelInfo|null> {
+  async getModelInfo(model: string): Promise<ShowResponse|null> {
     try {
       return await this.client.show({ model: model })
     } catch (error) {
@@ -446,6 +446,11 @@ export default class extends LlmEngine {
       }
     } 
   
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  requiresPlainTextPayload(msg: Message): boolean {
+    return true
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

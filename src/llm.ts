@@ -355,23 +355,52 @@ export const loadOllamaModels = async (engineConfig: EngineCreateOpts): Promise<
   }))
 
   // get info
-  const modelInfo: { [key: string]: any } = {}
+  const chatModels: string[] = []
+  const embeddingModels: string[] = []
   for (const model of models) {
-    const info = await ollama.getModelInfo(model.id)
-    modelInfo[model.id] = !info ? null : {
-      ...info.details,
-      ...info.model_info,
+    try {
+
+      const info = await ollama.getModelInfo(model.id)
+      if (!info) {
+        chatModels.push(model.id)
+        continue
+      }
+
+      let isEmbedding = info.details.family.includes('bert')
+
+      if (info && 'capabilities' in info) {
+        const capabilities: string[] = info.capabilities as string[] || []
+        if (capabilities.includes('embedding')) {
+          isEmbedding = true
+        }
+        if (capabilities.includes('tools')) {
+          model.capabilities.tools = true
+        }
+        if (capabilities.includes('vision')) {
+          model.capabilities.vision = true
+        }
+      }
+
+      // add to chat models
+      if (isEmbedding) {
+        embeddingModels.push(model.id)
+      } else {
+        chatModels.push(model.id)
+      }
+
+    } catch (e) {
+      console.error(`Error getting info for model ${model.id}:`, e);
     }
   }
 
   // done
   return {
     chat: models
-      .filter(model => !modelInfo[model.id] || modelInfo[model.id].family.includes('bert') === false)
+      .filter(model => chatModels.includes(model.id))
       .sort((a, b) => a.name.localeCompare(b.name)),
     image: [],
     embedding: models
-      .filter(model => modelInfo[model.id]?.family?.includes('bert') === true)
+      .filter(model => embeddingModels.includes(model.id))
       .sort((a, b) => a.name.localeCompare(b.name)),
   }
 

@@ -53,6 +53,8 @@ export default abstract class LlmEngine {
         type: 'text',
         text: attachment.content,
       })
+    } else if (typeof payload.content === 'string') {
+      payload.content = `${payload.content}\n\n${attachment.content}`
     }
   }
 
@@ -144,6 +146,10 @@ export default abstract class LlmEngine {
 
   }
 
+  requiresPlainTextPayload(msg: Message) {
+    return ['system', 'assistant'].includes(msg.role)
+  }
+
   buildPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
 
     if (typeof thread === 'string') {
@@ -157,7 +163,7 @@ export default abstract class LlmEngine {
         // init the payload
         const payload: LLmCompletionPayload = {
           role: msg.role,
-          content: ['system', 'assistant'].includes(msg.role) ? msg.contentForModel : [{
+          content: this.requiresPlainTextPayload(msg) ? msg.contentForModel : [{
             type: 'text',
             text: msg.contentForModel 
           }]
