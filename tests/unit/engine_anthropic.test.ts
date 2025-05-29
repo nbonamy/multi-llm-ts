@@ -38,6 +38,9 @@ vi.mock('@anthropic-ai/sdk', async() => {
             
             // now the text response
             const content = 'response'
+            yield { type: 'content_block_delta', delta: { type: 'citations_delta', citation: {
+              cited_text: 'cited_text\n',
+            } } }
             for (let i = 0; i < content.length; i++) {
               yield { type: 'content_block_delta', delta: { type: 'text_delta', text: content[i] } }
             }
@@ -223,7 +226,7 @@ test('Anthropic stream', async () => {
     stream: true,
   })
   expect(lastMsg?.done).toBe(true)
-  expect(response).toBe('response')
+  expect(response).toBe('cited_text\nresponse')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'prep2', done: false })
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'run2', done: false })

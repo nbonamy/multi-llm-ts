@@ -437,6 +437,11 @@ export default class extends LlmEngine {
       if (context.toolCall === undefined && chunk.delta.type === 'signature_delta') {
         context.thinkingSignature = chunk.delta.signature
       }
+
+      // citation
+      if (context.toolCall === undefined && chunk.delta.type === 'citations_delta') {
+        yield { type: 'content', text: chunk.delta.citation.cited_text, done: false }
+      }
       
       // text
       if (context.toolCall === undefined && chunk.delta.type === 'text_delta') {
@@ -447,6 +452,7 @@ export default class extends LlmEngine {
 
     // tool call?
     if (chunk.type == 'message_delta') {
+      
       if (chunk.delta.stop_reason == 'tool_use' && context.toolCall !== undefined) {
 
         // need
