@@ -31,7 +31,7 @@ export default class extends LlmEngine {
     })
   }
 
-  getName(): string {
+  getId(): string {
     return 'mistralai'
   }
 

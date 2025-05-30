@@ -46,7 +46,7 @@ export default class extends LlmEngine {
     this.computerInfo = computerInfo
   }
 
-  getName(): string {
+  getId(): string {
     return 'anthropic'
   }
 

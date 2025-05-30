@@ -16,7 +16,7 @@ export default class extends OpenAI {
     })
   }
 
-  getName(): string {
+  getId(): string {
     return 'cerebras'
   }
 

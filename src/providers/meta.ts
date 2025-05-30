@@ -1,7 +1,8 @@
 
-import { minimatch } from 'minimatch'
+import Message from '../models/message'
 import { EngineCreateOpts, ModelCapabilities, ModelMeta } from '../types/index'
 import { LlmRole } from '../types/llm'
+import { minimatch } from 'minimatch'
 import OpenAI from './openai'
 
 //
@@ -19,7 +20,7 @@ export default class extends OpenAI {
     })
   }
 
-  getName(): string {
+  getId(): string {
     return 'meta'
   }
 
@@ -49,6 +50,10 @@ export default class extends OpenAI {
 
   protected setBaseURL() {
     // avoid override by super
+  }
+
+  requiresPlainTextPayload(msg: Message): boolean {
+    return super.defaultRequiresPlainTextPayload(msg)
   }
 
 }

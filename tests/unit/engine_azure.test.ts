@@ -86,7 +86,7 @@ test('Azure stream', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
+      { role: 'user', content: 'prompt' }
     ],
     tool_choice: 'auto',
     tools: expect.any(Array),
@@ -124,7 +124,7 @@ test('Azure stream without tools', async () => {
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
-      { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
+      { role: 'user', content: 'prompt' }
     ],
     stream: true,
     stream_options: {

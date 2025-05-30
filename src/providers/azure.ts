@@ -1,5 +1,6 @@
 
 import { EngineCreateOpts, ModelOpenAI } from '../types/index'
+import Message from '../models/message'
 import { AzureOpenAI } from 'openai'
 import OpenAI from './openai'
 
@@ -16,7 +17,7 @@ export default class extends OpenAI {
     }) 
   }
 
-  getName(): string {
+  getId(): string {
     return 'azure'
   }
 
@@ -30,4 +31,8 @@ export default class extends OpenAI {
     // avoid override by super
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  requiresPlainTextPayload(msg: Message): boolean {
+    return true
+  }
 }

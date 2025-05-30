@@ -35,7 +35,11 @@ export default abstract class LlmEngine {
     this.plugins = []
   }
 
-  abstract getName(): string
+  abstract getId(): string
+  
+  getName(): string {
+    return this.getId()
+  }
 
   abstract getModelCapabilities(model: ModelMetadata): ModelCapabilities
   
@@ -146,8 +150,12 @@ export default abstract class LlmEngine {
 
   }
 
-  requiresPlainTextPayload(msg: Message) {
+  defaultRequiresPlainTextPayload(msg: Message): boolean {
     return ['system', 'assistant'].includes(msg.role)
+  }
+
+  requiresPlainTextPayload(msg: Message) {
+    return this.defaultRequiresPlainTextPayload(msg)
   }
 
   buildPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {

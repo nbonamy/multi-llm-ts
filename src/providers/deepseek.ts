@@ -1,4 +1,5 @@
 
+import Message from '../models/message'
 import { EngineCreateOpts, Model, ModelCapabilities, ModelDeepseek } from '../types/index'
 import { LlmRole } from '../types/llm'
 import OpenAI from './openai'
@@ -16,7 +17,7 @@ export default class extends OpenAI {
     })
   }
 
-  getName(): string {
+  getId(): string {
     return 'deepseek'
   }
 
@@ -55,6 +56,10 @@ export default class extends OpenAI {
 
   protected setBaseURL() {
     // avoid override by super
+  }
+
+  requiresPlainTextPayload(msg: Message): boolean {
+    return super.defaultRequiresPlainTextPayload(msg)
   }
 
 }

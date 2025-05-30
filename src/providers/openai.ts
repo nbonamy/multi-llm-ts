@@ -33,7 +33,7 @@ export default class extends LlmEngine {
     })
   }
 
-  getName(): string {
+  getId(): string {
     return 'openai'
   }
 
@@ -497,6 +497,10 @@ export default class extends LlmEngine {
       }
     }
 
+  }
+
+  requiresPlainTextPayload(msg: Message): boolean {
+    return this.defaultRequiresPlainTextPayload(msg) || (this.client.baseURL?.length > 0 && this.client.baseURL !== defaultBaseUrl)
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
