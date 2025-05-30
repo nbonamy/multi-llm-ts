@@ -8,7 +8,6 @@ import OpenAI, { ClientOptions } from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import { minimatch } from 'minimatch'
-import Attachment from 'models/attachment'
 
 const defaultBaseUrl = 'https://api.openai.com/v1'
 
@@ -501,16 +500,6 @@ export default class extends LlmEngine {
 
   requiresPlainTextPayload(msg: Message): boolean {
     return this.defaultRequiresPlainTextPayload(msg) || (this.client.baseURL?.length > 0 && this.client.baseURL !== defaultBaseUrl)
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addImageToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
-    if (Array.isArray(payload.content)) {
-      payload.content.push({
-        type: 'image_url',
-        image_url: { url: `data:${attachment.mimeType};base64,${attachment.content}` }
-      })
-    }
   }
 
 }

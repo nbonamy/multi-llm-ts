@@ -206,6 +206,18 @@ test('OpenAI buildPayload', async () => {
   ]}])
 })
 
+test('OpenAI buildPayload in compatibility mode', async () => {
+  const openai = new OpenAI({ baseURL: 'api.unknown.com' })
+  const message = new Message('user', 'text')
+  message.attach(new Attachment('image', 'image/png'))
+  message.attach(new Attachment('attachment', 'text/plain'))
+  expect(openai.buildPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([{ role: 'user', content: 'text\n\nattachment' }])
+  expect(openai.buildPayload(openai.buildModel('gpt-4o'), [ message ])).toStrictEqual([{ role: 'user', content: [
+    { type: 'text', text: 'text\n\nattachment' },
+    { type: 'image_url', image_url: { url: 'data:image/png;base64,image' } }
+  ]}])
+})
+
 test('OpenAI completion', async () => {
   const openai = new OpenAI(config)
   const response = await openai.complete(openai.buildModel('model'), [

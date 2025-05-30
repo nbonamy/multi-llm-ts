@@ -51,18 +51,41 @@ export default abstract class LlmEngine {
 
   abstract stop(stream: any): Promise<void>
 
-  protected addTextToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
+  protected addTextToPayload(message: Message, attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
+
     if (Array.isArray(payload.content)) {
+      
+      // we may need to add to already existing content
+      if (this.requiresPlainTextPayload(message)) {
+        const existingText = payload.content.find((c) => c.type === 'text')
+        if (existingText) {
+          existingText.text = `${existingText.text}\n\n${attachment.content}`
+          return
+        }
+      }
+
+      // otherwise just add a new text content
       payload.content.push({
         type: 'text',
         text: attachment.content,
       })
+    
     } else if (typeof payload.content === 'string') {
       payload.content = `${payload.content}\n\n${attachment.content}`
     }
   }
 
   protected addImageToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
+
+    // if we have a string content, convert it to an array
+    if (typeof payload.content === 'string') {
+      payload.content = [{
+        type: 'text',
+        text: payload.content,
+      }]
+    }
+
+    // now add the image
     if (Array.isArray(payload.content)) {
       payload.content.push({
         type: 'image_url',
@@ -187,7 +210,7 @@ export default abstract class LlmEngine {
 
           // text formats
           if (attachment.isText()) {
-            this.addTextToPayload(attachment, payload, opts)
+            this.addTextToPayload(msg, attachment, payload, opts)
           }
 
           // image formats

@@ -538,7 +538,7 @@ export default class extends LlmEngine {
 
   }
 
-  addTextToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
+  addTextToPayload(message: Message, attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
     if (Array.isArray(payload.content)) {
       payload.content.push({
         type: 'document',

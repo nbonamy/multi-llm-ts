@@ -20,8 +20,10 @@ const config = { apiKey: '123' }
 
 vi.mock('openai', async() => {
   let streamIteration = 0
-  const OpenAI = vi.fn()
-  OpenAI.prototype.apiKey = '123'
+  const OpenAI = vi.fn((opts: _openai.ClientOptions) => {
+    OpenAI.prototype.apiKey = opts.apiKey
+    OpenAI.prototype.baseURL = opts.baseURL
+  })
   OpenAI.prototype.models = {
     list: vi.fn(() => {
       return { data: [
@@ -139,6 +141,62 @@ test('Build payload with image attachment', async () => {
     { role: 'system', content: 'instructions' },
     { role: 'user', content: [
       { type: 'text', text: 'prompt1' },
+      { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,image' } },
+    ]},
+  ])
+})
+
+test('Build payload with multiple attachments multi-part model', async () => {
+  const openai = new OpenAI(config)
+  const messages = [
+    new Message('system', 'instructions'),
+    new Message('user', 'prompt1'),
+  ]
+  messages[1].attach(new Attachment('image', 'image/png'))
+  messages[1].attach(new Attachment('attachment', 'text/plain'))
+  expect(openai.buildPayload(openai.buildModel('gpt-4-vision'), messages)).toStrictEqual([
+    { role: 'system', content: 'instructions' },
+    { role: 'user', content: [
+      { type: 'text', text: 'prompt1' },
+      { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,image' } },
+      { 'type': 'text', 'text': 'attachment' },
+    ]},
+  ])
+
+  messages[1].detach(messages[1].attachments[0]) // remove image attachment
+  messages[1].attach(new Attachment('image', 'image/png'))
+  expect(openai.buildPayload(openai.buildModel('gpt-4-vision'), messages)).toStrictEqual([
+    { role: 'system', content: 'instructions' },
+    { role: 'user', content: [
+      { type: 'text', text: 'prompt1' },
+      { 'type': 'text', 'text': 'attachment' },
+      { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,image' } },
+    ]},
+  ])
+})
+
+test('Build payload with multiple attachments not multi-part model', async () => {
+  const openai = new OpenAI({ baseURL: 'https://api.unknown.com' })
+  const messages = [
+    new Message('system', 'instructions'),
+    new Message('user', 'prompt1'),
+  ]
+  messages[1].attach(new Attachment('image', 'image/png'))
+  messages[1].attach(new Attachment('attachment', 'text/plain'))
+  expect(openai.buildPayload(openai.buildModel('gpt-4-vision'), messages)).toStrictEqual([
+    { role: 'system', content: 'instructions' },
+    { role: 'user', content: [
+      { type: 'text', text: 'prompt1\n\nattachment' },
+      { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,image' } },
+    ]},
+  ])
+
+  messages[1].detach(messages[1].attachments[0]) // remove image attachment
+  messages[1].attach(new Attachment('image', 'image/png'))
+  expect(openai.buildPayload(openai.buildModel('gpt-4-vision'), messages)).toStrictEqual([
+    { role: 'system', content: 'instructions' },
+    { role: 'user', content: [
+      { type: 'text', text: 'prompt1\n\nattachment' },
       { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,image' } },
     ]},
   ])
