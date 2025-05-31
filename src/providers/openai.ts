@@ -498,8 +498,12 @@ export default class extends LlmEngine {
 
   }
 
-  requiresPlainTextPayload(msg: Message): boolean {
-    return this.defaultRequiresPlainTextPayload(msg) || (this.client.baseURL?.length > 0 && this.client.baseURL !== defaultBaseUrl)
+  defaultRequiresFlatTextPayload(msg: Message): boolean {
+    return super.requiresFlatTextPayload(msg)
+  }
+  
+  requiresFlatTextPayload(msg: Message): boolean {
+    return this.defaultRequiresFlatTextPayload(msg) || (this.client.baseURL?.length > 0 && this.client.baseURL !== defaultBaseUrl)
   }
 
 }

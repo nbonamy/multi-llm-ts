@@ -449,7 +449,7 @@ export default class extends LlmEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  requiresPlainTextPayload(msg: Message): boolean {
+  requiresFlatTextPayload(msg: Message): boolean {
     return true
   }
 

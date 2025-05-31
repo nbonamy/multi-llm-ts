@@ -32,7 +32,7 @@ export default class extends OpenAI {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  requiresPlainTextPayload(msg: Message): boolean {
+  requiresFlatTextPayload(msg: Message): boolean {
     return true
   }
 }

@@ -52,8 +52,8 @@ export default class extends OpenAI {
     // avoid override by super
   }
 
-  requiresPlainTextPayload(msg: Message): boolean {
-    return super.defaultRequiresPlainTextPayload(msg)
+  requiresFlatTextPayload(msg: Message): boolean {
+    return super.defaultRequiresFlatTextPayload(msg)
   }
 
 }

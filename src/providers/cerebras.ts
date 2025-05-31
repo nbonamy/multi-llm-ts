@@ -1,4 +1,5 @@
 
+import Message from '../models/message'
 import { EngineCreateOpts, Model, ModelCerebras } from '../types/index'
 import { LlmRole } from '../types/llm'
 import OpenAI from './openai'
@@ -53,4 +54,16 @@ export default class extends OpenAI {
     return []
   }
 
+  // cerebras supports multiparts for some models but not all
+  // especially qwen-3-32b will fail with
+  // {
+  //   "message": "Failed to apply chat template to messages due to error: 'list object' has no attribute 'startswith'",
+  //   "type": "invalid_request_error",
+  //   "param": "messages",
+  //   "code": "wrong_api_format"
+  // }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  requiresFlatTextPayload(msg: Message): boolean {
+    return true
+  }
 }

@@ -56,7 +56,7 @@ export default abstract class LlmEngine {
     if (Array.isArray(payload.content)) {
       
       // we may need to add to already existing content
-      if (this.requiresPlainTextPayload(message)) {
+      if (this.requiresFlatTextPayload(message)) {
         const existingText = payload.content.find((c) => c.type === 'text')
         if (existingText) {
           existingText.text = `${existingText.text}\n\n${attachment.content}`
@@ -173,12 +173,8 @@ export default abstract class LlmEngine {
 
   }
 
-  defaultRequiresPlainTextPayload(msg: Message): boolean {
+  requiresFlatTextPayload(msg: Message) {
     return ['system', 'assistant'].includes(msg.role)
-  }
-
-  requiresPlainTextPayload(msg: Message) {
-    return this.defaultRequiresPlainTextPayload(msg)
   }
 
   buildPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
@@ -194,7 +190,7 @@ export default abstract class LlmEngine {
         // init the payload
         const payload: LLmCompletionPayload = {
           role: msg.role,
-          content: this.requiresPlainTextPayload(msg) ? msg.contentForModel : [{
+          content: this.requiresFlatTextPayload(msg) ? msg.contentForModel : [{
             type: 'text',
             text: msg.contentForModel 
           }]
