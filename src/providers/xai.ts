@@ -25,10 +25,11 @@ export default class extends OpenAI {
 
   getModelCapabilities(model: ModelxAI): ModelCapabilities {
     const vision = model.id.includes('vision')
+    const reasoning = model.id.includes('grok-3-mini')
     return {
       tools: !vision,
       vision: vision,
-      reasoning: false,
+      reasoning: reasoning,
     }
   }
 

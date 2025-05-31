@@ -23,6 +23,8 @@ vi.mock('openai', async () => {
           {'id': 'grok-2', 'created': 2, 'object': 'model', 'owned_by': 'xai'},
           {'id': 'grok-2-vision', 'created': 4, 'object': 'model', 'owned_by': 'xai'},
           {'id': 'grok-2-image', 'created': 3, 'object': 'model', 'owned_by': 'xai'},
+          {'id': 'grok-3', 'created': 5, 'object': 'model', 'owned_by': 'xai'},
+          {'id': 'grok-3-mini-fast', 'created': 6, 'object': 'model', 'owned_by': 'xai'},
         ]
       }
     })
@@ -70,6 +72,8 @@ beforeEach(() => {
 test('xAI Load Chat Models', async () => {
   const models = await loadXAIModels(config)
   expect(models!.chat).toStrictEqual([
+    { id: 'grok-3-mini-fast', name: 'Grok 3 Mini Fast', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: true } },
+    { id: 'grok-3', name: 'Grok 3', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
     { id: 'grok-2-vision', name: 'Grok 2 Vision', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false } },
     { id: 'grok-2', name: 'Grok 2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
     { id: 'grok-1', name: 'Grok 1', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
