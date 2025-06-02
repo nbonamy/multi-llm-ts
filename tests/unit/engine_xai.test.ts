@@ -125,9 +125,9 @@ test('xAI stream', async () => {
   }
   expect(response).toBe('response')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
-  expect(toolCalls[0]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'prep2', done: false })
-  expect(toolCalls[1]).toStrictEqual({ type: 'tool', name: 'plugin2', status: 'run2', done: false })
-  expect(toolCalls[2]).toStrictEqual({ type: 'tool', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 0, name: 'plugin2', status: 'prep2', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 0, name: 'plugin2', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 0, name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await xai.stop(stream)
   expect(stream.controller!.abort).toHaveBeenCalled()
 })

@@ -152,6 +152,7 @@ export default class extends LlmEngine {
       thread: this.buildPayload(model, thread, opts) as MistralMessages,
       opts: opts || {},
       toolCalls: [],
+      usage: this.zeroUsage(),
     }
 
     // do it
@@ -214,6 +215,12 @@ export default class extends LlmEngine {
     // debug
     //console.dir(chunk, { depth: null })
 
+    // usage
+    if (context.opts.usage && chunk.data.usage) {
+      context.usage.prompt_tokens += chunk.data.usage.promptTokens ?? 0
+      context.usage.completion_tokens += chunk.data.usage.completionTokens ?? 0
+    }
+
     // tool calls
     if (chunk.data.choices[0]?.delta?.toolCalls) {
 
@@ -238,6 +245,7 @@ export default class extends LlmEngine {
         // first notify
         yield {
           type: 'tool',
+          id: toolCall.id,
           name: toolCall.function,
           status: this.getToolPreparationDescription(toolCall.function),
           done: false
@@ -269,8 +277,13 @@ export default class extends LlmEngine {
         // first notify
         yield {
           type: 'tool',
+          id: toolCall.id,
           name: toolCall.function,
           status: this.getToolRunningDescription(toolCall.function, args),
+          call: {
+            params: args,
+            result: undefined
+          },
           done: false
         }
 
@@ -295,6 +308,7 @@ export default class extends LlmEngine {
         // clear
         yield {
           type: 'tool',
+          id: toolCall.id,
           name: toolCall.function,
           done: true,
           call: {
@@ -324,14 +338,8 @@ export default class extends LlmEngine {
     }
 
     // usage
-    if (context.opts.usage && chunk.data.usage) {
-      yield {
-        type: 'usage',
-        usage: {
-          prompt_tokens: chunk.data.usage.promptTokens,
-          completion_tokens: chunk.data.usage.completionTokens,
-        }
-      }
+    if (context.opts.usage) {
+      yield { type: 'usage', usage: context.usage }
     }
   }
 

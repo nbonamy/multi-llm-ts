@@ -81,7 +81,7 @@ const tooling = async (llm: LlmEngine, model: ChatModel, messages: Message[]) =>
 
   // initialize
   const engine = process.env.ENGINE ?? 'openai'
-  const modelName = process.env.MODEL ?? 'gpt-4o-mini'
+  const modelName = process.env.MODEL ?? 'gpt-4.1'
   const baseURL = process.env.BASE_URL ?? process.env.ENDPOINT ?? undefined
   const deployment = process.env.DEPLOYMENT ?? undefined
   const apiVersion = process.env.API_VERSION ?? undefined

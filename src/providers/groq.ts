@@ -167,7 +167,8 @@ export default class extends LlmEngine {
       model: model,
       thread: this.buildPayload(model, thread, opts),
       opts: opts || {},
-      toolCalls: []
+      toolCalls: [],
+      usage: this.zeroUsage(),
     }
 
     // do it
@@ -232,6 +233,13 @@ export default class extends LlmEngine {
     // debug
     //logger.log('nativeChunkToLlmChunk', JSON.stringify(chunk))
 
+    // usage
+    if (context.opts?.usage && chunk.x_groq?.usage) {
+      context.usage.prompt_tokens += chunk.x_groq.usage.prompt_tokens ?? 0
+      context.usage.completion_tokens += chunk.x_groq.usage.completion_tokens ?? 0
+    }
+
+
     // tool calls
     if (chunk.choices[0]?.delta?.tool_calls?.[0].function) {
 
@@ -256,6 +264,7 @@ export default class extends LlmEngine {
         // first notify
         yield {
           type: 'tool',
+          id: toolCall.id,
           name: toolCall.function,
           status: this.getToolPreparationDescription(toolCall.function),
           done: false
@@ -291,8 +300,13 @@ export default class extends LlmEngine {
         // first notify
         yield {
           type: 'tool',
+          id: toolCall.id,
           name: toolCall.function,
           status: this.getToolRunningDescription(toolCall.function, args),
+          call: {
+            params: args,
+            result: undefined
+          },
           done: false
         }
 
@@ -318,6 +332,7 @@ export default class extends LlmEngine {
         // clear
         yield {
           type: 'tool',
+          id: toolCall.id,
           name: toolCall.function,
           done: true,
           call: {
@@ -346,8 +361,8 @@ export default class extends LlmEngine {
       yield { type: 'content', text: '', done: true }
 
       // usage?
-      if (context.opts?.usage && chunk.x_groq?.usage) {
-        yield { type: 'usage', usage: chunk.x_groq.usage }
+      if (context.opts?.usage) {
+        yield { type: 'usage', usage: context.usage }
       }
     
     } else {

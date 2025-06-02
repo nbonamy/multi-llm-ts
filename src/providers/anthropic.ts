@@ -25,7 +25,6 @@ export interface AnthropicComputerToolInfo {
 
 export type AnthropicStreamingContext = LlmStreamingContextBase & {
   system: string,
-  usage: Usage,
   toolCall?: LlmToolCall,
   thinkingBlock?: string,
   thinkingSignature?: string,
@@ -231,7 +230,7 @@ export default class extends LlmEngine {
       system: thread[0].contentForModel,
       thread: this.buildPayload(model, thread, opts) as MessageParam[],
       opts: opts || {},
-      usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 },
+      usage: this.zeroUsage(),
       firstTextBlockStart: true
     }
 
@@ -365,19 +364,16 @@ export default class extends LlmEngine {
     const usage: Usage|MessageDeltaUsage = (chunk as RawMessageStartEvent).message?.usage ?? (chunk as RawMessageDeltaEvent).usage
     if (context.usage && usage) {
       if ('input_tokens' in usage) {
-        context.usage.input_tokens += (usage as Usage).input_tokens ?? 0
+        context.usage.prompt_tokens += (usage as Usage).input_tokens ?? 0
       }
-      context.usage.output_tokens += usage.output_tokens ?? 0
+      context.usage.completion_tokens += usage.output_tokens ?? 0
     }
 
     // done
     if (chunk.type == 'message_stop') {
       yield { type: 'content', text: '', done: true }
-      if (context.usage && context.opts.usage) {
-        yield { type: 'usage', usage: {
-          prompt_tokens: context.usage.input_tokens,
-          completion_tokens: context.usage.output_tokens,
-        }}
+      if (context.opts.usage) {
+        yield { type: 'usage', usage: context.usage }
       }
     }
 
@@ -408,6 +404,7 @@ export default class extends LlmEngine {
         // notify
         yield {
           type: 'tool',
+          id: context.toolCall.id,
           name: context.toolCall.function,
           status: this.getToolPreparationDescription(context.toolCall.function),
           done: false
@@ -462,8 +459,13 @@ export default class extends LlmEngine {
         // first notify
         yield {
           type: 'tool',
+          id: context.toolCall.id,
           name: context.toolCall!.function,
           status: this.getToolRunningDescription(context.toolCall!.function, args),
+          call: {
+            params: args,
+            result: undefined
+          },
           done: false
         }
 
@@ -518,6 +520,7 @@ export default class extends LlmEngine {
         // clear
         yield {
           type: 'tool',
+          id: context.toolCall.id,
           name: context.toolCall!.function,
           done: true,
           call: {

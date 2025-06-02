@@ -342,9 +342,9 @@ export default class extends LlmEngine {
     // console.dir(chunk, { depth: null })
 
     // add usage
-    if (chunk.done && context.usage && (chunk.eval_count || chunk.prompt_eval_count)) {
-      context.usage.prompt_tokens += chunk.prompt_eval_count
-      context.usage.completion_tokens += chunk.eval_count
+    if (chunk.done && (chunk.eval_count || chunk.prompt_eval_count)) {
+      context.usage.prompt_tokens += chunk.prompt_eval_count ?? 0
+      context.usage.completion_tokens += chunk.eval_count ?? 0
     }
 
     // tool calls
@@ -368,6 +368,7 @@ export default class extends LlmEngine {
         // first notify prep
         yield {
           type: 'tool',
+          id: toolCall.id,
           name: toolCall.function,
           status: this.getToolPreparationDescription(toolCall.function),
           done: false
@@ -380,8 +381,13 @@ export default class extends LlmEngine {
         // now notify running
         yield {
           type: 'tool',
+          id: toolCall.id,
           name: toolCall.function,
           status: this.getToolRunningDescription(toolCall.function, args),
+          call: {
+            params: args,
+            result: undefined
+          },
           done: false
         }
 
@@ -401,6 +407,7 @@ export default class extends LlmEngine {
         // clear
         yield {
           type: 'tool',
+          id: toolCall.id,
           name: toolCall.function,
           done: true,
           call: {

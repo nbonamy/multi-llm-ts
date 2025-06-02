@@ -1,11 +1,11 @@
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpenAI } from '../types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
 
 import OpenAI, { ClientOptions } from 'openai'
-import { ChatCompletionChunk } from 'openai/resources'
+import { ChatCompletionChunk, CompletionUsage } from 'openai/resources'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import { minimatch } from 'minimatch'
 
@@ -220,19 +220,7 @@ export default class extends LlmEngine {
 
       // cumulate usage
       if (opts?.usage && response.usage && completion.usage) {
-        completion.usage.prompt_tokens += response.usage.prompt_tokens
-        if (response.usage.prompt_tokens_details?.cached_tokens) {
-          completion.usage.prompt_tokens_details!.cached_tokens! += response.usage.prompt_tokens_details?.cached_tokens
-        }
-        if (response.usage.prompt_tokens_details?.audio_tokens) {
-          completion.usage.prompt_tokens_details!.audio_tokens! += response.usage.prompt_tokens_details?.audio_tokens
-        }
-        if (response.usage.completion_tokens_details?.reasoning_tokens) {
-          completion.usage.completion_tokens_details!.reasoning_tokens! += response.usage.completion_tokens_details?.reasoning_tokens
-        }
-        if (response.usage.completion_tokens_details?.audio_tokens) {
-          completion.usage.completion_tokens_details!.audio_tokens! += response.usage.completion_tokens_details?.audio_tokens
-        }
+        this.accumulateUsage(completion.usage, response.usage)
       }
 
       // done
@@ -268,6 +256,7 @@ export default class extends LlmEngine {
       thread: this.buildPayload(model, thread, opts),
       opts: opts || {},
       toolCalls: [],
+      usage: this.zeroUsage(),
       done: false,
     }
 
@@ -336,6 +325,11 @@ export default class extends LlmEngine {
     // debug
     //console.dir(chunk, { depth: null })
 
+    // cumulate usage
+    if (chunk.usage && context.opts?.usage) {
+      this.accumulateUsage(context.usage, chunk.usage)
+    }
+
     // tool calls
     const tool_call = chunk.choices[0]?.delta?.tool_calls?.[0]
     if (tool_call?.function) {
@@ -370,6 +364,7 @@ export default class extends LlmEngine {
           // first notify
           yield {
             type: 'tool',
+            id: toolCall.id,
             name: toolCall.function,
             status: this.getToolPreparationDescription(toolCall.function),
             done: false
@@ -414,8 +409,13 @@ export default class extends LlmEngine {
         // first notify
         yield {
           type: 'tool',
+          id: toolCall.id,
           name: toolCall.function,
           status: this.getToolRunningDescription(toolCall.function, args),
+          call: {
+            params: args,
+            result: undefined
+          },
           done: false
         }
 
@@ -441,6 +441,7 @@ export default class extends LlmEngine {
         // clear
         yield {
           type: 'tool',
+          id: toolCall.id,
           name: toolCall.function,
           done: true,
           call: {
@@ -489,11 +490,8 @@ export default class extends LlmEngine {
     }
 
     // usage
-    if (context.opts?.usage && context.done && chunk.usage) {
-      yield {
-        type: 'usage',
-        usage: chunk.usage
-      }
+    if (context.opts?.usage && context.done && context.usage) {
+      yield { type: 'usage', usage: context.usage }
     }
 
   }
@@ -504,6 +502,26 @@ export default class extends LlmEngine {
   
   requiresFlatTextPayload(msg: Message): boolean {
     return this.defaultRequiresFlatTextPayload(msg) || (this.client.baseURL?.length > 0 && this.client.baseURL !== defaultBaseUrl)
+  }
+
+  accumulateUsage(cumulate: LlmUsage, usage: CompletionUsage) {
+
+    cumulate.prompt_tokens += usage.prompt_tokens ?? 0
+    cumulate.completion_tokens += usage.completion_tokens ?? 0
+    
+    if (usage.prompt_tokens_details?.cached_tokens) {
+      cumulate.prompt_tokens_details!.cached_tokens! += usage.prompt_tokens_details?.cached_tokens
+    }
+    if (usage.prompt_tokens_details?.audio_tokens) {
+      cumulate.prompt_tokens_details!.audio_tokens! += usage.prompt_tokens_details?.audio_tokens
+    }
+    
+    if (usage.completion_tokens_details?.reasoning_tokens) {
+      cumulate.completion_tokens_details!.reasoning_tokens! += usage.completion_tokens_details?.reasoning_tokens
+    }
+    if (usage.completion_tokens_details?.audio_tokens) {
+      cumulate.completion_tokens_details!.audio_tokens! += usage.completion_tokens_details?.audio_tokens
+    }    
   }
 
 }

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext } from './types/llm'
+import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage } from './types/llm'
 import { PluginParameter } from './types/plugin'
 import Message from './models/message'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
@@ -11,6 +11,7 @@ export type LlmStreamingContextBase = {
   model: ChatModel
   thread: any[]
   opts: LlmCompletionOpts
+  usage: LlmUsage
 }
 
 export type LlmStreamingContextTools = LlmStreamingContextBase & {
@@ -379,6 +380,21 @@ export default abstract class LlmEngine {
         id: model,
         name: model,
       }),
+    }
+  }
+
+  zeroUsage(): LlmUsage {
+    return {
+      prompt_tokens: 0,
+      completion_tokens: 0,
+      prompt_tokens_details: {
+        cached_tokens: 0,
+        audio_tokens: 0,
+      },
+      completion_tokens_details: {
+        reasoning_tokens: 0,
+        audio_tokens: 0
+      }
     }
   }
 

@@ -1,6 +1,6 @@
 
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGoogle } from '../types/index'
-import { LLmCompletionPayload, LLmContentPayloadText, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
+import { LLmCompletionPayload, LLmContentPayloadText, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
 import LlmEngine from '../engine'
@@ -19,6 +19,7 @@ export type GoogleStreamingContext = {
   content: Content[]
   opts: LlmCompletionOpts
   toolCalls: LlmToolCall[]
+  usage: LlmUsage
 }
 
 export default class extends LlmEngine {
@@ -212,6 +213,7 @@ export default class extends LlmEngine {
       content: this.threadToHistory(thread, model, opts),
       opts: opts || {},
       toolCalls: [],
+      usage: this.zeroUsage()
     }
 
     // do it
@@ -388,6 +390,12 @@ export default class extends LlmEngine {
     // debug
     // logger.log('[google] chunk', JSON.stringify(chunk))
 
+    // usage
+    if (context.opts.usage && chunk.usageMetadata) {
+      context.usage.prompt_tokens += chunk.usageMetadata.promptTokenCount ?? 0
+      context.usage.completion_tokens += chunk.usageMetadata.candidatesTokenCount ?? 0
+    }
+
     // tool calls
     const toolCalls = chunk.functionCalls()
     if (toolCalls?.length) {
@@ -411,6 +419,7 @@ export default class extends LlmEngine {
         // first notify
         yield {
           type: 'tool',
+          id: toolCall.id,
           name: toolCall.function,
           status: this.getToolPreparationDescription(toolCall.function),
           done: false
@@ -423,8 +432,13 @@ export default class extends LlmEngine {
         // first notify
         yield {
           type: 'tool',
+          id: toolCall.id,
           name: toolCall.function,
           status: this.getToolRunningDescription(toolCall.function, args),
+          call: {
+            params: args,
+            result: undefined
+          },
           done: false
         }
 
@@ -441,6 +455,7 @@ export default class extends LlmEngine {
         // clear
         yield {
           type: 'tool',
+          id: toolCall.id,
           name: toolCall.function,
           done: true,
           call: {
@@ -483,11 +498,8 @@ export default class extends LlmEngine {
     }
 
     // usage
-    if (done && context.opts.usage && chunk.usageMetadata) {
-      yield { type: 'usage', usage: {
-        prompt_tokens: chunk.usageMetadata.promptTokenCount,
-        completion_tokens: chunk.usageMetadata.candidatesTokenCount,
-      }}
+    if (done && context.opts.usage) {
+      yield { type: 'usage', usage: context.usage }
     }
   }
 

@@ -136,6 +136,7 @@ export type LlmChunkStream ={
 
 export type LlmChunkTool = {
   type: 'tool'
+  id: string
   name: string
   status?: string
   call?: {
