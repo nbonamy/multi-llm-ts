@@ -48,6 +48,7 @@ Prior to 4.0, a `user` message could have only one attachment. Now `Message` sup
 |**OpenRouter**|`openrouter`|yes|yes|yes|no|yes|yes|
 |**TogetherAI**<sup>3</sup>|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|no|yes|yes|
 |**xAI**|`xai`|yes|yes|yes|no|yes|yes|
+|**LM Studio**|`lmstudio`|yes|yes|yes|yes|yes|yes|
 
 <div><sup>1</sup> Max tokens, Temperature... Support varies across providers and models
 <div><sup>2</sup> Not supported for o1 family</div>

@@ -1,4 +1,3 @@
-
 export type EngineCreateOpts = {
   apiKey?: string
   baseURL?: string
@@ -197,7 +196,18 @@ export type ModelxAI = {
   owned_by: string
 }
 
+export type ModelLMStudio = {
+  id: string
+  name: string
+  path?: string
+  size?: number
+  family?: string
+  parameters?: string
+  quantization?: string
+  format?: string
+}
+
 export type ModelMetadata =  ModelGeneric |
   ModelAnthropic | ModelCerebras | ModelDeepseek | ModelGoogle |
-  ModelGroq | ModelMeta | ModelMistralAI | ModelOllama | ModelOpenAI |
-  ModelOpenRouter | ModelTogether | ModelxAI
+  ModelGroq | ModelLMStudio | ModelMeta | ModelMistralAI | ModelOllama | ModelOpenAI |
+  ModelOpenRouter | ModelTogether | ModelxAI| ModelLMStudio

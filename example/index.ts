@@ -85,10 +85,9 @@ const tooling = async (llm: LlmEngine, model: ChatModel, messages: Message[]) =>
   const baseURL = process.env.BASE_URL ?? process.env.ENDPOINT ?? undefined
   const deployment = process.env.DEPLOYMENT ?? undefined
   const apiVersion = process.env.API_VERSION ?? undefined
-
   // we need an api key
   const apiKey = process.env.API_KEY || process.env[`${engine.toUpperCase()}_API_KEY`]
-  if (engine !== 'ollama' && !apiKey) {
+  if (engine !== 'ollama' && engine !== 'lmstudio' && !apiKey) {
     throw new Error('API_KEY environment variable is not set')
   }
 
