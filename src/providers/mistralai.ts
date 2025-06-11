@@ -39,7 +39,7 @@ export default class extends LlmEngine {
     return {
       tools: model.capabilities?.functionCalling ?? false,
       vision: model.capabilities?.vision ?? false,
-      reasoning: false,
+      reasoning: model.id.includes('magistral'),
     }
   }
 

@@ -21,12 +21,13 @@ vi.mock('@mistralai/mistralai', async() => {
   Mistral.prototype.models = {
     list: vi.fn(() => {
       return { data: [
-        { id: 'model2', name: 'model2', capabilities: { functionCalling: true } },
-        { id: 'model6', name: 'model6', capabilities: { functionCalling: false } },
-        { id: 'model1', name: 'model1' },
-        { id: 'model5', name: 'model4', capabilities: { vision: true } },
-        { id: 'model3', name: 'model3', capabilities: { functionCalling: false, vision: true } },
-        { id: 'model4', name: 'model4', capabilities: { functionCalling: true, vision: true } },
+        { id: 'model2', description: 'model2', created: 2, capabilities: { completionChat: true, functionCalling: true } },
+        { id: 'magistral6', description: 'Magistral', created: 6, capabilities: { completionChat: true, functionCalling: false } },
+        { id: 'model1', description: 'model1', created: 1 },
+        { id: 'model8', description: 'model8', created: 8, capabilities: { completionChat: false, functionCalling: false } },
+        { id: 'model5', description: 'model5', created: 5, capabilities: { completionChat: true, vision: true } },
+        { id: 'model3', description: 'model3', created: 3, capabilities: { completionChat: true, functionCalling: false, vision: true } },
+        { id: 'model4', name: 'Model 4', created: 4, capabilities: { completionChat: true, functionCalling: true, vision: true } },
       ] }
     })
   }
@@ -69,12 +70,11 @@ beforeEach(() => {
 test('MistralAI Load Models', async () => {
   const models = await loadMistralAIModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'model1', name: 'model1', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
-    { id: 'model2', name: 'model2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'model3', name: 'model3', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false } },
-    { id: 'model4', name: 'model4', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
+    { id: 'magistral6', name: 'magistral6', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: true } },
     { id: 'model5', name: 'model5', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false } },
-    { id: 'model6', name: 'model6', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
+    { id: 'model4', name: 'Model 4', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
+    { id: 'model3', name: 'model3', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false } },
+    { id: 'model2', name: 'model2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
   expect(await loadModels('mistralai', config)).toStrictEqual(models)
 })
@@ -126,6 +126,7 @@ test('MistralAI nativeChunkToLlmChunk Text', async () => {
     thread: [],
     opts: {},
     toolCalls: [],
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
   for await (const llmChunk of mistralai.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })

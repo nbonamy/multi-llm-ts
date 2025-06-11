@@ -317,14 +317,20 @@ export const loadMistralAIModels = async (engineConfig: EngineCreateOpts): Promi
   // xform
   const models: ChatModel[] = metas.map(m => ({
     id: m.id,
-    name: m.id,
+    name: m.name || m.id,
     capabilities: mistralai.getModelCapabilities(m),
     meta: m,
-  })).sort((a, b) => (b.meta?.created??0) - (a.meta?.created??0))
+  })).sort((a, b) => {
+    if (a.meta?.created && b.meta?.created && a.meta.created !== b.meta.created) {
+      return b.meta.created - a.meta.created
+    } else {
+      return a.name.localeCompare(b.name)
+    }
+  })
 
   // done
   return {
-    chat: models.sort((a, b) => a.name.localeCompare(b.name)),
+    chat: models.filter(m => (m.meta as ModelMistralAI)!.capabilities?.completionChat),
     image: [],
     embedding: []
   }
