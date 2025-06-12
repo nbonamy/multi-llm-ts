@@ -43,22 +43,8 @@ export default class extends LlmEngine {
     // For LMStudio, we need to make some assumptions about capabilities
     // since the SDK doesn't provide detailed capability information
     
-    // Models that typically support tools
-    const toolModels = [
-      'llama3',
-      'llama3.1',
-      'llama3.2',
-      'llama3.3',
-      'qwen2',
-      'qwen2.5',
-      'qwen3',
-      'mistral',
-      'mixtral',
-      'granite',
-      'codellama',
-    ]
-
     // Models that typically support vision
+    
     const visionModels = [
       'llava',
       'llama3.2-vision',
@@ -73,6 +59,13 @@ export default class extends LlmEngine {
       'thinking',
       'reasoning',
       'cogito',
+    ]
+
+    // Models that typically support tools lmstudio.ai/docs/app/api/tools
+    const toolModels = [
+      'qwen2.5',
+      'llama3.1',
+      'mistral'
     ]
 
     const modelName = model.name.toLowerCase()
@@ -95,7 +88,9 @@ export default class extends LlmEngine {
       console.error('Error listing LMStudio models:', error)
       return []
     }
-  }  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  }
+  
+  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
     try {
       logger.log(`[lmstudio] prompting model ${model.id}`)
       
@@ -104,25 +99,33 @@ export default class extends LlmEngine {
       
       // Build the conversation prompt from thread
       const prompt = this.buildPromptFromThread(thread)
-        // Check if tools are requested (LMStudio doesn't support tools natively)
-      if (opts?.tools) {
-        logger.log(`[lmstudio] warning: tools requested but not supported by LMStudio`)
-      }
       
-      // Make the request
-      const result = await lmModel.respond(prompt, {
-        maxTokens: opts?.maxTokens,
-        temperature: opts?.temperature,
-        // Add other options as supported by LMStudio SDK
-      })
+      let result: any
+      
+      if (opts?.tools && this.plugins.length > 0) {
+        logger.log(`[lmstudio] using tools with .act() method`)
+        
+        // Convert plugins to LMStudio SDK format tools
+        const lmTools = this.convertPluginsToLMStudioTools()
+        
+        result = await lmModel.act(prompt, lmTools, {
+          maxTokens: opts?.maxTokens,
+          temperature: opts?.temperature,
+        })
+      } else {
+        result = await lmModel.respond(prompt, {
+          maxTokens: opts?.maxTokens,
+          temperature: opts?.temperature,
+        })
+      }
 
       return {
         type: 'text',
-        content: result.content,
-        toolCalls: [], // LMStudio doesn't support tool calls
-        ...(opts?.usage ? { 
+        content: result.content || result,
+        toolCalls: result.toolCalls || [],
+        ...(opts?.usage ? {
           usage: {
-            prompt_tokens: 0, // LMStudio SDK might not provide token counts
+            prompt_tokens: 0,
             completion_tokens: 0,
           }
         } : {})
@@ -147,7 +150,9 @@ export default class extends LlmEngine {
       stream: await this.doStream(context),
       context: context
     }
-  }  async doStream(context: LMStudioStreamingContext): Promise<LlmStream> {
+  }
+  
+  async doStream(context: LMStudioStreamingContext): Promise<LlmStream> {
     logger.log(`[lmstudio] streaming model ${context.model.id}`)
     
     try {
@@ -158,16 +163,27 @@ export default class extends LlmEngine {
       const prompt = this.buildPromptFromThread(context.thread)
       
       // Create async generator for streaming
-      const streamGenerator = async function* () {
+      const streamGenerator = async function* (this: any) {
         try {
-          // LMStudio SDK doesn't have native streaming, so we simulate it
-          const result = await lmModel.respond(prompt, {
-            maxTokens: context.opts.maxTokens,
-            temperature: context.opts.temperature,
-          })
+          let result: any
+          
+          if (context.opts.tools && this.plugins.length > 0) {
+            logger.log(`[lmstudio] streaming with tools using .act() method`)
+            const lmTools = this.convertPluginsToLMStudioTools()
+            result = await lmModel.act(prompt, lmTools, {
+              maxTokens: context.opts.maxTokens,
+              temperature: context.opts.temperature,
+            })
+          } else {
+            // LMStudio SDK doesn't have native streaming, so we simulate it
+            result = await lmModel.respond(prompt, {
+              maxTokens: context.opts.maxTokens,
+              temperature: context.opts.temperature,
+            })
+          }
 
           // Simulate streaming by yielding the content in chunks
-          const content = result.content
+          const content = result.content || result
           const chunkSize = 10
           for (let i = 0; i < content.length; i += chunkSize) {
             const chunk = content.slice(i, i + chunkSize)
@@ -239,6 +255,19 @@ export default class extends LlmEngine {
       }
       return content
     }).filter(Boolean).join('\n\n')
+  }
+
+  private convertPluginsToLMStudioTools(): any[] {
+    // Convert plugins to LMStudio SDK tool format
+    // This is a placeholder implementation - would need to be expanded based on plugin structure
+    return this.plugins.map(plugin => ({
+      name: plugin.getName(),
+      description: plugin.getDescription(),
+      parameters: plugin.getParameters() || {},
+      implementation: async (params: any) => {
+        return await plugin.execute(params)
+      }
+    }))
   }
 
   async getModelInfo(model: string): Promise<any|null> {
