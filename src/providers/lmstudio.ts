@@ -87,14 +87,9 @@ export default class extends LlmEngine {
     try {
       const models = await this.client.llm.listLoaded()
       return models.map((model: any) => ({
+        ...model,
         id: model.path || model.name || 'unknown',
         name: model.path || model.name || 'unknown',
-        path: model.path,
-        size: model.size,
-        family: model.family,
-        parameters: model.parameters,
-        quantization: model.quantization,
-        format: model.format,
       }))
     } catch (error) {
       console.error('Error listing LMStudio models:', error)
