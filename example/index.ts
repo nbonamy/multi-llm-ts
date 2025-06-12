@@ -97,7 +97,7 @@ const tooling = async (llm: LlmEngine, model: ChatModel, messages: Message[]) =>
     apiKey: apiKey,
     baseURL: baseURL,
     deployment: deployment,
-    apiVersion: apiVersion
+    apiVersion: apiVersion,
   }
   const llm = igniteEngine(engine, config)
   const messages = [

@@ -28,6 +28,7 @@ export default class extends LlmEngine {
     this.client = new OpenAI({
       apiKey: opts?.apiKey || config.apiKey,
       baseURL: opts?.baseURL || config.baseURL || defaultBaseUrl,
+      timeout: opts?.timeout || config.timeout || undefined,
       dangerouslyAllowBrowser: true
     })
   }

@@ -2,6 +2,7 @@
 export type EngineCreateOpts = {
   apiKey?: string
   baseURL?: string
+  timeout?: number
   maxRetries?: number
   deployment?: string
   apiVersion?: string
