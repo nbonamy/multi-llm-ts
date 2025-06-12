@@ -328,12 +328,6 @@ export default class extends LlmEngine {
   }
 
 
-  
-  async deleteModel(model: string): Promise<void> {
-    // LMStudio doesn't have a direct delete API like Ollama
-    // This would need to be done through the LMStudio UI
-    console.warn('LMStudio does not support deleting models via API. Use the LMStudio UI to manage models.')
-  }
 
   getName(): string {
     return 'LMStudio'
