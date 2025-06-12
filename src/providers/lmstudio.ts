@@ -11,6 +11,8 @@ import logger from '../logger'
 // Load models into LM Studio using the UI or CLI, then use this engine to interact with them.
 
 import { LMStudioClient } from "@lmstudio/sdk"
+import OpenAI from 'openai'
+import { ChatCompletionChunk } from 'openai/resources'
 
 const defaultBaseUrl = 'http://localhost:1234'
 
@@ -21,6 +23,7 @@ export type LMStudioStreamingContext = LlmStreamingContextTools & {
 export default class extends LlmEngine {
 
   client: LMStudioClient
+  openaiClient: OpenAI
 
   static isConfigured = (engineConfig: EngineCreateOpts): boolean => {
     return true
@@ -31,8 +34,24 @@ export default class extends LlmEngine {
 
   constructor(config: EngineCreateOpts) {
     super(config)
+    const baseUrl = config.baseURL || defaultBaseUrl
     this.client = new LMStudioClient({
-      baseUrl: config.baseURL || defaultBaseUrl
+      baseUrl: baseUrl
+    })
+    
+    // Convert WebSocket URL to HTTP URL for OpenAI client
+    let httpBaseUrl = baseUrl
+    if (baseUrl.startsWith('ws://')) {
+      httpBaseUrl = baseUrl.replace('ws://', 'http://')
+    } else if (baseUrl.startsWith('wss://')) {
+      httpBaseUrl = baseUrl.replace('wss://', 'https://')
+    }
+    
+    // Initialize OpenAI client for streaming using LM Studio's OpenAI-compatible API
+    this.openaiClient = new OpenAI({
+      apiKey: 'lm-studio', // LM Studio doesn't require a real API key
+      baseURL: `${httpBaseUrl}/v1`,
+      dangerouslyAllowBrowser: true
     })
   }
 
@@ -156,53 +175,77 @@ export default class extends LlmEngine {
     logger.log(`[lmstudio] streaming model ${context.model.id}`)
     
     try {
-      // Get the model instance
-      const lmModel = await this.client.llm.model(context.model.id)
+      // Convert thread to OpenAI-compatible messages format
+      const messages = this.convertThreadToMessages(context.thread)
       
-      // Build the conversation prompt from thread
-      const prompt = this.buildPromptFromThread(context.thread)
-      
-      // Create async generator for streaming
-      const streamGenerator = async function* (this: any) {
-        try {
-          let result: any
-          
-          if (context.opts.tools && this.plugins.length > 0) {
-            logger.log(`[lmstudio] streaming with tools using .act() method`)
-            const lmTools = this.convertPluginsToLMStudioTools()
-            result = await lmModel.act(prompt, lmTools, {
+      if (context.opts.tools && this.plugins.length > 0) {
+        logger.log(`[lmstudio] streaming with tools - falling back to LMStudio SDK`)
+        // For tools, fall back to LMStudio SDK since OpenAI compatibility may not support all tool features
+        const lmModel = await this.client.llm.model(context.model.id)
+        const prompt = this.buildPromptFromThread(context.thread)
+        const lmTools = this.convertPluginsToLMStudioTools()
+        
+        const streamGenerator = async function* () {
+          try {
+            const result = await lmModel.act(prompt, lmTools, {
               maxTokens: context.opts.maxTokens,
               temperature: context.opts.temperature,
             })
-          } else {
-            // LMStudio SDK doesn't have native streaming, so we simulate it
-            result = await lmModel.respond(prompt, {
-              maxTokens: context.opts.maxTokens,
-              temperature: context.opts.temperature,
-            })
-          }
-
-          // Simulate streaming by yielding the content in chunks
-          const content = result.content || result
-          const chunkSize = 10
-          for (let i = 0; i < content.length; i += chunkSize) {
-            const chunk = content.slice(i, i + chunkSize)
-            const llmChunk: LlmChunk = {
-              type: 'content',
-              text: chunk,
-              done: i + chunkSize >= content.length
+            
+            // Simulate streaming for tool responses
+            // Handle different result formats from LMStudio SDK
+            let content: string
+            if (typeof result === 'string') {
+              content = result
+            } else if (result && typeof result === 'object' && 'content' in result) {
+              content = (result as any).content || ''
+            } else {
+              content = String(result || '')
             }
-            yield llmChunk
-            // Add small delay to simulate streaming
-            await new Promise(resolve => setTimeout(resolve, 50))
+            
+            const chunkSize = 10
+            for (let i = 0; i < content.length; i += chunkSize) {
+              const chunk = content.slice(i, i + chunkSize)
+              const llmChunk: LlmChunk = {
+                type: 'content',
+                text: chunk,
+                done: i + chunkSize >= content.length
+              }
+              yield llmChunk
+              await new Promise(resolve => setTimeout(resolve, 50))
+            }
+          } catch (error) {
+            logger.log(`[lmstudio] tool streaming error: ${error}`)
+            throw error
           }
-        } catch (error) {
-          logger.log(`[lmstudio] streaming error: ${error}`)
-          throw error
         }
+        
+        return streamGenerator()
+      } else {
+        // Use OpenAI-compatible streaming for regular chat
+        logger.log(`[lmstudio] using OpenAI-compatible streaming`)
+        const stream = await this.openaiClient.chat.completions.create({
+          model: context.model.id,
+          messages: messages,
+          stream: true,
+          ...(context.opts.maxTokens ? { max_tokens: context.opts.maxTokens } : {}),
+          ...(context.opts.temperature !== undefined ? { temperature: context.opts.temperature } : {}),
+        })
+        
+        // Transform the OpenAI stream to LlmChunk format
+        const transformedStream = async function* (this: any) {
+          try {
+            for await (const chunk of stream) {
+              yield* this.nativeChunkToLlmChunk(chunk, context)
+            }
+          } catch (error) {
+            logger.log(`[lmstudio] OpenAI streaming error: ${error}`)
+            throw error
+          }
+        }.bind(this)
+        
+        return transformedStream()
       }
-
-      return streamGenerator()
     } catch (error) {
       logger.log(`[lmstudio] streaming setup error: ${error}`)
       throw error
@@ -210,17 +253,31 @@ export default class extends LlmEngine {
   }
 
   async stop(stream: any): Promise<void> {
-    // LMStudio SDK might not support stopping streams
-    // This is a placeholder implementation
+    // For OpenAI-compatible streams, try to abort the controller
+    if (stream?.controller?.abort) {
+      stream.controller.abort()
+    }
     logger.log('[lmstudio] stop called')
   }
 
-  protected async* nativeChunkToLlmChunk(chunk: any, context: LlmStreamingContext): AsyncGenerator<LlmChunk, void, void> {
-    // Convert native LMStudio chunks to LlmChunk format
-    yield {
-      type: 'content',
-      text: chunk.content || '',
-      done: chunk.done || false
+  protected async* nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: LlmStreamingContext): AsyncGenerator<LlmChunk, void, void> {
+    // Convert OpenAI-compatible chunks to LlmChunk format
+    const choice = chunk.choices?.[0]
+    if (choice?.delta?.content) {
+      yield {
+        type: 'content',
+        text: choice.delta.content,
+        done: choice.finish_reason !== null
+      }
+    }
+    
+    // Handle usage information if available
+    if (chunk.usage && context.opts?.usage) {
+      const lmStudioContext = context as LMStudioStreamingContext
+      lmStudioContext.usage = {
+        prompt_tokens: chunk.usage.prompt_tokens || 0,
+        completion_tokens: chunk.usage.completion_tokens || 0
+      }
     }
   }
   private buildPromptFromThread(thread: LLmCompletionPayload[]): string {
@@ -298,5 +355,13 @@ export default class extends LlmEngine {
 
   getName(): string {
     return 'LMStudio'
+  }
+
+  private convertThreadToMessages(thread: LLmCompletionPayload[]): any[] {
+    // Convert thread to OpenAI-compatible messages format
+    return thread.map(msg => ({
+      role: msg.role,
+      content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+    }))
   }
 }

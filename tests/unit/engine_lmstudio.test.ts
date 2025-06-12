@@ -9,6 +9,55 @@ import { LlmChunk } from '../../src/types/llm'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
+// Mock OpenAI SDK
+vi.mock('openai', () => {
+  const OpenAI = vi.fn((opts: any) => {
+    OpenAI.prototype.baseURL = opts.baseURL
+    OpenAI.prototype.apiKey = opts.apiKey
+  })
+  
+  OpenAI.prototype.chat = {
+    completions: {
+      create: vi.fn((params: any) => {
+        if (params.stream) {
+          // Return a mock async iterator for streaming
+          return {
+            [Symbol.asyncIterator]: async function* () {
+              const content = `Streaming response for model ${params.model}`
+              const chunkSize = 10
+              for (let i = 0; i < content.length; i += chunkSize) {
+                const chunk = content.slice(i, i + chunkSize)
+                yield {
+                  choices: [{
+                    delta: {
+                      content: chunk
+                    },
+                    finish_reason: i + chunkSize >= content.length ? 'stop' : null
+                  }]
+                }
+                // Add small delay to simulate streaming
+                await new Promise(resolve => setTimeout(resolve, 10))
+              }
+            },
+            controller: {
+              abort: vi.fn()
+            }
+          }
+        }
+        return Promise.resolve({
+          choices: [{
+            message: {
+              content: `Response for ${params.model}`
+            }
+          }]
+        })
+      })
+    }
+  }
+  
+  return { default: OpenAI }
+})
+
 // Mock LMStudio SDK
 vi.mock('@lmstudio/sdk', () => {
   const LMStudioClient = vi.fn((opts: any) => {
