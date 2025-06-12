@@ -1,6 +1,6 @@
 {
   "name": "multi-llm-ts",
-  "version": "4.0.0-beta.12",
+  "version": "4.0.0-beta.13",
   "description": "Library to query multiple LLM providers in a consistent way",
   "repository": {
     "type": "git",

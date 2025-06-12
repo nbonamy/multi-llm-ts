@@ -79,18 +79,31 @@ export default class extends LlmEngine {
       return []
     }
 
-    // https://ai.google.dev/api/models#models_get-SHELL
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${this.client.apiKey}`)
-    const json = await response.json()
-
-    // filter
+    // we may have to iterate over multiple pages
     const models: ModelGoogle[] = []
-    for (const model of json.models) {
-      if (model.name?.match(/\d\d\d$/)) continue
-      if (model.name?.includes('tuning')) continue
-      if (model.description?.includes('deprecated')) continue
-      if (model.description?.includes('discontinued')) continue
-      models.push(model)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${this.client.apiKey}`
+    let pageToken = null
+
+    while (true) {
+
+      // https://ai.google.dev/api/models#models_get-SHELL
+      const response: Response = await fetch(url + (pageToken ? `&pageToken=${pageToken}` : ''))
+      const json: any = await response.json()
+
+      // filter
+      for (const model of json.models) {
+        if (model.name?.match(/\d\d\d$/)) continue
+        if (model.name?.includes('tuning')) continue
+        if (model.description?.includes('deprecated')) continue
+        if (model.description?.includes('discontinued')) continue
+        models.push(model)
+      }
+
+      if (json.nextPageToken) {
+        pageToken = json.nextPageToken
+      } else {
+        break
+      }
     }
 
     // reverse
