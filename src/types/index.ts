@@ -210,4 +210,4 @@ export type ModelLMStudio = {
 export type ModelMetadata =  ModelGeneric |
   ModelAnthropic | ModelCerebras | ModelDeepseek | ModelGoogle |
   ModelGroq | ModelLMStudio | ModelMeta | ModelMistralAI | ModelOllama | ModelOpenAI |
-  ModelOpenRouter | ModelTogether | ModelxAI| ModelLMStudio
+  ModelOpenRouter | ModelTogether | ModelxAI

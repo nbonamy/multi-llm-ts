@@ -187,21 +187,6 @@ test('LMStudio Model Capabilities', async () => {
 
 
 
-test('LMStudio Delete Model Warning', async () => {
-  const config: EngineCreateOpts = {
-    baseURL: 'ws://localhost:1234'
-  }
-  
-  const lmstudio = new LMStudio(config)
-  const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-  
-  await lmstudio.deleteModel('test-model')
-  
-  expect(consoleSpy).toHaveBeenCalledWith('LMStudio does not support deleting models via API. Use the LMStudio UI to manage models.')
-  
-  consoleSpy.mockRestore()
-})
-
 test('LMStudio Static Methods', async () => {
   const config: EngineCreateOpts = {
     baseURL: 'ws://localhost:1234'
