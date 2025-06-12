@@ -68,6 +68,13 @@ npm i
 API_KEY=your-anthropic_api_key ENGINE=anthropic MODEL=claude-3-haiku-20240307 npm run example
 ```
 
+You can run it with LM Studio :
+
+```sh
+npm i
+API_KEY="your-lmstudio-api-key" ENGINE=lmstudio MODEL=lmstudio-community/Qwen3-8B-GGUF/Qwen3-8B-Q4_K_M.gguf npm run example
+```
+
 ## Usage
 
 ### Installation
