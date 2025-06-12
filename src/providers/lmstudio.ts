@@ -328,12 +328,6 @@ export default class extends LlmEngine {
   }
 
 
-  async pullModel(model: string): Promise<any|null> {
-    // LMStudio doesn't have a direct pull/download API like Ollama
-    // This would need to be done through the LMStudio UI
-    console.warn('LMStudio does not support pulling models via API. Use the LMStudio UI to download models.')
-    return null
-  }
   
   async deleteModel(model: string): Promise<void> {
     // LMStudio doesn't have a direct delete API like Ollama

@@ -186,21 +186,6 @@ test('LMStudio Model Capabilities', async () => {
 })
 
 
-test('LMStudio Pull Model Warning', async () => {
-  const config: EngineCreateOpts = {
-    baseURL: 'ws://localhost:1234'
-  }
-  
-  const lmstudio = new LMStudio(config)
-  const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-  
-  const result = await lmstudio.pullModel('test-model')
-  
-  expect(result).toBeNull()
-  expect(consoleSpy).toHaveBeenCalledWith('LMStudio does not support pulling models via API. Use the LMStudio UI to download models.')
-  
-  consoleSpy.mockRestore()
-})
 
 test('LMStudio Delete Model Warning', async () => {
   const config: EngineCreateOpts = {
