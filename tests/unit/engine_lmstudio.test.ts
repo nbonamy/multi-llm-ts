@@ -185,17 +185,6 @@ test('LMStudio Model Capabilities', async () => {
   expect(typeof capabilities.reasoning).toBe('boolean')
 })
 
-test('LMStudio Model Info', async () => {
-  const config: EngineCreateOpts = {
-    baseURL: 'ws://localhost:1234'
-  }
-  
-  const lmstudio = new LMStudio(config)
-  const modelInfo = await lmstudio.getModelInfo('qwen3-8b')
-  
-  expect(modelInfo).toBeDefined()
-  expect(modelInfo?.id).toBe('qwen3-8b')
-})
 
 test('LMStudio Pull Model Warning', async () => {
   const config: EngineCreateOpts = {

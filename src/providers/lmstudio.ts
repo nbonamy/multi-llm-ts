@@ -327,18 +327,6 @@ export default class extends LlmEngine {
     }))
   }
 
-  async getModelInfo(model: string): Promise<any|null> {
-    try {
-      // LMStudio SDK might not have a direct equivalent to getModelInfo
-      // We can try to get the model and return some basic info
-      const loadedModels = await this.getModels()
-      const foundModel = loadedModels.find(m => m.id === model || m.name === model)
-      return foundModel || null
-    } catch (error) {
-      console.error('Error getting LMStudio model info:', error)
-      return null
-    }
-  }
 
   async pullModel(model: string): Promise<any|null> {
     // LMStudio doesn't have a direct pull/download API like Ollama
