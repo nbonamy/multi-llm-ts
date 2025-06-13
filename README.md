@@ -19,12 +19,14 @@ Version 4.0 has introduced some breaking changes. Please check section below for
 
 ### model parameter
 
-Prior to 4.0, you could call `LlmEngine.complete` and `LlmGenerate.generate` passing a simple string for the model name. This is not possible anymore: those methods require a `ChatModel` object which indicates the capabilties of the model. For now, 3 capabilities are supported:
+Prior to 4.0, you could call `LlmEngine.complete` and `LlmGenerate.generate` passing a simple string for the model name. You can still do that and for most providers, this will be enough to get the pre-4.0 behavior. MistralAI and OpenRouter are a bit more convoluted and capababilities cannot be guessed from the model name.
+
+However you can now instead pass a `ChatModel` object which indicates the capabilties of the model. For now, 3 capabilities are supported:
 - `tools` (function calling)
 - `vision` (image analysis)
 - `reasoning` (chain-of-thought models)
 
-Those capabilities are filled when you use the `loadModels` function. You can also just build a `ChatModel` from a string using `LlmEngine.buildModel`. For most providers, this will be enough to get the pre-4.0 behavior. MistralAI and OpenRouter are a bit more convoluted and all three capabilities will be disabled when using `LlmEngine.buildModel`.
+Those capabilities are filled when you use the `loadModels` function or . You can also just build a `ChatModel` from a string using `LlmEngine.buildModel` or simply create an instance manually and force the capabilities values.
 
 ### attachment
 

@@ -106,13 +106,15 @@ export default abstract class LlmEngine {
     this.plugins.push(plugin)
   }
 
-  async complete(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
-    const messages = this.buildPayload(model, thread, opts)
-    return await this.chat(model, messages, opts)
+  async complete(model: ChatModel|string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+    const chatModel = this.toModel(model)
+    const messages = this.buildPayload(chatModel, thread, opts)
+    return await this.chat(chatModel, messages, opts)
   }
 
-  async *generate(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): AsyncIterable<LlmChunk> {
-    const response: LlmStreamingResponse|null = await this.stream(model, thread, opts)
+  async *generate(model: ChatModel|string, thread: Message[], opts?: LlmCompletionOpts): AsyncIterable<LlmChunk> {
+    const chatModel = this.toModel(model)
+    const response: LlmStreamingResponse|null = await this.stream(chatModel, thread, opts)
     let stream = response?.stream
     while (true) {
       let stream2 = null
