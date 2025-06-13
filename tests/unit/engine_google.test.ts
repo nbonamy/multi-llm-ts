@@ -29,6 +29,7 @@ global.fetch = vi.fn((): Promise<Response> => Promise.resolve(new Response(JSON.
 
 vi.mock('@google/generative-ai', async () => {
   const GenerativeModel = vi.fn()
+  GenerativeModel.prototype.model = 'model'
   GenerativeModel.prototype.generateContent = vi.fn(() => { return { response: { text: () => 'response', functionCalls: (): any[] => [] } } })
   GenerativeModel.prototype.generateContentStream = vi.fn(() => {
     return {
@@ -130,6 +131,7 @@ test('Google nativeChunkToLlmChunk Text', async () => {
     content: [],
     opts: {},
     toolCalls: [],
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
   for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
@@ -276,7 +278,7 @@ test('Google stream', async () => {
   })
   expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
-  expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
+  expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, ['arg'])
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 'plugin2', name: 'plugin2', status: 'prep2', done: false })
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 'plugin2', name: 'plugin2', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 'plugin2', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })

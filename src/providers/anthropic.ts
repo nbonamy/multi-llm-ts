@@ -141,7 +141,7 @@ export default class extends LlmEngine {
       logger.log(`[anthropic] tool call ${toolCall.name} with ${JSON.stringify(toolCall.input)}`)
 
       // now execute
-      const content = await this.callTool(toolCall.name, toolCall.input)
+      const content = await this.callTool({ model: model.id }, toolCall.name, toolCall.input)
       logger.log(`[anthropic] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
       // add all response blocks
@@ -470,7 +470,7 @@ export default class extends LlmEngine {
         }
 
         // now execute
-        const content = await this.callTool(context.toolCall!.function, args)
+        const content = await this.callTool({ model: context.model.id }, context.toolCall!.function, args)
         logger.log(`[anthropic] tool call ${context.toolCall!.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add thinking block

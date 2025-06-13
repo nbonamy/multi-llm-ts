@@ -30,6 +30,9 @@ Those capabilities are filled when you use the `loadModels` function. You can al
 
 Prior to 4.0, a `user` message could have only one attachment. Now `Message` supports multiple attachments via `attachments` attribute and `attach` and `detach` methods.
 
+### plugins
+
+When executed, plugins are now provided a `PluginExecutionContext` instance providing them information on the context of execution. For now the only information provided is the model id.
 
 ## Providers supported
 

@@ -2,10 +2,10 @@
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
 import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage } from './types/llm'
-import { PluginParameter } from './types/plugin'
-import Message from './models/message'
+import { PluginExecutionContext, PluginParameter } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
-import Attachment from 'models/attachment'
+import Attachment from './models/attachment'
+import Message from './models/message'
 
 export type LlmStreamingContextBase = {
   model: ChatModel
@@ -341,12 +341,12 @@ export default abstract class LlmEngine {
     return plugin?.getRunningDescription(tool, args) || ''
   }
 
-  protected async callTool(tool: string, args: any): Promise<any> {
+  protected async callTool(context: PluginExecutionContext, tool: string, args: any): Promise<any> {
 
     // get the plugin
     const plugin = this.plugins.find((plugin) => plugin.getName() === tool)
     if (plugin) {
-      return await plugin.execute(args)
+      return await plugin.execute(context, args)
     }
 
     // try multi-tools
@@ -354,7 +354,7 @@ export default abstract class LlmEngine {
       if (plugin instanceof MultiToolPlugin) {
         const multiToolPlugin = plugin as MultiToolPlugin
         if (multiToolPlugin.handlesTool(tool)) {
-          return await plugin.execute({ tool: tool, parameters: args })
+          return await plugin.execute(context, { tool: tool, parameters: args })
         }
       }
     }

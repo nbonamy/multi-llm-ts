@@ -154,7 +154,7 @@ export default class extends LlmEngine {
         logger.log(`[google] tool call ${toolCall.name} with ${JSON.stringify(toolCall.args)}`)
 
         // now execute
-        const content = await this.callTool(toolCall.name, toolCall.args)
+        const content = await this.callTool({ model: model.id }, toolCall.name, toolCall.args)
         logger.log(`[google] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
         results.push({ functionResponse: {
@@ -456,7 +456,7 @@ export default class extends LlmEngine {
         }
 
         // now execute
-        const content = await this.callTool(toolCall.function, args)
+        const content = await this.callTool({ model: context.model.model }, toolCall.function, args)
         logger.log(`[google] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // send

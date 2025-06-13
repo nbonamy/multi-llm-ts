@@ -37,13 +37,13 @@ test('Engine plugin execution', async () => {
   llm.addPlugin(new Plugin2())
   llm.addPlugin(new MultiPlugin())
 
-  expect(await llm.callTool('plugin1', {})).toStrictEqual('result1')
-  expect(await llm.callTool('plugin2', { param1: 'a', param2: 1 })).toStrictEqual({ param1: 'a', param2: 1 })
-  expect(await llm.callTool('plugin3', {})).toStrictEqual({ error: 'Tool plugin3 does not exist. Check the tool list and try again.' })
+  expect(await llm.callTool({ model: 'model' }, 'plugin1', {})).toStrictEqual('result1')
+  expect(await llm.callTool({ model: 'model' }, 'plugin2', { param1: 'a', param2: 1 })).toStrictEqual({ param1: 'a', param2: 1 })
+  expect(await llm.callTool({ model: 'model' }, 'plugin3', {})).toStrictEqual({ error: 'Tool plugin3 does not exist. Check the tool list and try again.' })
 
-  expect(await llm.callTool('multi1', { param: 'value1' })).toStrictEqual(['multi1', { param: 'value1' }])
-  expect(await llm.callTool('multi2', { param: 'value2' })).toStrictEqual(['multi2', { param: 'value2' }])
-  expect(await llm.callTool('multi3', {})).toStrictEqual({ error: 'Tool multi3 does not exist. Check the tool list and try again.' })
+  expect(await llm.callTool({ model: 'model' }, 'multi1', { param: 'value1' })).toStrictEqual(['multi1', { param: 'value1' }])
+  expect(await llm.callTool({ model: 'model' }, 'multi2', { param: 'value2' })).toStrictEqual(['multi2', { param: 'value2' }])
+  expect(await llm.callTool({ model: 'model' }, 'multi3', {})).toStrictEqual({ error: 'Tool multi3 does not exist. Check the tool list and try again.' })
 })
 
 test('OpenAI Functions', async () => {

@@ -87,7 +87,7 @@ export default class extends LlmEngine {
         logger.log(`[mistralai] tool call ${toolCall.function.name} with ${toolCall.function.arguments}`)
 
         // now execute
-        const content = await this.callTool(toolCall.function.name, toolCall.function.arguments)
+        const content = await this.callTool({ model: model.id }, toolCall.function.name, toolCall.function.arguments)
         logger.log(`[mistralai] tool call ${toolCall.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message
@@ -288,7 +288,7 @@ export default class extends LlmEngine {
         }
 
         // now execute
-        const content = await this.callTool(toolCall.function, args)
+        const content = await this.callTool({ model: context.model.id }, toolCall.function, args)
         logger.log(`[mistralai] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message

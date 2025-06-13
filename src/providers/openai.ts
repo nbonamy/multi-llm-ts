@@ -190,7 +190,7 @@ export default class extends LlmEngine {
         }
         
         // now execute
-        const content = await this.callTool(toolCall.function.name, args)
+        const content = await this.callTool({ model: model.id }, toolCall.function.name, args)
         logger.log(`[openai] tool call ${toolCall.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool response message
@@ -421,7 +421,7 @@ export default class extends LlmEngine {
         }
 
         // now execute
-        const content = await this.callTool(toolCall.function, args)
+        const content = await this.callTool({ model: context.model.id }, toolCall.function, args)
         logger.log(`[openai] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message

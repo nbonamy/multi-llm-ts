@@ -1,5 +1,5 @@
 
-import { Plugin, type PluginParameter } from '../src/index'
+import { Plugin, PluginExecutionContext, PluginParameter } from '../src/index'
 
 export default class Answer extends Plugin {
 
@@ -30,7 +30,7 @@ export default class Answer extends Plugin {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async execute(parameters: any): Promise<any> {
+  async execute(context: PluginExecutionContext, parameters: any): Promise<any> {
     return { content: '24 and not 42 as everybody says' }
   }
 }

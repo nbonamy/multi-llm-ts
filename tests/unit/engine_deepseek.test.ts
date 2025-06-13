@@ -147,7 +147,7 @@ test('DeepSeek stream', async () => {
   }
   expect(reasoning).toBe('reasoning')
   expect(response).toBe('response')
-  expect(Plugin2.prototype.execute).toHaveBeenCalledWith(['arg'])
+  expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, ['arg'])
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', status: 'prep2', done: false })
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })

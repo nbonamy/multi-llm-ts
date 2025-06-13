@@ -1,4 +1,4 @@
-import { PluginParameter } from './types/plugin'
+import { PluginExecutionContext, PluginParameter } from './types/plugin'
 
 export interface ICustomPlugin {
   getTools(): Promise<any|any[]>
@@ -37,7 +37,7 @@ export class Plugin {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async execute(parameters: any): Promise<any> {
+  async execute(context: PluginExecutionContext , parameters: any): Promise<any> {
     throw new Error('Not implemented')
   }
 

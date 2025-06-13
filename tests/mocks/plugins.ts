@@ -1,5 +1,5 @@
 
-import { PluginParameter } from '../../src/types/plugin'
+import { PluginExecutionContext, PluginParameter } from '../../src/types/plugin'
 import { CustomToolPlugin, MultiToolPlugin, Plugin } from '../../src/plugin'
 
 export class Plugin1 extends Plugin {
@@ -25,7 +25,7 @@ export class Plugin1 extends Plugin {
   }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async execute(parameters: any): Promise<any> {
+  async execute(context: PluginExecutionContext, parameters: any): Promise<any> {
     return 'result1'
   }
 }
@@ -123,7 +123,7 @@ export class Plugin2 extends Plugin {
     ]
   }
 
-  async execute(parameters: any): Promise<any> {
+  async execute(context: PluginExecutionContext, parameters: any): Promise<any> {
     return parameters
   }
 }
@@ -220,7 +220,7 @@ export class MultiPlugin extends MultiToolPlugin {
     return name === 'multi1' || name === 'multi2'
   }
 
-  async execute(parameters: any): Promise<any> {
+  async execute(context: PluginExecutionContext, parameters: any): Promise<any> {
     return [parameters.tool, parameters.parameters]
   }
 
