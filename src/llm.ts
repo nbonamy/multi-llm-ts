@@ -193,20 +193,22 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
   // xform
   const models: ChatModel[] = metas.map(m => ({
     id: m.name.replace('models/', ''),
-    name: m.displayName,
+    name: m.displayName ?? m.name,
     capabilities: google.getModelCapabilities(m),
     meta: m,
   })).filter(m => !m.id.includes('generation')) // remove generation models
 
-  const imageModels = models.filter((m) => (m.meta as ModelGoogle).supportedGenerationMethods?.includes('bidiGenerateContent'))
-  const embeddingModels = models.filter((m) => (m.meta as ModelGoogle).supportedGenerationMethods?.includes('embedContent'))
+  const realtimeModels = models.filter(model => model.id.includes('dialog'))
+  const imageModels = models.filter((m) => (m.meta as ModelGoogle).supportedActions?.includes('bidiGenerateContent')).filter(model => !realtimeModels.includes(model))
+  const embeddingModels = models.filter((m) => (m.meta as ModelGoogle).supportedActions?.includes('embedContent'))
   const ttsModels = models.filter(model => model.id.endsWith('tts'))
 
   const chatModels = models
-    .filter((m) => (m.meta as ModelGoogle).supportedGenerationMethods?.includes('generateContent'))
+    .filter((m) => (m.meta as ModelGoogle).supportedActions?.includes('generateContent'))
     .filter(model => 
         !imageModels.includes(model) &&
         !embeddingModels.includes(model) &&
+        !realtimeModels.includes(model) &&
         !ttsModels.includes(model)
       )
     .sort((a, b) => {
@@ -221,6 +223,7 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
     chat: chatModels,
     image: imageModels,
     embedding: embeddingModels,
+    realtime: realtimeModels,
     tts: ttsModels
   }
 

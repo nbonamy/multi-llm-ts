@@ -6,57 +6,59 @@ import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import Google, { GoogleStreamingContext } from '../../src/providers/google'
 import { loadGoogleModels, loadModels } from '../../src/llm'
-import { EnhancedGenerateContentResponse, FunctionCall, FinishReason } from '@google/generative-ai'
-import * as _Google from '@google/generative-ai'
+import { GenerateContentResponse, FinishReason } from '@google/genai'
+import * as _Google from '@google/genai'
 import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
-global.fetch = vi.fn((): Promise<Response> => Promise.resolve(new Response(JSON.stringify({
-  models: [
-    { name: 'models/embed-content', displayName: 'Non Generate Content', description: '', supportedGenerationMethods: ['embedContent'] },
-    { name: 'models/deprecated', displayName: 'Deprecated', description: 'was deprecated in', supportedGenerationMethods: ['generateContent'] },
-    { name: 'models/discontinued', displayName: 'Discontinued', description: 'was discontinued in', supportedGenerationMethods: ['generateContent'] },
-    { name: 'models/tuning', displayName: 'Tuning', description: 'can be used to tune', supportedGenerationMethods: ['generateContent'] },
-    { name: 'models/gemini-001', displayName: 'Gemini 001', description: '', supportedGenerationMethods: ['generateContent'] },
-    { name: 'models/gemini-1.5', displayName: 'Gemini 1.5', description: '', supportedGenerationMethods: ['generateContent'] },
-    { name: 'models/gemini-1.5-latest', displayName: 'Gemini 1.5', description: '', supportedGenerationMethods: ['generateContent'] },
-    { name: 'models/gemini-2.0', displayName: 'Gemini 2.0', supportedGenerationMethods: ['generateContent', 'bidiGenerateContent'] },
-    { name: 'models/gemini-2.5-tts', displayName: 'Gemini 2.5 TTS', supportedGenerationMethods: [ 'generateContent'] },
-    { name: 'models/image-model', displayName: 'New Model', description: '', supportedGenerationMethods: ['bidiGenerateContent'] },
-  ]
-}))))
-
-vi.mock('@google/generative-ai', async () => {
-  const GenerativeModel = vi.fn()
-  GenerativeModel.prototype.model = 'model'
-  GenerativeModel.prototype.generateContent = vi.fn(() => { return { response: { text: () => 'response', functionCalls: (): any[] => [] } } })
-  GenerativeModel.prototype.generateContentStream = vi.fn(() => {
-    return {
-      stream: {
+vi.mock('@google/genai', async () => {
+  const GoogleGenAI = vi.fn()
+  GoogleGenAI.prototype.models = {
+    list: vi.fn(() => ({
+      async *[Symbol.asyncIterator]() {
+        const models = [
+          { name: 'models/embed-content', displayName: 'Non Generate Content', description: '', supportedActions: ['embedContent'] },
+          { name: 'models/deprecated', displayName: 'Deprecated', description: 'was deprecated in', supportedActions: ['generateContent'] },
+          { name: 'models/discontinued', displayName: 'Discontinued', description: 'was discontinued in', supportedActions: ['generateContent'] },
+          { name: 'models/tuning', displayName: 'Tuning', description: 'can be used to tune', supportedActions: ['generateContent'] },
+          { name: 'models/gemini-001', displayName: 'Gemini 001', description: '', supportedActions: ['generateContent'] },
+          { name: 'models/gemini-1.5', displayName: 'Gemini 1.5', description: '', supportedActions: ['generateContent'] },
+          { name: 'models/gemini-1.5-latest', displayName: 'Gemini 1.5', description: '', supportedActions: ['generateContent'] },
+          { name: 'models/gemini-2.0', displayName: 'Gemini 2.0', supportedActions: ['generateContent', 'bidiGenerateContent'] },
+          { name: 'models/gemini-2.5-tts', displayName: 'Gemini 2.5 TTS', supportedActions: [ 'generateContent'] },
+          { name: 'models/gemma-model', displayName: 'Gemma Model', description: '', supportedActions: ['generateContent'] },
+          { name: 'models/image-model', displayName: 'Image Model', description: '', supportedActions: ['bidiGenerateContent'] },
+          { name: 'models/native-audio-dialog-model', displayName: 'Dialog Model', description: '', supportedActions: ['bidiGenerateContent'] },
+        ]
+        for (const model of models) {
+          yield model
+        }
+      }
+    })),
+    generateContent: vi.fn(() => { return { text: 'response', functionCalls: [] } }),
+    generateContentStream: vi.fn(() => {
+      return {
         async *[Symbol.asyncIterator]() {
 
           // first we yield tool call chunks
           yield { candidates: [{ content: { parts: [{
             functionCall: { name: 'plugin2', args: ['arg'] }
-          }] } }], functionCalls: () => [{ name: 'plugin2', args: ['arg'] }] }
+          }] } }], functionCalls: [{ name: 'plugin2', args: ['arg'] }] }
 
           // now the text response
-           const content = 'response'
+          const content = 'response'
           for (let i = 0; i < content.length; i++) {
-            yield { candidates: [{ finishReason: 'none' }], text: () => content[i], functionCalls: (): any[] => [] }
+            yield { candidates: [{ finishReason: 'none' }], text: content[i], functionCalls: [] }
           }
-          yield { candidates: [{ finishReason: 'STOP' }], text: vi.fn(() => null), functionCalls: (): any[] => [] }
+          yield { candidates: [{ finishReason: 'STOP' }], text: null, functionCalls: [] }
         }
       }
-    }
-  })
-  const GoogleGenerativeAI = vi.fn()
-  GoogleGenerativeAI.prototype.apiKey = '123'
-  GoogleGenerativeAI.prototype.getGenerativeModel = vi.fn(() => new GenerativeModel())
-  const SchemaType = { STRING: 'string', NUMBER: 'number', OBJECT: 'object' }
-  const FunctionCallingMode = { AUTO: 'auto' }
-  return { GoogleGenerativeAI, GenerativeModel, default: GoogleGenerativeAI, SchemaType, FunctionCallingMode }
+    })
+  }
+  const Type = { STRING: 'string', NUMBER: 'number', OBJECT: 'object' }
+  const FunctionCallingConfigMode = { AUTO: 'auto' }
+  return { GoogleGenAI, Type, FunctionCallingConfigMode }
 })
 
 let config: EngineCreateOpts = {}
@@ -72,13 +74,17 @@ test('Google Load Models', async () => {
   expect(models!.chat).toStrictEqual([
     { id: 'gemini-1.5-latest', name: 'Gemini 1.5', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
     { id: 'gemini-1.5', name: 'Gemini 1.5', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'gemma-model', name: 'Gemma Model', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
   ])
   expect(models!.image).toStrictEqual([
-    { id: 'image-model', name: 'New Model', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'image-model', name: 'Image Model', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
     { id: 'gemini-2.0', name: 'Gemini 2.0', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
   ])
   expect(models!.embedding).toStrictEqual([
     { id: 'embed-content', name: 'Non Generate Content', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+  ])
+  expect(models!.realtime).toStrictEqual([
+    { id: 'native-audio-dialog-model', name: 'Dialog Model', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
   ])
   expect(models!.tts).toStrictEqual([
     { id: 'gemini-2.5-tts', name: 'Gemini 2.5 TTS', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
@@ -93,17 +99,18 @@ test('Google Basic', async () => {
 
 test('Google completion', async () => {
   const google = new Google(config)
-  const response = await google.complete(google.buildModel('model'), [
+  const response = await google.complete(google.buildModel('gemma'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { temperature: 0.8 })
-  expect(_Google.GoogleGenerativeAI).toHaveBeenCalled()
-  expect(_Google.GoogleGenerativeAI.prototype.getGenerativeModel).toHaveBeenCalled()
-  expect(_Google.GenerativeModel.prototype.generateContent).toHaveBeenCalledWith({
-    contents: [{
-      role: 'user',
-      parts: [{ text: 'prompt' }]
-    }], generationConfig: {
+  expect(_Google.GoogleGenAI).toHaveBeenCalled()
+  expect(_Google.GoogleGenAI.prototype.models.generateContent).toHaveBeenCalledWith({
+    model: 'gemma',
+    contents: [
+      { role: 'user', parts: [{ text: 'instruction' }] },
+      { role: 'user', parts: [{ text: 'prompt' }] }
+    ], config: {
+      // systemInstruction: 'instruction',
       temperature: 0.8
     }
   })
@@ -116,18 +123,17 @@ test('Google completion', async () => {
 
 test('Google nativeChunkToLlmChunk Text', async () => {
   const google = new Google(config)
-  const streamChunk: EnhancedGenerateContentResponse = {
+  const streamChunk: GenerateContentResponse = {
     candidates: [{
       index: 0,
       content: { role: 'model', parts: [{ text: 'response' }] },
       //finishReason: FinishReason.STOP,
     }],
-    text: vi.fn(() => 'response'),
-    functionCalls: vi.fn((): FunctionCall[] => []),
-    functionCall: () => undefined,
-  }
+    text: 'response',
+    functionCalls: [],
+  } as unknown as GenerateContentResponse
   const context: GoogleStreamingContext = {
-    model: null as unknown as _Google.GenerativeModel,
+    model: google.buildModel('model'),
     content: [],
     opts: {},
     toolCalls: [],
@@ -137,7 +143,8 @@ test('Google nativeChunkToLlmChunk Text', async () => {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.candidates![0].finishReason = 'STOP' as FinishReason
-  streamChunk.text = vi.fn(() => '')
+  // @ts-expect-error mock
+  streamChunk.text = ''
   for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
@@ -236,24 +243,22 @@ test('Google stream', async () => {
   google.addPlugin(new Plugin1())
   google.addPlugin(new Plugin2())
   google.addPlugin(new Plugin3())
-  const { stream, context } = await google.stream(google.buildModel('model'), [
+  const { stream, context } = await google.stream(google.buildModel('gemini-pro'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { temperature: 1.0, top_k: 4 })
-  expect(_Google.GoogleGenerativeAI).toHaveBeenCalled()
-  expect(_Google.GoogleGenerativeAI.prototype.getGenerativeModel).toHaveBeenCalledWith({
-    model: 'model',
-    systemInstruction: 'instruction',
-    toolConfig: { functionCallingConfig: { mode: 'auto' } },
-    tools: tools,
-  }, { 'apiVersion': 'v1beta', })
-  expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenNthCalledWith(1, {
+  expect(_Google.GoogleGenAI).toHaveBeenCalled()
+  expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenNthCalledWith(1, {
+    model: 'gemini-pro',
     contents: [{
       role: 'user',
       parts: [{ text: 'prompt' }]
-    }], generationConfig: {
+    }], config: {
+      systemInstruction: 'instruction',
       topK: 4,
-      temperature: 1.0
+      temperature: 1.0,
+      toolConfig: { functionCallingConfig: { mode: 'auto' } },
+      tools: tools,
     }
   })
   let response = ''
@@ -266,19 +271,23 @@ test('Google stream', async () => {
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
-  expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenNthCalledWith(2, {
+  expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenNthCalledWith(2, {
+    model: 'gemini-pro',
     contents: [
       { role: 'user', parts: [{ text: 'prompt' }] },
       { role: 'assistant', parts: [{ functionCall: { name: 'plugin2', args: ['arg'] } }] },
-      { role: 'tool', parts: [{ functionResponse: { name: 'plugin2', response: 'result2' } }] },
-    ], generationConfig: {
+      { role: 'tool', parts: [{ functionResponse: { id: 'plugin2', name: 'plugin2', response: 'result2' } }] },
+    ], config: {
+      systemInstruction: 'instruction',
       topK: 4,
-      temperature: 1.0
+      temperature: 1.0,
+      toolConfig: { functionCallingConfig: { mode: 'auto' } },
+      tools: tools,
     }
   })
   expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
-  expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, ['arg'])
+  expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'gemini-pro' }, ['arg'])
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 'plugin2', name: 'plugin2', status: 'prep2', done: false })
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 'plugin2', name: 'plugin2', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 'plugin2', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
@@ -295,29 +304,23 @@ test('Google stream tools disabled', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { temperature: 1.0, top_k: 4, tools: false })
-  expect(_Google.GoogleGenerativeAI.prototype.getGenerativeModel).toHaveBeenCalledWith({
-    model: 'model',
-    systemInstruction: 'instruction',
-  }, { 'apiVersion': 'v1beta', })
   expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
 })
 
 test('Google stream without tools', async () => {
   const google = new Google(config)
-  await google.stream(google.buildModel('model'), [
+  await google.stream(google.buildModel('gemini-pro'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_p: 4 })
-  expect(_Google.GoogleGenerativeAI).toHaveBeenCalled()
-  expect(_Google.GoogleGenerativeAI.prototype.getGenerativeModel).toHaveBeenCalledWith({
-    model: 'model',
-    systemInstruction: 'instruction',
-  }, { 'apiVersion': 'v1beta', })
-  expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({
+  expect(_Google.GoogleGenAI).toHaveBeenCalled()
+  expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenCalledWith({
+    model: 'gemini-pro',
     contents: [{
       role: 'user',
       parts: [{ text: 'prompt' }]
-    }], generationConfig: {
+    }], config: {
+      systemInstruction: 'instruction',
       topP: 4
     }
   })
@@ -325,13 +328,15 @@ test('Google stream without tools', async () => {
 
 test('Google Text Attachments', async () => {
   const google = new Google(config)
-  await google.stream(google.buildModel('model'), [
+  await google.stream(google.buildModel('gemini-pro'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt1', new Attachment('text1', 'text/plain')),
     new Message('assistant', 'response1'),
     new Message('user', 'prompt2', new Attachment('text2', 'text/plain')),
   ])
-  expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({
+  expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenCalledWith({
+    model: 'gemini-pro',
+    config: { systemInstruction: 'instruction' },
     contents: [
       { role: 'user', parts: [{ text: 'prompt1' }, { text: 'text1' }] },
       { role: 'model', parts: [{ text: 'response1' }] },
@@ -348,8 +353,11 @@ test('Google Image Attachments', async () => {
     new Message('assistant', 'response1'),
     new Message('user', 'prompt2', new Attachment('image2', 'image/png')),
   ])
-  expect(_Google.GenerativeModel.prototype.generateContentStream).toHaveBeenCalledWith({
+  expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenCalledWith({
+    model: 'gemini-1.5-pro-latest',
+    config: { systemInstruction: 'instruction' },
     contents: [
+      // { role: 'user', parts: [{ text: 'instruction' }] },
       { role: 'user', parts: [{ text: 'prompt1' }, { inlineData: { data: 'image1', mimeType: 'image/png' } }] },
       { role: 'model', parts: [{ text: 'response1' }] },
       { role: 'user', parts: [{ text: 'prompt2' }, { inlineData: { data: 'image2', mimeType: 'image/png' } }] },

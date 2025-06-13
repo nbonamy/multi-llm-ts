@@ -62,16 +62,12 @@ export type ModelDeepseek = {
 
 export type ModelGoogle = {
   name: string
-  version: string
-  displayName: string
-  description: string
-  inputTokenLimit: number
-  outputTokenLimit: number
-  supportedGenerationMethods: string[]
-  temperature: number
-  topP: number
-  topK: number
-  maxTemperature: number
+  version?: string
+  displayName?: string
+  description?: string
+  inputTokenLimit?: number
+  outputTokenLimit?: number
+  supportedActions?: string[]
 }
 
 export type ModelGroq = {

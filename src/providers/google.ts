@@ -1,36 +1,36 @@
 
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGoogle } from '../types/index'
-import { LLmCompletionPayload, LLmContentPayloadText, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
+import { LLmCompletionPayload, LLmContentPayloadText, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCallInfo } from '../types/llm'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
-import LlmEngine from '../engine'
+import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
 
-import { Content, EnhancedGenerateContentResponse, GenerativeModel, GoogleGenerativeAI, ModelParams, Part, FunctionResponsePart, SchemaType, FunctionDeclarationSchemaProperty, FunctionCallingMode, GenerationConfig } from '@google/generative-ai'
-import type { FunctionDeclaration } from '@google/generative-ai/dist/types'
+import { Content, FunctionCallingConfigMode, FunctionDeclaration, FunctionResponse, GenerateContentConfig, GenerateContentResponse, GoogleGenAI, Part, Schema, Type } from '@google/genai'
 import { minimatch } from 'minimatch'
 
 //
 // https://ai.google.dev/gemini-api/docs
 //
 
-export type GoogleStreamingContext = {
-  model: GenerativeModel
+type GoogleCompletionOpts = LlmCompletionOpts & {
+  instruction?: string
+}
+
+export type GoogleStreamingContext = Omit<LlmStreamingContextTools, 'thread'> & {
+  opts: GoogleCompletionOpts
   content: Content[]
-  opts: LlmCompletionOpts
-  toolCalls: LlmToolCall[]
-  usage: LlmUsage
 }
 
 export default class extends LlmEngine {
 
-  client: GoogleGenerativeAI
+  client: GoogleGenAI
 
   constructor(config: EngineCreateOpts) {
     super(config)
-    this.client = new GoogleGenerativeAI(
-      config.apiKey!,
-    )
+    this.client = new GoogleGenAI({
+      apiKey: config.apiKey!,
+    })
   }
 
   getId(): string {
@@ -61,11 +61,19 @@ export default class extends LlmEngine {
       'gemini-2.5-pro*',
       '*thinking*',
     ]
+
+    if (!model.name) {
+      return {
+        tools: true,
+        vision: false,
+        reasoning: false,
+      }
+    }
     
     const modelName = model.name.replace('models/', '')
 
     return {
-      tools: !modelName.includes('tts'),
+      tools: !modelName.includes('gemma') && !modelName.includes('dialog') && !modelName.includes('tts'),
       vision: visionGlobs.some((m) => minimatch(modelName, m)) && !excludeVisionGlobs.some((m) => minimatch(modelName, m)),
       reasoning: reasoningGlobs.some((m) => minimatch(modelName, m)),
     }
@@ -75,48 +83,24 @@ export default class extends LlmEngine {
   async getModels(): Promise<ModelGoogle[]> {
 
     // need an api key
-    if (!this.client.apiKey) {
+    if (!this.config.apiKey) {
       return []
     }
 
     // we may have to iterate over multiple pages
     const models: ModelGoogle[] = []
-    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${this.client.apiKey}`
-    let pageToken = null
-
-    while (true) {
-
-      // https://ai.google.dev/api/models#models_get-SHELL
-      const response: Response = await fetch(url + (pageToken ? `&pageToken=${pageToken}` : ''))
-      const json: any = await response.json()
-
-      // filter
-      for (const model of json.models) {
-        if (model.name?.match(/\d\d\d$/)) continue
-        if (model.name?.includes('tuning')) continue
-        if (model.description?.includes('deprecated')) continue
-        if (model.description?.includes('discontinued')) continue
-        models.push(model)
-      }
-
-      if (json.nextPageToken) {
-        pageToken = json.nextPageToken
-      } else {
-        break
-      }
+    const pager = await this.client.models.list()
+    for await (const model of pager) {
+      if (!model.name) continue
+      if (model.name.match(/\d\d\d$/)) continue
+      if (model.name.includes('tuning')) continue
+      if (model.description?.includes('deprecated')) continue
+      if (model.description?.includes('discontinued')) continue
+      models.push(model as ModelGoogle)
     }
 
     // reverse
     models.reverse()
-
-    // // remove duplicated based on name
-    // const names: string[] = []
-    // const filtered = []
-    // for (const model of models) {
-    //   if (names.includes(model.displayName)) continue
-    //   names.push(model.displayName)
-    //   filtered.push(model)
-    // }
 
     // done
     return models
@@ -125,28 +109,32 @@ export default class extends LlmEngine {
 
   async complete(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
     const messages = this.threadToHistory(thread, model, opts)
-    return await this.chat(model, messages, opts)
+    const instruction = this.getInstructions(model, thread)
+    return await this.chat(model, messages, {
+      ...opts,
+      instruction
+    })
   }
 
-  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: Content[], opts?: GoogleCompletionOpts): Promise<LlmResponse> {
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
     
     // call
     logger.log(`[google] prompting model ${model.id}`)
-    const googleModel = await this.getModel(model, thread[0].contentForModel, opts)
-    const response = await googleModel.generateContent({
+    const response = await this.client.models.generateContent({
+      model: model.id,
       contents: thread,
-      generationConfig: this.getGenerationConfig(opts),
+      config: await this.getGenerationConfig(model, opts),
     })
 
     // check for tool calls
-    const toolCalls = response.response.functionCalls()
+    const toolCalls = response.functionCalls
     if (toolCalls?.length) {
 
       // results
-      const results: FunctionResponsePart[] = []
+      const results: FunctionResponse[] = []
 
       for (const toolCall of toolCalls) {
 
@@ -154,17 +142,17 @@ export default class extends LlmEngine {
         logger.log(`[google] tool call ${toolCall.name} with ${JSON.stringify(toolCall.args)}`)
 
         // now execute
-        const content = await this.callTool({ model: model.id }, toolCall.name, toolCall.args)
+        const content = await this.callTool({ model: model.id }, toolCall.name!, toolCall.args)
         logger.log(`[google] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
-        results.push({ functionResponse: {
-          name: toolCall.name,
-          response: content
-        }})
+        results.push({
+          name: toolCall.name!,
+          response: content!
+        })
 
         // save tool call info
         toolCallInfo.push({
-          name: toolCall.name,
+          name: toolCall.name!,
           params: toolCall.args,
           result: content
         })
@@ -174,13 +162,13 @@ export default class extends LlmEngine {
       // function call
       thread.push({
         role: 'assistant',
-        parts: response.response.candidates![0].content.parts,
+        parts: response.candidates![0].content!.parts,
       })
 
       // send
       thread.push({
         role: 'tool',
-        parts: results
+        parts: results.map((r) => ({ functionResponse: r }) ),
       })
 
       // prompt again
@@ -193,9 +181,9 @@ export default class extends LlmEngine {
       ]
 
       // cumulate usage
-      if (opts?.usage && response.response.usageMetadata && completion.usage) {
-        completion.usage.prompt_tokens += response.response.usageMetadata.promptTokenCount
-        completion.usage.completion_tokens += response.response.usageMetadata.candidatesTokenCount
+      if (opts?.usage && response.usageMetadata && completion.usage) {
+        completion.usage.prompt_tokens += response.usageMetadata.promptTokenCount ?? 0
+        completion.usage.completion_tokens += response.usageMetadata.candidatesTokenCount ?? 0
       }
 
       // done
@@ -206,11 +194,11 @@ export default class extends LlmEngine {
     // done
     return {
       type: 'text',
-      content: response.response.text(),
+      content: response.text,
       toolCalls: toolCallInfo,
-      ...(opts?.usage && response.response.usageMetadata ? { usage: {
-        prompt_tokens: response.response.usageMetadata.promptTokenCount,
-        completion_tokens: response.response.usageMetadata.candidatesTokenCount,
+      ...(opts?.usage && response.usageMetadata ? { usage: {
+        prompt_tokens: response.usageMetadata.promptTokenCount ?? 0,
+        completion_tokens: response.usageMetadata.candidatesTokenCount ?? 0,
       } } : {}),
     }
   }
@@ -222,9 +210,12 @@ export default class extends LlmEngine {
 
     // context
     const context: GoogleStreamingContext = {
-      model: await this.getModel(model, thread[0].contentForModel, opts),
+      model: model,
       content: this.threadToHistory(thread, model, opts),
-      opts: opts || {},
+      opts: {
+        ...opts,
+        instruction: this.getInstructions(model, thread),
+      },
       toolCalls: [],
       usage: this.zeroUsage()
     }
@@ -242,40 +233,46 @@ export default class extends LlmEngine {
     // reset
     context.toolCalls = []
 
-    logger.log(`[google] prompting model ${context.model!.model}`)
-    const response = await context.model!.generateContentStream({
+    logger.log(`[google] prompting model ${context.model.id}`)
+    const response = await this.client.models.generateContentStream({
+      model: context.model.id,
       contents: context.content,
-      generationConfig: this.getGenerationConfig(context.opts),
+      config: await this.getGenerationConfig(context.model, context.opts),
     })
 
     // done
-    return response.stream
+    return response
 
-  }
-
-  private modelStartsWith(model: string, prefix: string[]): boolean {
-    for (const p of prefix) {
-      if (model.startsWith(p)) {
-        return true
-      }
-    }
-    return false
   }
 
   private supportsInstructions(model: ChatModel): boolean {
-    return this.modelStartsWith(model.id, ['models/gemini-pro']) == false
+    return ['gemini'].some((m) => model.id.includes(m))
   }
 
-  async getModel(model: ChatModel, instructions: string, opts?: LlmCompletionOpts): Promise<GenerativeModel> {
+  private getInstructions(model: ChatModel, thread: Message[]): string|undefined {
+    return (this.supportsInstructions(model) && thread.length > 1 && thread[0].role === 'system') ? thread[0].content : undefined  
+  }
 
-    // model params
-    const modelParams: ModelParams = {
-      model: model.id,
+  private typeToSchemaType(type: string, properties?: any): Type {
+    if (type === 'string') return Type.STRING
+    if (type === 'number') return Type.NUMBER
+    if (type === 'boolean') return Type.BOOLEAN
+    if (type === 'array') return Type.ARRAY
+    return properties ? Type.OBJECT : Type.STRING
+  }
+
+  private async getGenerationConfig(model: ChatModel, opts?: GoogleCompletionOpts): Promise<GenerateContentConfig|undefined> {
+
+    const config: GenerateContentConfig = {
+      ...(opts?.maxTokens ? { maxOutputTokens: opts?.maxTokens } : {} ),
+      ...(opts?.temperature ? { temperature: opts?.temperature } : {} ),
+      ...(opts?.top_k ? { topK: opts?.top_k } : {} ),
+      ...(opts?.top_p ? { topP: opts?.top_p } : {} ),
     }
 
     // add instructions
-    if (this.supportsInstructions(model)) {
-      modelParams.systemInstruction = instructions
+    if (opts?.instruction) {
+      config.systemInstruction = opts!.instruction
     }
 
     // add tools
@@ -288,7 +285,7 @@ export default class extends LlmEngine {
 
         for (const tool of tools) {
 
-          const googleProps: { [k: string]: FunctionDeclarationSchemaProperty } = {};
+          const googleProps: { [k: string]: Schema } = {};
           for (const name of Object.keys(tool.function.parameters.properties)) {
             const props = tool.function.parameters.properties[name]
             googleProps[name] = {
@@ -300,7 +297,7 @@ export default class extends LlmEngine {
                   properties: props.items?.properties
                 }
               } : {}),
-            } as FunctionDeclarationSchemaProperty
+            } as Schema
           }
 
           functionDeclarations.push({
@@ -308,7 +305,7 @@ export default class extends LlmEngine {
             description: tool.function.description,
             ...(Object.keys(tool.function.parameters.properties).length == 0 ? {} : {
               parameters: {
-                type: SchemaType.OBJECT,
+                type: Type.OBJECT,
                 properties: googleProps,
                 required: tool.function.parameters!.required,
               }
@@ -317,39 +314,19 @@ export default class extends LlmEngine {
         }
 
         // done
-        modelParams.toolConfig = { functionCallingConfig: { mode: FunctionCallingMode.AUTO } }
-        modelParams.tools = [{ functionDeclarations: functionDeclarations }]
+        config.toolConfig = { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } }
+        config.tools = [{ functionDeclarations: functionDeclarations }]
 
       }
     }
 
-    // call
-    return this.client.getGenerativeModel( modelParams, {
-      apiVersion: 'v1beta'
-    })
-  }
-
-  private typeToSchemaType(type: string, properties?: any): SchemaType {
-    if (type === 'string') return SchemaType.STRING
-    if (type === 'number') return SchemaType.NUMBER
-    if (type === 'boolean') return SchemaType.BOOLEAN
-    if (type === 'array') return SchemaType.ARRAY
-    return properties ? SchemaType.OBJECT : SchemaType.STRING
-  }
-
-  private getGenerationConfig(opts?: LlmCompletionOpts): GenerationConfig|undefined {
-    const config = {
-      ...(opts?.maxTokens ? { maxOutputTokens: opts?.maxTokens } : {} ),
-      ...(opts?.temperature ? { temperature: opts?.temperature } : {} ),
-      ...(opts?.top_k ? { topK: opts?.top_k } : {} ),
-      ...(opts?.top_p ? { topP: opts?.top_p } : {} ),
-    }
+    // done
     return Object.keys(config).length ? config : undefined
   }
 
   threadToHistory(thread: Message[], model: ChatModel, opts?: LlmCompletionOpts): Content[] {
-    const hasInstructions = this.supportsInstructions(model)
-    const payload = this.buildPayload(model, thread.slice(hasInstructions ? 1 : 0), opts).map((p) => {
+    const supportsInstructions = this.supportsInstructions(model)
+    const payload = this.buildPayload(model, thread.filter((m) => supportsInstructions ? m.role !== 'system' : true), opts).map((p) => {
       if (p.role === 'system') p.role = 'user'
       return p
     })
@@ -362,7 +339,7 @@ export default class extends LlmEngine {
       parts: Array.isArray(payload.content) ? payload.content.map((c) => ({ text: (c as LLmContentPayloadText).text })) : [ { text: payload.content as string } ],
     }
     for (const index in payload.images) {
-      content.parts.push({
+      content.parts!.push({
         inlineData: {
           mimeType: 'image/png',
           data: payload.images[Number(index)],
@@ -398,7 +375,7 @@ export default class extends LlmEngine {
     //await stream?.controller?.abort()
   }
    
-  async *nativeChunkToLlmChunk(chunk: EnhancedGenerateContentResponse, context: GoogleStreamingContext): AsyncGenerator<LlmChunk, void, void> {
+  async *nativeChunkToLlmChunk(chunk: GenerateContentResponse, context: GoogleStreamingContext): AsyncGenerator<LlmChunk, void, void> {
 
     // debug
     // logger.log('[google] chunk', JSON.stringify(chunk))
@@ -410,21 +387,21 @@ export default class extends LlmEngine {
     }
 
     // tool calls
-    const toolCalls = chunk.functionCalls()
+    const toolCalls = chunk.functionCalls
     if (toolCalls?.length) {
 
       // save
-      context.toolCalls = toolCalls.map((tc) => {
+      context.toolCalls = toolCalls.filter(tc => tc.name).map((tc) => {
         return {
-          id: tc.name,
+          id: tc.id || tc.name!,
           message: '',
-          function: tc.name,
+          function: tc.name!,
           args: JSON.stringify(tc.args),
         }
       })
 
       // results
-      const results: FunctionResponsePart[] = []
+      const results: FunctionResponse[] = []
 
       // call
       for (const toolCall of context.toolCalls) {
@@ -456,14 +433,15 @@ export default class extends LlmEngine {
         }
 
         // now execute
-        const content = await this.callTool({ model: context.model.model }, toolCall.function, args)
+        const content = await this.callTool({ model: context.model.id }, toolCall.function, args)
         logger.log(`[google] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // send
-        results.push({ functionResponse: {
+        results.push({
+          id: toolCall.id,
           name: toolCall.function,
           response: content
-        }})
+        })
 
         // clear
         yield {
@@ -482,13 +460,13 @@ export default class extends LlmEngine {
       // function call
       context.content.push({
         role: 'assistant',
-        parts: chunk.candidates![0].content.parts,
+        parts: chunk.candidates![0].content!.parts,
       })
 
       // send
       context.content.push({
         role: 'tool',
-        parts: results
+        parts: results.map((r) => ({ functionResponse: r }) ),
       })
 
       // switch to new stream
@@ -506,7 +484,7 @@ export default class extends LlmEngine {
     const done = !!chunk.candidates?.[0].finishReason
     yield {
       type: 'content',
-      text: chunk.text() || '',
+      text: chunk.text || '',
       done: done
     }
 
