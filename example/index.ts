@@ -5,12 +5,12 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const completion = async (llm: LlmEngine, model: ChatModel, messages: Message[]) => {
-  console.log('\n** Chat completion')
+  console.log('\n** Chat completion' + (llm.plugins.length ? ' with plugins' : ''))
   console.log(await llm.complete(model, messages, { usage: true }))
 }
 
 const streaming = async (llm: LlmEngine, model: ChatModel, messages: Message[]) => {
-  console.log('\n** Chat streaming')
+  console.log('\n** Chat streaming' + (llm.plugins.length ? ' with plugins' : ''))
   const stream = llm.generate(model, messages, { usage: true, reasoning: true })
   let reasoning = ''
   let response = ''
@@ -50,31 +50,6 @@ const conversation = async (llm: LlmEngine, model: ChatModel, messages: Message[
   }
   console.log(response)
   messages.splice(2,2)
-}
-
-const completion_tools = async (llm: LlmEngine, model: ChatModel, messages: Message[]) => {
-  console.log('\n** Function calling non-streaming')
-  const answer = new Answer()
-  llm.addPlugin(answer)
-  messages[1].content = 'What is the answer to life, the universe and everything?'
-  const response = await llm.complete(model, messages, { usage: true, reasoning: true })
-  console.log(response)
-}
-
-const tooling = async (llm: LlmEngine, model: ChatModel, messages: Message[]) => {
-  console.log('\n** Function calling streaming')
-  const answer = new Answer()
-  llm.addPlugin(answer)
-  messages[1].content = 'What is the answer to life, the universe and everything?'
-  const stream = llm.generate(model, messages, { usage: true, reasoning: true })
-  let response = ''
-  for await (const chunk of stream) {
-    console.log(chunk)
-    if (chunk.type === 'content') {
-      response += chunk.text
-    }
-  }
-  console.log(response)
 }
 
 (async () => {
@@ -125,11 +100,15 @@ const tooling = async (llm: LlmEngine, model: ChatModel, messages: Message[]) =>
     throw new Error(`Model ${modelName} not found`)
   }
 
-  // each demo
+  // no function calling
   await completion(llm, model, messages)
-  await completion_tools(llm, model, messages)
   await streaming(llm, model, messages)
   await conversation(llm, model, messages)
-  await tooling(llm, model, messages)
+
+  // with function calling
+  messages[1].content = 'What is the answer to life, the universe and everything?'
+  llm.addPlugin(new Answer())
+  await completion(llm, model, messages)
+  await streaming(llm, model, messages)
 
 })()

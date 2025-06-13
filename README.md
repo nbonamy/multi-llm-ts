@@ -32,7 +32,11 @@ Prior to 4.0, a `user` message could have only one attachment. Now `Message` sup
 
 ### plugins
 
-When executed, plugins are now provided a `PluginExecutionContext` instance providing them information on the context of execution. For now the only information provided is the model id.
+When executed, plugins are now provided a `PluginExecutionContext` instance providing them information on the context of execution. For now the only information provided is the model id. The `Plugin::execute` method signature is now therefore:
+
+```
+async execute(context: PluginExecutionContext , parameters: any): Promise<any>
+```
 
 ## Providers supported
 
