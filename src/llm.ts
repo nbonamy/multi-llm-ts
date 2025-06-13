@@ -1,12 +1,13 @@
 
-import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCerebras, ModelDeepseek, ModelGoogle, ModelGroq, ModelMeta, ModelMistralAI, ModelOllama, ModelOpenAI, ModelOpenRouter, ModelsList, ModelTogether, ModelxAI } from './types/index'
-import LlmEngine from 'engine'
+import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCerebras, ModelDeepseek, ModelGeneric, ModelGoogle, ModelGroq, ModelMeta, ModelMistralAI, ModelOllama, ModelOpenAI, ModelOpenRouter, ModelsList, ModelTogether, ModelxAI } from './types/index'
+import LlmEngine from './engine'
 import Anthropic, { AnthropicComputerToolInfo } from './providers/anthropic'
 import Azure from './providers/azure'
 import Cerebreas from './providers/cerebras'
 import DeepSeek from './providers/deepseek'
 import Google from './providers/google'
 import Groq from './providers/groq'
+import LMStudio from './providers/lmstudio'
 import Meta from './providers/meta'
 import MistralAI from './providers/mistralai'
 import Ollama from './providers/ollama'
@@ -23,6 +24,7 @@ export const igniteEngine = (engine: string, config: EngineCreateOpts): LlmEngin
   if (engine === 'deepseek') return new DeepSeek(config)
   if (engine === 'google') return new Google(config)
   if (engine === 'groq') return new Groq(config)
+  if (engine === 'lmstudio') return new LMStudio(config)
   if (engine === 'meta') return new Meta(config)
   if (engine === 'mistralai') return new MistralAI(config)
   if (engine === 'ollama') return new Ollama(config)
@@ -39,6 +41,7 @@ export const loadModels = async (engine: string, config: EngineCreateOpts): Prom
   if (engine === 'deepseek') return await loadDeepSeekModels(config)
   if (engine === 'google') return await loadGoogleModels(config)
   if (engine === 'groq') return await loadGroqModels(config)
+  if (engine === 'lmstudio') return await loadLMStudioModels(config)
   if (engine === 'meta') return await loadMetaModels(config)
   if (engine === 'mistralai') return await loadMistralAIModels(config)
   if (engine === 'ollama') return await loadOllamaModels(config)
@@ -268,6 +271,37 @@ export const loadGroqModels = async (engineConfig: EngineCreateOpts): Promise<Mo
     computer: [],
     stt: [],
     tts: ttsModels,
+  }
+
+}
+
+export const loadLMStudioModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
+
+  const lmStudio = new LMStudio(engineConfig)
+  let metas: ModelGeneric[] = []
+
+  try {
+    metas = await lmStudio.getModels()
+  } catch (error) {
+    console.error('Error listing LMStudio models:', error);
+  }
+  if (!metas) {
+    return null
+  }
+
+  // xform
+  const models: ChatModel[] = metas.map(m => ({
+    id: m.id,
+    name: m.id.split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
+    capabilities: lmStudio.getModelCapabilities(m),
+    meta: m,
+  }))
+  
+  // done
+  return {
+    chat: models,
+    image: [],
+    embedding: []
   }
 
 }

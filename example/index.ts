@@ -63,7 +63,7 @@ const conversation = async (llm: LlmEngine, model: ChatModel, messages: Message[
 
   // we need an api key
   const apiKey = process.env.API_KEY || process.env[`${engine.toUpperCase()}_API_KEY`]
-  if (engine !== 'ollama' && !apiKey) {
+  if (engine !== 'ollama' && engine !== 'lmstudio' && !apiKey) {
     throw new Error('API_KEY environment variable is not set')
   }
 

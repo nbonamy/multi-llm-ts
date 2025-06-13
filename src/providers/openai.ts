@@ -16,6 +16,7 @@ const defaultBaseUrl = 'https://api.openai.com/v1'
 // 
 
 export type OpenAIStreamingContext = LlmStreamingContextTools & {
+  thinking: boolean
   done?: boolean
 }
 
@@ -258,6 +259,7 @@ export default class extends LlmEngine {
       opts: opts || {},
       toolCalls: [],
       usage: this.zeroUsage(),
+      thinking: false,
       done: false,
     }
 
@@ -484,7 +486,7 @@ export default class extends LlmEngine {
     // text chunk
     if (chunk.choices?.length && (chunk.choices[0]?.delta?.content || done)) {
       yield {
-        type: 'content',
+        type: context.thinking ? 'reasoning' : 'content',
         text: chunk.choices[0]?.delta?.content || '',
         done: done
       }
