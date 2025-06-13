@@ -44,7 +44,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
-    "@google/genai": "^1.4.0",
+    "@google/genai": "1.4.0",
     "@mistralai/mistralai": "^1.1.0",
     "groq-sdk": "^0.16.0",
     "minimatch": "^10.0.1",
