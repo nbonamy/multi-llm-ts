@@ -141,10 +141,8 @@ export default abstract class LlmEngine {
     // if we already have a vision
     if (currentModel.capabilities.vision) {
       return false
-    }
-
-    // check if amy of the messages in the thread have an attachment
-    return thread.some((msg) => msg.attachments.some(a => a.isImage()))
+    }    // check if amy of the messages in the thread have an attachment
+    return thread.some((msg) => (msg.attachments || []).some(a => a.isImage()))
 
   }
 
@@ -197,7 +195,7 @@ export default abstract class LlmEngine {
           }]
         }
         
-        for (const attachment of msg.attachments) {
+        for (const attachment of (msg.attachments || [])) {
         
           // this can be a loaded chat where contents is not present
           if (attachment.content === null || attachment.content === undefined) {

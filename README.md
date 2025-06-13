@@ -51,6 +51,7 @@ When executed, plugins are now provided a `PluginExecutionContext` instance prov
 |**OpenRouter**|`openrouter`|yes|yes|yes|no|yes|yes|
 |**TogetherAI**<sup>3</sup>|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|no|yes|yes|
 |**xAI**|`xai`|yes|yes|yes|no|yes|yes|
+|**LM Studio**|`lmstudio`|yes|yes|yes|yes|yes|yes|
 
 <div><sup>1</sup> Max tokens, Temperature... Support varies across providers and models
 <div><sup>2</sup> Not supported for o1 family</div>
@@ -68,6 +69,13 @@ You can run it for another provider:
 ```sh
 npm i
 API_KEY=your-anthropic_api_key ENGINE=anthropic MODEL=claude-3-haiku-20240307 npm run example
+```
+
+You can run it with LM Studio :
+
+```sh
+npm i
+API_KEY="your-lmstudio-api-key" ENGINE=lmstudio MODEL=lmstudio-community/Qwen3-8B-GGUF/Qwen3-8B-Q4_K_M.gguf npm run example
 ```
 
 ## Usage
