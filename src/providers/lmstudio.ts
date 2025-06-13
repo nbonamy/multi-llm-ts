@@ -1,7 +1,7 @@
 
 import { ChatCompletionChunk } from 'openai/resources'
 import Message from '../models/message'
-import { EngineCreateOpts, ModelCapabilities, ModelGeneric } from '../types/index'
+import { EngineCreateOpts, ModelCapabilities, ModelGeneric, ModelsList } from '../types/index'
 import { LlmChunk, LlmRole } from '../types/llm'
 import OpenAI, { OpenAIStreamingContext } from './openai'
 
@@ -9,10 +9,19 @@ export const lmStudioBaseURL = 'http://localhost:1234/v1'
 
 export default class extends OpenAI {
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  static isConfigured = (engineConfig: EngineCreateOpts): boolean => {
+    return true
+  }
+
+  static isReady = (opts: EngineCreateOpts, models: ModelsList): boolean => {
+    return models?.chat?.length > 0
+  }
+
   constructor(config: EngineCreateOpts) {
     super(config, {
-      apiKey: config.apiKey,
-      baseURL: lmStudioBaseURL,
+      apiKey: config.apiKey || 'dummy',
+      baseURL: config.baseURL || lmStudioBaseURL,
     })
   }
 
