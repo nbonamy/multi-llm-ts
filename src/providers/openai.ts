@@ -1,11 +1,12 @@
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpenAI } from '../types/index'
+
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
 
 import OpenAI, { ClientOptions } from 'openai'
-import { ChatCompletionChunk, CompletionUsage } from 'openai/resources'
+import { CompletionUsage } from 'openai/resources'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import { minimatch } from 'minimatch'
 
@@ -20,12 +21,111 @@ export type OpenAIStreamingContext = LlmStreamingContextTools & {
   done?: boolean
 }
 
+export function modelSupportsResponses(modelId: string): boolean {
+  // The upcoming Responses API is currently available only on the "o3-" and "o4-" model families.
+  // This helper simply checks the model id prefix. Extend when OpenAI adds coverage.
+  return modelId.startsWith('o3') || modelId.startsWith('o4')
+}
+
 export default class extends LlmEngine {
 
+  private lastResponseId?: string
+  private pendingToolCalls: Array<{ call_id: string; name: string; arguments: any }> = []
+
+  private buildResponsesRequest(model: ChatModel, thread: Message[], opts: LlmCompletionOpts | undefined, stream: boolean) {
+    if (process.env.DEBUG_RESPONSES) {
+    console.log('THREAD', JSON.stringify(thread, null, 2))
+  }
+  // If thread elements are already in payload form (not Message instances), use directly
+  let payload: any[]
+  if (Array.isArray(thread) && thread.length && !(thread[0] instanceof Message)) {
+    payload = thread as any[]
+  } else {
+    payload = this.buildPayload(model, thread as any, opts)
+  }
+  if (process.env.DEBUG_RESPONSES) {
+    console.log('PAYLOAD', JSON.stringify(payload, null, 2))
+  }
+
+    // -----------------------------------------------------------
+  // Helpers
+  function extractText(msg: any): string {
+    const c = msg?.content
+    if (typeof c === 'string') return c
+    if (Array.isArray(c)) {
+      return c.map((p: any) => typeof p === 'string' ? p : (p.text ?? '')).join('')
+    }
+    if (c && typeof c === 'object' && typeof c.text === 'string') return c.text
+    return JSON.stringify(c)
+  }
+
+  // Merge all system messages into a single instructions string
+  const instructions = payload
+    .filter((m: any) => m.role === 'system')
+    .map(extractText)
+    .join('\n')
+    .trim()
+
+  // Pick the last *user* message; if none exists (thread may be a bare string),
+  // fall back to the very last message in the thread.
+  const lastUser = [...payload].reverse().find((m: any) => m.role === 'user')
+  let userContent = lastUser ? extractText(lastUser) : extractText(payload[payload.length - 1] ?? { content: '' })
+  if (!userContent.trim() && payload.length) {
+    userContent = extractText(payload[payload.length - 1])
+  }
+
+    const req: any = {
+      model: model.id,
+      // The Responses API expects the *raw* user input string — NOT a message wrapper.
+      input: userContent,
+      stream,
+    }
+    if (instructions) req.instructions = instructions
+    if (this.lastResponseId) req.previous_response_id = this.lastResponseId
+    return req
+  }
+
+  // ---------------------------------------------------------------------------
+  // Converts internal tool definitions to the schema required by the OpenAI SDK.
+  // Ensures every entry contains the mandatory `type` field so we avoid
+  // "Missing required parameter: 'tools[0].type'" errors when calling the
+  // Responses API on o3/o4 models.
+  private transformTools(internal: any[]): any[] {
+    return (internal ?? []).map((t: any) => {
+      // Internal objects may expose either `type` or legacy `kind`.
+      const kind = (t.kind ?? t.type) as string
+
+      // Function tools carry a JSON schema plus name & description.
+      if (kind === 'function') {
+        const fn = t.function ?? {
+          name: t.name,
+          description: t.description,
+          parameters: t.jsonSchema || t.input_schema || t.parameters,
+        }
+        return {
+          type: 'function',
+          name: fn.name,
+          description: fn.description,
+          parameters: fn.parameters,
+        }
+      }
+
+      // Hosted built-ins such as web_search_preview / code_interpreter
+      return { type: kind }
+    })
+  }
+
   client: OpenAI
+  preferResponses: boolean
 
   constructor(config: EngineCreateOpts, opts?: ClientOptions) {
     super(config)
+    // Prefer the new Responses API by default – callers can still opt-out via preferResponses:false
+    this.preferResponses = config.preferResponses ?? true
+
+    // tool call tracking
+    this.pendingToolCalls = []
+
     this.client = new OpenAI({
       apiKey: opts?.apiKey || config.apiKey,
       baseURL: opts?.baseURL || config.baseURL || defaultBaseUrl,
@@ -67,7 +167,8 @@ export default class extends LlmEngine {
     return {
       tools: !modelId.startsWith('chatgpt-') && !modelId.startsWith('o1-mini'),
       vision: visionGlobs.some((m) => minimatch(modelId, m)) && !excludeVisionGlobs.some((m) => minimatch(modelId, m)),
-      reasoning: modelId.startsWith('o')
+      reasoning: modelId.startsWith('o'),
+      responses: modelSupportsResponses(modelId)
     }
   }
 
@@ -151,6 +252,14 @@ export default class extends LlmEngine {
   }
 
   async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+    // Decide whether to use Responses API
+    const useResponses = (this.preferResponses && model.capabilities.responses)
+
+    if (useResponses) {
+      return this.responses(model, thread as any, opts)
+    }
+
+    // Fallback to Chat Completions
 
     // set baseURL on client
     this.setBaseURL()
@@ -247,6 +356,12 @@ export default class extends LlmEngine {
   }
 
   async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
+    const useResponses = (this.preferResponses && model.capabilities.responses)
+    if (useResponses) {
+      return this.responsesStream(model, thread, opts)
+    }
+
+    // Fallback to Chat Completions
 
     // set baseURL on client
     this.setBaseURL()
@@ -312,18 +427,330 @@ export default class extends LlmEngine {
 
     // tools
     const tools = await this.getAvailableTools()
-    return tools.length ? {
+    if (!tools.length) return {}
+
+    // Convert schema for Responses API if applicable
+    if (model.capabilities.responses) {
+      return { tools: this.transformTools(tools) }
+    }
+
+    // default chat-completions style
+    return {
       tools: tools,
       tool_choice: 'auto',
-    } : {}
+    }
 
   }
+
+  // ---------------------------------------------------------------------------
+  // Responses API – via official SDK
+  // ---------------------------------------------------------------------------
+// Helpers
+private async executeToolCalls(model: ChatModel, calls: Array<{ call_id: string; name: string; arguments: any }>): Promise<any[]> {
+  const outputs: any[] = []
+  for (const call of calls) {
+    let argsObj: any = call.arguments
+    if (typeof argsObj === 'string') {
+      try { argsObj = JSON.parse(argsObj) } catch { /* leave as string */ }
+    }
+    try {
+      const content = await this.callTool({ model: model.id }, call.name, argsObj)
+      outputs.push({ call_id: call.call_id, name: call.name, content })
+    } catch (err) {
+      outputs.push({ call_id: call.call_id, name: call.name, content: { error: String(err) } })
+    }
+  }
+  return outputs
+}
+
+private extractToolCallsFromResponse(resp: any): Array<{ call_id: string; name: string; arguments: any }> {
+  const calls: any[] = []
+  const output = resp?.output ?? resp?.data?.output ?? []
+  if (Array.isArray(output)) {
+    for (const item of output) {
+      if (item?.type === 'function_call') {
+        calls.push({
+          call_id: item.call_id ?? item.id,
+          name: item.name,
+          arguments: item.arguments,
+        })
+      }
+    }
+  }
+  return calls
+}
+
+// ---------------------------------------------------------------------------
+// Responses API – via official SDK with automatic tool execution
+async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+
+    // Build request for Responses API
+    const request = this.buildResponsesRequest(model, thread, opts, false)
+    // attach tool definitions if any
+    const toolOpts = await this.getToolsOpts(model, opts)
+    if ((toolOpts as any).tools) {
+      (request as any).tools = (toolOpts as any).tools
+      if ((toolOpts as any).tool_choice) {
+        (request as any).tool_choice = (toolOpts as any).tool_choice
+      }
+    }
+
+    if (process.env.DEBUG_RESPONSES) {
+    console.log('REQUEST', JSON.stringify(request, null, 2))
+  }
+  // Call the official SDK
+    // NB: "responses" is still beta; cast to any to silence narrow typings until it stabilises.
+    let response: any = await (this.client as any).responses.create(request)
+
+  // ------------------------------------------------------------
+  // If the model issued tool calls, execute them and send back!
+  // ------------------------------------------------------------
+  const calls = this.extractToolCallsFromResponse(response)
+  if (calls.length) {
+    const tool_outputs = await this.executeToolCalls(model, calls)
+    if (process.env.DEBUG_RESPONSES) {
+      console.log('TOOL OUTPUTS', JSON.stringify(tool_outputs, null, 2))
+    }
+
+    // Convert tool outputs to the Responses API "function_call_output" input items
+    const followUpInput = tool_outputs.map((o: any) => ({
+      type: 'function_call_output',
+      call_id: o.call_id,
+      output: typeof o.content === 'string' ? o.content : JSON.stringify(o.content),
+    }))
+
+    const followUpReq: any = {
+      model: model.id,
+      previous_response_id: response.id ?? response.data?.id,
+      input: followUpInput,
+      stream: false,
+    }
+    if (process.env.DEBUG_RESPONSES) {
+      console.log('FOLLOW-UP REQUEST', JSON.stringify(followUpReq, null, 2))
+    }
+    response = await (this.client as any).responses.create(followUpReq)
+  }
+
+  // update responseId tracking
+  this.lastResponseId = response?.id ?? response?.data?.id ?? this.lastResponseId
+    if (process.env.DEBUG_RESPONSES) {
+      console.dir(response, { depth: null })
+    }
+
+        // Aggregate text from the output array – handle several shapes
+    let text = ''
+    // Handle different Response API shapes
+    if (Array.isArray(response.output)) {
+      for (const item of response.output) {
+        // Shape 1: message wrapper
+        if (item.type === 'message' && Array.isArray(item.content)) {
+          for (const piece of item.content) {
+            if (piece.type === 'text' && piece.text) {
+              text += piece.text
+            }
+          }
+          continue
+        }
+        // Shape 2: direct content pieces
+        if (item.type === 'text' && item.text) {
+          text += item.text
+          continue
+        }
+        // Shape 3: message nested under .message
+        if (item.message?.content && Array.isArray(item.message.content)) {
+          for (const piece of item.message.content) {
+            if (piece.type === 'text' && piece.text) {
+              text += piece.text
+            }
+          }
+        }
+      }
+    } else if (response.output?.content && Array.isArray(response.output.content)) {
+      // Shape 4: single message object with .content array
+      for (const piece of response.output.content) {
+        if (piece.type === 'text' && piece.text) {
+          text += piece.text
+        }
+      }
+    }
+
+    if (!text && typeof response.output_text === 'string') {
+      text = response.output_text as string
+    } else if (!text && typeof response.output === 'string') {
+      text = response.output as string
+    } else if (!text && response.output?.text) {
+      text = response.output.text
+    }
+
+    return {
+      type: 'text',
+      content: text,
+      ...(opts?.usage && response.usage ? { usage: response.usage } : {}),
+    }
+  }
+
+    async responsesStream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
+    const request = this.buildResponsesRequest(model, thread, opts, true)
+    // attach tool definitions if any
+    const toolOpts = await this.getToolsOpts(model, opts)
+    if ((toolOpts as any).tools) {
+      (request as any).tools = (toolOpts as any).tools
+      if ((toolOpts as any).tool_choice) {
+        (request as any).tool_choice = (toolOpts as any).tool_choice
+      }
+    }
+
+    const stream = await (this.client as any).responses.create(request) as AsyncIterable<any>
+    if (process.env.DEBUG_RESPONSES) {
+      console.log('[ResponsesStream] subscribed')
+    }
+
+    // async generator bound to preserve class context
+    async function* generator(this: any) {
+      // We may need to run multiple streaming passes if the model calls tools.
+      let currentStream: AsyncIterable<any>|null = stream as any
+            while (currentStream) {
+        // Track function-call tool invocations that the model initiates while streaming.
+        // We gather their incremental arguments and execute them once finalized.
+        const pendingCalls: Array<{ call_id: string; name: string; arguments: any }> = []
+        let responseId: string|undefined
+
+        for await (const ev of currentStream as any) {
+          const type = ev.event ?? ev.type
+          switch (type) {
+            case 'outputTextDelta':
+            case 'output_text_delta':
+            case 'response.output_text.delta': {
+              const rawDelta: any = ev.delta ?? ev.data?.delta ?? ev.data ?? ev.text
+              const txt = typeof rawDelta === 'string' ? rawDelta : (rawDelta?.delta ?? rawDelta?.text ?? '')
+              if (txt) {
+                yield { type: 'content', text: txt, done: false }
+              }
+              break
+            }
+            case 'response.output_text': {
+              const raw: any = ev.text ?? ev.data?.text ?? ev.data
+              const txt = typeof raw === 'string' ? raw : (raw?.text ?? '')
+              if (txt) {
+                yield { type: 'content', text: txt, done: false }
+              }
+              break
+            }
+            case 'response.completed': {
+              responseId = ev.data?.id ?? ev.id
+              yield { type: 'content', text: '', done: true }
+              if (opts?.usage && ev.usage) {
+                yield { type: 'usage', usage: ev.usage }
+              }
+              break
+            }
+            case 'toolCallCreated':
+            case 'tool_call_created':
+              pendingCalls.push({ call_id: ev.data?.id ?? ev.id, name: ev.data?.name, arguments: '' })
+              yield { type: 'toolCall', id: ev.data?.id ?? ev.id }
+              break
+            // --------------------------------------------------------------------
+            // Responses API – function-call streaming (new o3/o4 models)
+            // --------------------------------------------------------------------
+            case 'response.function_call_arguments.delta': {
+              const id = ev.item_id ?? ev.data?.item_id ?? ev.id
+              const delta: string = ev.delta ?? ev.data?.delta ?? ev.data?.arguments_delta ?? ''
+              if (!delta) break
+              let call = pendingCalls.find(c => c.call_id === id)
+              if (!call) {
+                call = { call_id: id, name: ev.data?.name ?? ev.name ?? '', arguments: '' }
+                pendingCalls.push(call)
+                // Notify caller that a new tool call has started
+                yield { type: 'toolCall', id }
+              }
+              call.arguments += delta
+              break
+            }
+            case 'response.function_call_arguments.done': {
+              const id = ev.item_id ?? ev.data?.item_id ?? ev.id
+              const call = pendingCalls.find(c => c.call_id === id)
+              if (call) {
+                // Emit the finalized tool call block to the consumer
+                yield { type: 'toolCallDone', id, args: call.arguments }
+              }
+              break
+            }
+
+            // --------------------------------------------------------------------
+            // Legacy aliases kept for backward-compatibility with mocked streams
+            // --------------------------------------------------------------------
+            case 'toolCallArguments':
+            case 'tool_call_arguments': {
+              const id = ev.data?.id ?? ev.id
+              const delta: string = ev.data?.arguments_delta ?? ev.arguments_delta ?? ''
+              if (!delta) break
+              let call = pendingCalls.find(c => c.call_id === id)
+              if (!call) {
+                call = { call_id: id, name: ev.data?.name ?? '', arguments: '' }
+                pendingCalls.push(call)
+                yield { type: 'toolCall', id }
+              }
+              call.arguments += delta
+              break
+            }
+            case 'toolCallDone':
+            case 'tool_call_done': {
+              const id = ev.data?.id ?? ev.id
+              const call = pendingCalls.find(c => c.call_id === id)
+              yield { type: 'toolCallDone', id, args: call?.arguments }
+              break
+            }
+            case 'done':
+              yield { type: 'content', text: '', done: true }
+              break
+            default:
+              // ignore
+              break
+          }
+        }
+      
+
+        // If tool calls collected, execute them and request follow-up stream
+        if (pendingCalls.length) {
+          const tool_outputs = await this.executeToolCalls(model, pendingCalls)
+          const followInput = tool_outputs.map((o: any) => ({
+            type: 'function_call_output',
+            call_id: o.call_id,
+            output: typeof o.content === 'string' ? o.content : JSON.stringify(o.content),
+          }))
+          const followReq: any = {
+            model: model.id,
+            previous_response_id: responseId,
+            input: followInput,
+            stream: true,
+          }
+          if (process.env.DEBUG_RESPONSES) {
+            console.log('FOLLOW-UP STREAM REQ', JSON.stringify(followReq, null, 2))
+          }
+          currentStream = await (this.client as any).responses.create(followReq)
+          // continue outer while loop to process new stream
+          continue
+        }
+
+        // otherwise we are done
+        currentStream = null
+      }
+    }
+
+    return { stream: (generator.bind(this))(), context: {} }
+  }  
 
   async stop(stream: LlmStream) {
     stream?.controller?.abort()
   }
 
-  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk, void, void> {
+  async *nativeChunkToLlmChunk(chunk: any, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk, void, void> {
+
+    // Passthrough for already-normalized Responses API chunks
+    if (chunk && typeof chunk === 'object' && 'type' in chunk && (chunk.text !== undefined || chunk.usage !== undefined || chunk.done !== undefined)) {
+      yield chunk as LlmChunk;
+      return;
+    }
 
     // debug
     //console.dir(chunk, { depth: null })
@@ -473,11 +900,11 @@ export default class extends LlmEngine {
     }
 
     // reasoning chunk
-    // @ts-expect-error not in official api but used by deepseek
+
     if (chunk.choices?.length && chunk.choices[0]?.delta?.reasoning_content) {
       yield {
         type: 'reasoning',
-        // @ts-expect-error not in official api but used by deepseek
+
         text: chunk.choices[0]?.delta?.reasoning_content || '',
         done: done,
       }
@@ -509,6 +936,24 @@ export default class extends LlmEngine {
 
   accumulateUsage(cumulate: LlmUsage, usage: CompletionUsage) {
 
+    // Fallback mapping for Responses API
+    const altInput = (usage as any).input_tokens as number | undefined
+    const altOutput = (usage as any).output_tokens as number | undefined
+    const altReasoning = (usage as any).reasoning_tokens as number | undefined
+    if (altInput !== undefined) {
+      usage.prompt_tokens = (usage.prompt_tokens ?? 0) + altInput
+    }
+    if (altOutput !== undefined) {
+      usage.completion_tokens = (usage.completion_tokens ?? 0) + altOutput
+    }
+    if (altReasoning !== undefined) {
+      if (!usage.completion_tokens_details) {
+        // initialise partial structure when absent
+        usage.completion_tokens_details = { reasoning_tokens: 0 } as any
+      }
+      usage.completion_tokens_details!.reasoning_tokens = (usage.completion_tokens_details!.reasoning_tokens ?? 0) + altReasoning
+    }
+
     cumulate.prompt_tokens += usage.prompt_tokens ?? 0
     cumulate.completion_tokens += usage.completion_tokens ?? 0
     
@@ -527,4 +972,30 @@ export default class extends LlmEngine {
     }    
   }
 
+  // ---------------------------------------------------------------------------
+  // Convenience helpers for stateful continuation / forking
+  async continueResponse(model: ChatModel, previousId: string, input: string, opts?: LlmCompletionOpts): Promise<LlmResponse> {
+    const req: any = {
+      model: model.id,
+      input: [{ type: 'message', role: 'user', content: input }],
+      previous_response_id: previousId,
+      stream: false,
+    }
+    const toolOpts = await this.getToolsOpts(model, opts)
+    if ((toolOpts as any).tools) req.tools = (toolOpts as any).tools
+
+    const resp: any = await (this.client as any).responses.create(req)
+    return {
+      type: 'text',
+      content: (resp.output?.text) ?? '',
+      ...(opts?.usage && resp.usage ? { usage: resp.usage } : {}),
+    }
+  }
+
+  async forkResponse(model: ChatModel, previousId: string, input: string, opts?: LlmCompletionOpts): Promise<LlmResponse> {
+    // For fork we simply call continueResponse for now (no server-side diff yet)
+    return await this.continueResponse(model, previousId, input, opts)
+  }
+
 }
+

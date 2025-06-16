@@ -199,7 +199,9 @@ export default abstract class LlmEngine {
           }]
         }
         
-        for (const attachment of msg.attachments) {
+        // Attachments array may be absent when Message-like objects are supplied.
+        const atts = Array.isArray((msg as any).attachments) ? (msg as any).attachments as Attachment[] : [];
+        for (const attachment of atts) {
         
           // this can be a loaded chat where contents is not present
           if (attachment.content === null || attachment.content === undefined) {

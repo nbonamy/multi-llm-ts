@@ -6,6 +6,11 @@ export type EngineCreateOpts = {
   maxRetries?: number
   deployment?: string
   apiVersion?: string
+  /**
+   * If true, the engine will prefer using the (upcoming) Responses API when available.
+   * Currently unused – reserved for future implementation.
+   */
+  preferResponses?: boolean
 }
 
 export type ModelsList = {
@@ -20,9 +25,14 @@ export type ModelsList = {
 }
 
 export type ModelCapabilities = {
-  tools: undefined|boolean
+  tools: undefined | boolean
   vision: boolean
   reasoning: boolean
+  /**
+   * Indicates whether the model is able to produce structured Response objects
+   * rather than plain text. `undefined` means the capability is unknown.
+   */
+  responses: boolean
 }
 
 export type Model = {

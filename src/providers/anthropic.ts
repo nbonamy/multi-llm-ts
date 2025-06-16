@@ -63,11 +63,12 @@ export default class extends LlmEngine {
       model.id.includes('claude-3-7') ||
       model.id.includes('claude-3.7') || 
       minimatch(model.id, 'claude-*-4-*');
-
+    
     return {
       tools: true,
       vision: visionGlobs.some((m) => minimatch(model.id, m)),
-      reasoning
+      reasoning,
+      responses: false
     }
 
   }

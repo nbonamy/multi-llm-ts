@@ -255,6 +255,24 @@ export default class extends Plugin {
 }
 ```
 
+## Prefer Responses
+
+The OpenAI **Responses** API can be favored via a simple flag or environment variable.
+
+```sh
+# CLI examples
+cli chat -m o3-pro "hello" --prefer-responses
+OPENAI_PREFER_RESPONSES=1 cli chat -m o3-pro "hello"
+```
+
+Inside code you can set `preferResponses` when instantiating an engine:
+
+```ts
+const llm = igniteEngine('openai', { apiKey: 'KEY', preferResponses: true })
+```
+
+---
+
 ## Tests
 
 `npm run test`

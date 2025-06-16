@@ -59,6 +59,7 @@ export default class extends OpenAI {
       tools: true,//toolModels.some(m => model.id.includes(m)),
       vision: visionModels.some(m => model.id.includes(m)),
       reasoning: reasoningModels.some(m => model.id.includes(m)),
+      responses: false,
     }
   }
 

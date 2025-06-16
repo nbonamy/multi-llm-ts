@@ -67,6 +67,7 @@ export default class extends LlmEngine {
         tools: true,
         vision: false,
         reasoning: false,
+        responses: false,
       }
     }
     
@@ -76,6 +77,7 @@ export default class extends LlmEngine {
       tools: !modelName.includes('gemma') && !modelName.includes('dialog') && !modelName.includes('tts'),
       vision: visionGlobs.some((m) => minimatch(modelName, m)) && !excludeVisionGlobs.some((m) => minimatch(modelName, m)),
       reasoning: reasoningGlobs.some((m) => minimatch(modelName, m)),
+      responses: false,
     }
     
   }

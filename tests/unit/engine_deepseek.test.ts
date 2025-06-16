@@ -75,8 +75,8 @@ beforeEach(() => {
 test('DeepSeek Load Chat Models', async () => {
   const models = await loadDeepSeekModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'deepseek-chat', name: 'DeepSeek Chat', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: true } },
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: true, vision: false, reasoning: false } },
+    { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: true, vision: false, reasoning: true } },
   ])
   expect(await loadModels('deepseek', config)).toStrictEqual(models)
 })
