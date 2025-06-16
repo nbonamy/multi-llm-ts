@@ -30,7 +30,7 @@ export function modelSupportsResponses(modelId: string): boolean {
 export default class extends LlmEngine {
 
   private lastResponseId?: string
-  private pendingToolCalls: Array<{ call_id: string; name: string; arguments: any }> = []
+
 
   private buildResponsesRequest(model: ChatModel, thread: Message[], opts: LlmCompletionOpts | undefined, stream: boolean) {
     if (process.env.DEBUG_RESPONSES) {
@@ -106,7 +106,7 @@ export default class extends LlmEngine {
           type: 'function',
           name: fn.name,
           description: fn.description,
-          parameters: fn.parameters,
+          parameters: fn.parameters ?? { type: 'object', properties: {} },
         }
       }
 
@@ -122,9 +122,6 @@ export default class extends LlmEngine {
     super(config)
     // Prefer the new Responses API by default – callers can still opt-out via preferResponses:false
     this.preferResponses = config.preferResponses ?? true
-
-    // tool call tracking
-    this.pendingToolCalls = []
 
     this.client = new OpenAI({
       apiKey: opts?.apiKey || config.apiKey,
@@ -747,9 +744,12 @@ async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): 
   async *nativeChunkToLlmChunk(chunk: any, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk, void, void> {
 
     // Passthrough for already-normalized Responses API chunks
-    if (chunk && typeof chunk === 'object' && 'type' in chunk && (chunk.text !== undefined || chunk.usage !== undefined || chunk.done !== undefined)) {
-      yield chunk as LlmChunk;
-      return;
+    // If the provider has already converted this piece into our standardized
+    // LlmChunk shape (e.g. via responsesStream), we can forward it directly.
+    // Simply check for the `type` discriminator that all normalized chunks use.
+    if (chunk && typeof chunk === 'object' && 'type' in chunk) {
+      yield chunk as LlmChunk
+      return
     }
 
     // debug
@@ -760,63 +760,50 @@ async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): 
       this.accumulateUsage(context.usage, chunk.usage)
     }
 
-    // tool calls
-    const tool_call = chunk.choices[0]?.delta?.tool_calls?.[0]
-    if (tool_call?.function) {
+    // -----------------------------------------------------------------
+    // Tool-call streaming (chat-completions compatibility path)
+    // The model may emit *multiple* tool calls in a single delta. Iterate
+    // over them rather than assuming index 0.
+    // -----------------------------------------------------------------
+    const deltaCalls = chunk.choices?.[0]?.delta?.tool_calls as any[] | undefined
+    if (Array.isArray(deltaCalls) && deltaCalls.length) {
+      for (const tc of deltaCalls) {
+        if (!tc?.function) continue
 
-      // arguments or new tool?
-      if (tool_call.id !== null && tool_call.id !== undefined && tool_call.id !== '') {
+        const rawId = tc.id
+        const hasId = rawId !== undefined && rawId !== null && rawId !== ''
+        const id: any = rawId
 
-        // try to find if we already have this tool call
-        const existingToolCall = context.toolCalls.find(tc => tc.id === tool_call.id)
-        if (existingToolCall) {
-
-          // append arguments to existing tool call
-          existingToolCall.args += tool_call.function.arguments
-
-        } else {
-
-          // debug
-          //logger.log(`[${this.getName()}] tool call start:`, chunk)
-
-          // record the tool call
-          const toolCall: LlmToolCall = {
-            id: tool_call.id,
-            message: chunk.choices[0].delta.tool_calls!.map((tc: any) => {
-              delete tc.index
-              return tc
-            }),
-            function: tool_call.function.name || '',
-            args: tool_call.function.arguments || '',
+        if (hasId) {
+          // New delta for an existing or brand-new tool call
+          const existing = context.toolCalls.find(t => t.id === id)
+          if (existing) {
+            existing.args += tc.function.arguments
+            existing.message[existing.message.length - 1].function.arguments = existing.args
+          } else {
+            // First chunk for this tool call
+            const toolCall: LlmToolCall = {
+              id,
+              message: [{ ...tc, index: undefined }],
+              function: tc.function.name || '',
+              args: tc.function.arguments || '',
+            }
+            context.toolCalls.push(toolCall)
+            yield {
+              type: 'tool',
+              id: toolCall.id,
+              name: toolCall.function,
+              status: this.getToolPreparationDescription(toolCall.function),
+              done: false,
+            }
           }
-          context.toolCalls.push(toolCall)
-
-          // first notify
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.function,
-            status: this.getToolPreparationDescription(toolCall.function),
-            done: false
-          }
-
+        } else if (context.toolCalls.length) {
+          // Continuation chunk without id – append to the last call
+          const last = context.toolCalls[context.toolCalls.length - 1]
+          last.args += tc.function.arguments
+          last.message[last.message.length - 1].function.arguments = last.args
         }
-
-        // done
-        //return
-      
-      } else {
-
-        // append arguments
-        const toolCall = context.toolCalls[context.toolCalls.length-1]
-        toolCall.args += tool_call.function.arguments
-        toolCall.message[toolCall.message.length-1].function.arguments = toolCall.args
-
-        // done
-        //return
-
       }
-
     }
 
     // now tool calling
