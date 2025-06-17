@@ -10,6 +10,17 @@ import { CompletionUsage } from 'openai/resources'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import { minimatch } from 'minimatch'
 
+// Minimal interface for OpenAI Responses API requests
+interface OpenAIResponsesRequest {
+  model: string
+  input: string
+  stream: boolean
+  instructions?: string
+  previous_response_id?: string
+  tools?: unknown[]
+  tool_choice?: string
+}
+
 const defaultBaseUrl = 'https://api.openai.com/v1'
 
 //
@@ -32,7 +43,7 @@ export default class extends LlmEngine {
   private lastResponseId?: string
 
 
-  private buildResponsesRequest(model: ChatModel, thread: Message[], opts: LlmCompletionOpts | undefined, stream: boolean) {
+  private buildResponsesRequest(model: ChatModel, thread: Message[], opts: LlmCompletionOpts | undefined, stream: boolean): OpenAIResponsesRequest {
     logger.debug('[buildResponsesRequest] THREAD', JSON.stringify(thread, null, 2))
   // If thread elements are already in payload form (not Message instances), use directly
   let payload: any[]
@@ -439,22 +450,28 @@ export default class extends LlmEngine {
   // Responses API – via official SDK
   // ---------------------------------------------------------------------------
 // Helpers
-private async executeToolCalls(model: ChatModel, calls: Array<{ call_id: string; name: string; arguments: any }>): Promise<any[]> {
-  const outputs: any[] = []
-  for (const call of calls) {
-    let argsObj: any = call.arguments
-    if (typeof argsObj === 'string') {
-      try { argsObj = JSON.parse(argsObj) } catch { /* leave as string */ }
+private async executeToolCalls(model: ChatModel, calls: Array<{ call_id: string; name: string; arguments: any }>): Promise<Array<{ call_id: string; name: string; content: unknown }>> {
+const outputs: { call_id: string; name: string; content: unknown }[] = []
+    for (const call of calls) {
+      let argsObj: any = call.arguments
+      if (typeof argsObj === 'string') {
+        try {
+          argsObj = JSON.parse(argsObj)
+        } catch (parseErr) {
+        logger.debug(`[executeToolCalls] Failed to parse JSON args for call ${call.call_id}: ${argsObj}`, parseErr)
+      }
+      }
+      try {
+        const content = await this.callTool({ model: model.id }, call.name, argsObj)
+        outputs.push({ call_id: call.call_id, name: call.name, content })
+      } catch (toolErr) {
+        logger.debug(`[executeToolCalls] Error executing tool ${call.name} (${call.call_id}): ${toolErr}`)
+        outputs.push({ call_id: call.call_id, name: call.name, content: { error: String(toolErr) } })
+      }
     }
-    try {
-      const content = await this.callTool({ model: model.id }, call.name, argsObj)
-      outputs.push({ call_id: call.call_id, name: call.name, content })
-    } catch (err) {
-      outputs.push({ call_id: call.call_id, name: call.name, content: { error: String(err) } })
-    }
+    return outputs
   }
-  return outputs
-}
+
 
 private extractToolCallsFromResponse(resp: any): Array<{ call_id: string; name: string; arguments: any }> {
   const calls: any[] = []
@@ -660,7 +677,7 @@ async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): 
             }
 
             // --------------------------------------------------------------------
-            // versions of the API need these aliases
+            // Legacy aliases kept for backward-compatibility: real OpenAI streams still emit these until SDK ≥ 5.0.1 removes them
             // --------------------------------------------------------------------
             case 'toolCallArguments':
             case 'tool_call_arguments': {
@@ -701,7 +718,7 @@ async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): 
             call_id: o.call_id,
             output: typeof o.content === 'string' ? o.content : JSON.stringify(o.content),
           }))
-          const followReq: any = {
+          const followReq: OpenAIResponsesRequest = {
             model: model.id,
             previous_response_id: responseId,
             input: followInput,
@@ -739,6 +756,11 @@ async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): 
     // Simply check for the `type` discriminator that all normalized chunks use.
     if (chunk && typeof chunk === 'object' && 'type' in chunk) {
       yield chunk as LlmChunk
+      return
+    }
+
+    // Guard malformed chunks without choices
+    if (!chunk?.choices || !Array.isArray(chunk.choices)) {
       return
     }
 
@@ -871,27 +893,27 @@ async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): 
     }
 
     // done?
-    const done = ['stop', 'length', 'content_filter', 'eos'].includes(chunk.choices[0]?.finish_reason || '')
+    const done = ['stop', 'length', 'content_filter', 'eos'].includes(chunk.choices?.[0]?.finish_reason || '')
     if (done) {
       context.done = true
     }
 
     // reasoning chunk
 
-    if (chunk.choices?.length && chunk.choices[0]?.delta?.reasoning_content) {
+    if (chunk.choices?.length && chunk.choices?.[0]?.delta?.reasoning_content) {
       yield {
         type: 'reasoning',
 
-        text: chunk.choices[0]?.delta?.reasoning_content || '',
+        text: chunk.choices?.[0]?.delta?.reasoning_content || '',
         done: done,
       }
     }
 
     // text chunk
-    if (chunk.choices?.length && (chunk.choices[0]?.delta?.content || done)) {
+    if (chunk.choices?.length && (chunk.choices?.[0]?.delta?.content || done)) {
       yield {
         type: context.thinking ? 'reasoning' : 'content',
-        text: chunk.choices[0]?.delta?.content || '',
+        text: chunk.choices?.[0]?.delta?.content || '',
         done: done
       }
     }

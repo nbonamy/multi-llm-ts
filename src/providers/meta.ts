@@ -1,4 +1,3 @@
-
 import Message from '../models/message'
 import { EngineCreateOpts, ModelCapabilities, ModelMeta } from '../types/index'
 import { LlmRole } from '../types/llm'

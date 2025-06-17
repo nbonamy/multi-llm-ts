@@ -1,4 +1,3 @@
-
 import { EngineCreateOpts, ModelOpenAI } from '../types/index'
 import Message from '../models/message'
 import { AzureOpenAI } from 'openai'

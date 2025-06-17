@@ -1,4 +1,3 @@
-
 import { ChatCompletionChunk } from 'openai/resources'
 import Message from '../models/message'
 import { EngineCreateOpts, ModelCapabilities, ModelGeneric, ModelsList } from '../types/index'
