@@ -33,9 +33,7 @@ export default class extends LlmEngine {
 
 
   private buildResponsesRequest(model: ChatModel, thread: Message[], opts: LlmCompletionOpts | undefined, stream: boolean) {
-    if (process.env.DEBUG_RESPONSES) {
-    console.log('THREAD', JSON.stringify(thread, null, 2))
-  }
+    logger.debug('[buildResponsesRequest] THREAD', JSON.stringify(thread, null, 2))
   // If thread elements are already in payload form (not Message instances), use directly
   let payload: any[]
   if (Array.isArray(thread) && thread.length && !(thread[0] instanceof Message)) {
@@ -43,9 +41,7 @@ export default class extends LlmEngine {
   } else {
     payload = this.buildPayload(model, thread as any, opts)
   }
-  if (process.env.DEBUG_RESPONSES) {
-    console.log('PAYLOAD', JSON.stringify(payload, null, 2))
-  }
+    logger.debug('[buildResponsesRequest] PAYLOAD', JSON.stringify(payload, null, 2))
 
     // -----------------------------------------------------------
   // Helpers
@@ -492,9 +488,7 @@ async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): 
       }
     }
 
-    if (process.env.DEBUG_RESPONSES) {
-    console.log('REQUEST', JSON.stringify(request, null, 2))
-  }
+    logger.debug('[responses] REQUEST', JSON.stringify(request, null, 2))
   // Call the official SDK
     // NB: "responses" is still beta; cast to any to silence narrow typings until it stabilises.
     let response: any = await (this.client as any).responses.create(request)
@@ -505,9 +499,7 @@ async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): 
   const calls = this.extractToolCallsFromResponse(response)
   if (calls.length) {
     const tool_outputs = await this.executeToolCalls(model, calls)
-    if (process.env.DEBUG_RESPONSES) {
-      console.log('TOOL OUTPUTS', JSON.stringify(tool_outputs, null, 2))
-    }
+      logger.debug('[responses] TOOL OUTPUTS', JSON.stringify(tool_outputs, null, 2))
 
     // Convert tool outputs to the Responses API "function_call_output" input items
     const followUpInput = tool_outputs.map((o: any) => ({
@@ -522,17 +514,13 @@ async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): 
       input: followUpInput,
       stream: false,
     }
-    if (process.env.DEBUG_RESPONSES) {
-      console.log('FOLLOW-UP REQUEST', JSON.stringify(followUpReq, null, 2))
-    }
+      logger.debug('[responses] FOLLOW-UP REQUEST', JSON.stringify(followUpReq, null, 2))
     response = await (this.client as any).responses.create(followUpReq)
   }
 
   // update responseId tracking
   this.lastResponseId = response?.id ?? response?.data?.id ?? this.lastResponseId
-    if (process.env.DEBUG_RESPONSES) {
-      console.dir(response, { depth: null })
-    }
+      logger.debug('[responses] RESPONSE', response)
 
         // Aggregate text from the output array – handle several shapes
     let text = ''
@@ -598,9 +586,7 @@ async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): 
     }
 
     const stream = await (this.client as any).responses.create(request) as AsyncIterable<any>
-    if (process.env.DEBUG_RESPONSES) {
-      console.log('[ResponsesStream] subscribed')
-    }
+    logger.debug('[responsesStream] subscribed')
 
     // async generator bound to preserve class context
     async function* generator(this: any) {
@@ -674,7 +660,7 @@ async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): 
             }
 
             // --------------------------------------------------------------------
-            // Legacy aliases kept for backward-compatibility with mocked streams
+            // versions of the API need these aliases
             // --------------------------------------------------------------------
             case 'toolCallArguments':
             case 'tool_call_arguments': {
@@ -721,9 +707,13 @@ async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): 
             input: followInput,
             stream: true,
           }
-          if (process.env.DEBUG_RESPONSES) {
-            console.log('FOLLOW-UP STREAM REQ', JSON.stringify(followReq, null, 2))
+          if ((toolOpts as any).tools) {
+            followReq.tools = (toolOpts as any).tools;
+            if ((toolOpts as any).tool_choice) {
+              followReq.tool_choice = (toolOpts as any).tool_choice;
+            }
           }
+            logger.debug('[responsesStream] FOLLOW-UP STREAM REQ', JSON.stringify(followReq, null, 2))
           currentStream = await (this.client as any).responses.create(followReq)
           // continue outer while loop to process new stream
           continue
