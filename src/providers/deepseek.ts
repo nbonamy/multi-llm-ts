@@ -1,4 +1,3 @@
-
 import Message from '../models/message'
 import { EngineCreateOpts, Model, ModelCapabilities, ModelDeepseek } from '../types/index'
 import { LlmRole } from '../types/llm'
@@ -30,6 +29,7 @@ export default class extends OpenAI {
       tools: true,
       vision: false,
       reasoning: model.id.includes('reason'),
+      responses: false,
     }
   }
   

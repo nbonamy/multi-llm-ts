@@ -1,4 +1,3 @@
-
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelOllama, ModelsList } from '../types/index'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import Message from '../models/message'
@@ -120,6 +119,7 @@ export default class extends LlmEngine {
       tools: toolModels.includes(model.name.split(':')[0]),
       vision: visionModels.some((m) => model.name.match(m)),
       reasoning: reasoningModels.some((m) => minimatch(model.name, m)),
+    responses: false,
     }
 
   }

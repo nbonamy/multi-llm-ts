@@ -1,4 +1,3 @@
-
 import Message from '../models/message'
 import { EngineCreateOpts, ModelCapabilities, ModelMeta } from '../types/index'
 import { LlmRole } from '../types/llm'
@@ -30,6 +29,7 @@ export default class extends OpenAI {
       tools: true,
       vision: visionGlobs.some((m) => minimatch(model.id, m)),
       reasoning: false,
+      responses: false,
     }
   }
 

@@ -72,22 +72,22 @@ beforeEach(() => {
 test('Google Load Models', async () => {
   const models = await loadGoogleModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'gemini-1.5-latest', name: 'Gemini 1.5', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'gemini-1.5', name: 'Gemini 1.5', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'gemma-model', name: 'Gemma Model', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
+    { id: 'gemini-1.5-latest', name: 'Gemini 1.5', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: true, vision: false, reasoning: false } },
+    { id: 'gemini-1.5', name: 'Gemini 1.5', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: true, vision: false, reasoning: false } },
+    { id: 'gemma-model', name: 'Gemma Model', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: false, vision: false, reasoning: false } },
   ])
   expect(models!.image).toStrictEqual([
-    { id: 'image-model', name: 'Image Model', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'gemini-2.0', name: 'Gemini 2.0', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'image-model', name: 'Image Model', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: true, vision: false, reasoning: false } },
+    { id: 'gemini-2.0', name: 'Gemini 2.0', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: true, vision: false, reasoning: false } },
   ])
   expect(models!.embedding).toStrictEqual([
-    { id: 'embed-content', name: 'Non Generate Content', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'embed-content', name: 'Non Generate Content', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: true, vision: false, reasoning: false } },
   ])
   expect(models!.realtime).toStrictEqual([
-    { id: 'native-audio-dialog-model', name: 'Dialog Model', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
+    { id: 'native-audio-dialog-model', name: 'Dialog Model', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: false, vision: false, reasoning: false } },
   ])
   expect(models!.tts).toStrictEqual([
-    { id: 'gemini-2.5-tts', name: 'Gemini 2.5 TTS', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
+    { id: 'gemini-2.5-tts', name: 'Gemini 2.5 TTS', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: false, vision: false, reasoning: false } },
   ])
   expect(await loadModels('google', config)).toStrictEqual(models)
 })

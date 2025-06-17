@@ -71,12 +71,12 @@ beforeEach(() => {
 test('OpenRouter Load Chat Models', async () => {
   const models = await loadOpenRouterModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'chat1', name: 'chat1', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
-    { id: 'chat2', name: 'chat2', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
-    { id: 'chat3', name: 'chat3', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false } },
+    { id: 'chat1', name: 'chat1', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: false, vision: false, reasoning: false } },
+    { id: 'chat2', name: 'chat2', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: true, vision: true, reasoning: false } },
+    { id: 'chat3', name: 'chat3', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: false, vision: true, reasoning: false } },
   ])
   expect(models!.image).toStrictEqual([
-    { id: 'image', name: 'image', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false } },
+    { id: 'image', name: 'image', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: false, vision: false, reasoning: false } },
   ])
   expect(await loadModels('openrouter', config)).toStrictEqual(models)
 })

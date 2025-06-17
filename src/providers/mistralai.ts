@@ -1,4 +1,3 @@
-
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMistralAI } from '../types/index'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import Message from '../models/message'
@@ -40,6 +39,7 @@ export default class extends LlmEngine {
       tools: model.capabilities?.functionCalling ?? false,
       vision: model.capabilities?.vision ?? false,
       reasoning: model.id.includes('magistral'),
+      responses: false,
     }
   }
 

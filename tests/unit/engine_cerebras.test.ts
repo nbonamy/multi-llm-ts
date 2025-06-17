@@ -40,8 +40,8 @@ beforeEach(() => {
 test('Cerebras Load Chat Models', async () => {
   const models = await loadCerebrasModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'llama-3.3-70b', name: 'Llama 3.3 70b', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'llama3.1-8b', name: 'Llama3.1 8b', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'llama-3.3-70b', name: 'Llama 3.3 70b', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: true, vision: false, reasoning: false } },
+    { id: 'llama3.1-8b', name: 'Llama3.1 8b', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: true, vision: false, reasoning: false } },
   ])
   expect(await loadModels('cerebras', config)).toStrictEqual(models)
 })

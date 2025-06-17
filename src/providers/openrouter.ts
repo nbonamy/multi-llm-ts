@@ -1,4 +1,3 @@
-
 import Message from '../models/message'
 import { EngineCreateOpts, ModelCapabilities, ModelOpenRouter } from '../types/index'
 import { LlmRole } from '../types/llm'
@@ -36,6 +35,7 @@ export default class extends OpenAI {
       tools: model.supported_parameters?.includes('tools') ?? false,
       vision: input_modalities?.includes('image') ?? false,
       reasoning: model.supported_parameters?.includes('reasoning') ?? false,
+      responses: false,
     }
 
   }

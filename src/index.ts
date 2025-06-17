@@ -36,6 +36,7 @@ const defaultCapabilities: { capabilities: ModelCapabilities } = {
     tools: false,
     vision: false,
     reasoning: false,
+    responses: false,
   }
 }
 

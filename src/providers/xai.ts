@@ -1,4 +1,3 @@
-
 import Message from '../models/message'
 import { EngineCreateOpts, ModelCapabilities, ModelxAI } from '../types/index'
 import { LlmRole } from '../types/llm'
@@ -30,6 +29,7 @@ export default class extends OpenAI {
       tools: !vision,
       vision: vision,
       reasoning: reasoning,
+      responses: false,
     }
   }
 

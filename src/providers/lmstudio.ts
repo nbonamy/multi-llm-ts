@@ -1,4 +1,3 @@
-
 import { ChatCompletionChunk } from 'openai/resources'
 import Message from '../models/message'
 import { EngineCreateOpts, ModelCapabilities, ModelGeneric, ModelsList } from '../types/index'
@@ -59,6 +58,7 @@ export default class extends OpenAI {
       tools: true,//toolModels.some(m => model.id.includes(m)),
       vision: visionModels.some(m => model.id.includes(m)),
       reasoning: reasoningModels.some(m => model.id.includes(m)),
+      responses: false,
     }
   }
 

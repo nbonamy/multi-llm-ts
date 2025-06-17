@@ -69,9 +69,9 @@ beforeEach(() => {
 test('LMStudio Load Chat Models', async () => {
   const models = await loadLMStudioModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'llama-3.0', name: 'Llama 3.0', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'llama3.1', name: 'Llama3.1', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'llama-3.2', name: 'Llama 3.2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'llama-3.0', name: 'Llama 3.0', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: true, vision: false, reasoning: false } },
+    { id: 'llama3.1', name: 'Llama3.1', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: true, vision: false, reasoning: false } },
+    { id: 'llama-3.2', name: 'Llama 3.2', meta: expect.any(Object), capabilities: { responses: expect.any(Boolean), tools: true, vision: false, reasoning: false } },
   ])
   expect(models!.image).toStrictEqual([])
   expect(await loadModels('lmstudio', config)).toStrictEqual(models)
