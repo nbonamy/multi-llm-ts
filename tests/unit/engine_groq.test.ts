@@ -71,9 +71,9 @@ beforeEach(() => {
 test('Groq Load Models', async () => {
   const models = await loadGroqModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Meta Llama/llama 4 Scout 17b 16e Instruct', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
-    { id: 'model2-70b-preview', name: 'Model2 70b Preview', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'model1-9b', name: 'Model1 9b', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Meta Llama/llama 4 Scout 17b 16e Instruct', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false, caching: false } },
+    { id: 'model2-70b-preview', name: 'Model2 70b Preview', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
+    { id: 'model1-9b', name: 'Model1 9b', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
   ])
   expect(await loadModels('groq', config)).toStrictEqual(models)
 })

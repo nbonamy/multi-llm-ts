@@ -41,7 +41,8 @@ export default class extends LlmEngine {
     return {
       tools: true,
       vision: visionGlobs.some((m) => minimatch(model.id, m)),
-      reasoning: model.id.startsWith('o')
+      reasoning: model.id.startsWith('o'),
+      caching: false,
     }
   }
 

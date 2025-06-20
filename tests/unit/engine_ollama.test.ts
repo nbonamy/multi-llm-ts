@@ -89,12 +89,12 @@ beforeEach(() => {
 test('Ollama Load Models', async () => {
   const models = await loadOllamaModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'cogito:latest', name: 'cogito', meta: { model: 'cogito:latest', name: 'cogito' }, capabilities: { tools: true, vision: false, reasoning: false } },
-    { id: 'gemma3:latest', name: 'gemma3', meta: { model: 'gemma3:latest', name: 'gemma3' }, capabilities: { tools: false, vision: true, reasoning: false } },
-    { id: 'model:7b', name: 'model', meta: { model: 'model:7b', name: 'model' }, capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'cogito:latest', name: 'cogito', meta: { model: 'cogito:latest', name: 'cogito' }, capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
+    { id: 'gemma3:latest', name: 'gemma3', meta: { model: 'gemma3:latest', name: 'gemma3' }, capabilities: { tools: false, vision: true, reasoning: false, caching: false } },
+    { id: 'model:7b', name: 'model', meta: { model: 'model:7b', name: 'model' }, capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
   ])
   expect(models!.embedding).toStrictEqual([
-    { id: 'embed:latest', name: 'embed', meta: { model: 'embed:latest', name: 'embed' }, capabilities: { tools: false, vision: false, reasoning: false } },
+    { id: 'embed:latest', name: 'embed', meta: { model: 'embed:latest', name: 'embed' }, capabilities: { tools: false, vision: false, reasoning: false, caching: false } },
   ])
   expect(await loadModels('ollama', config)).toStrictEqual(models)
 })

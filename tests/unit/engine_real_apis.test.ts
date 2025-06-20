@@ -58,6 +58,7 @@ const realApiTest = async (engine: string, apiKey: string|undefined, modelName: 
     top_k: 4,
     top_p: 0.5,
     reasoningEffort: 'low',
+    caching: true,
   })
 
   // iterate

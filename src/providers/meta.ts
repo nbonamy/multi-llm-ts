@@ -30,6 +30,7 @@ export default class extends OpenAI {
       tools: true,
       vision: visionGlobs.some((m) => minimatch(model.id, m)),
       reasoning: false,
+      caching: false,
     }
   }
 

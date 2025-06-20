@@ -120,6 +120,7 @@ export default class extends LlmEngine {
       tools: toolModels.includes(model.name.split(':')[0]),
       vision: visionModels.some((m) => model.name.match(m)),
       reasoning: reasoningModels.some((m) => minimatch(model.name, m)),
+      caching: false,
     }
 
   }

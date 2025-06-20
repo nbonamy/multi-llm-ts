@@ -61,7 +61,7 @@ beforeEach(() => {
 test('Azure Load Chat Models', async () => {
   const models = await loadAzureModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'default', name: 'default', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'default', name: 'default', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
   ])
   expect(models!.image).toStrictEqual([])
   expect(await loadModels('azure', config)).toStrictEqual(models)

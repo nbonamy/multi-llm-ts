@@ -30,6 +30,7 @@ export default class extends OpenAI {
       tools: true,
       vision: false,
       reasoning: model.id.includes('reason'),
+      caching: false,
     }
   }
   

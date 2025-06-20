@@ -19,7 +19,7 @@ vi.mock('@anthropic-ai/sdk', async() => {
         { id: 'claude-2.0', display_name: 'Claude 2.0', created_at: '0' },
         { id: 'claude-3-model-date', display_name: 'Claude Model 3', created_at: '1' },
         { id: 'claude-3-5-model-date', display_name: 'Claude Model 3.5', created_at: '2' },
-        { id: 'claude-3-7-model-date', display_name: 'Claude Model 3.7', created_at: '3' },
+        { id: 'claude-3-7-sonnet-date', display_name: 'Claude Model 3.7', created_at: '3' },
         { id: 'claude-model-4-date', display_name: 'Claude Model 4', created_at: '4' },
       ] }
     })
@@ -77,11 +77,11 @@ beforeEach(() => {
 test('Anthropic Load Models', async () => {
   const models = await loadAnthropicModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'claude-model-4-date', name: 'Claude Model 4', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: true } },
-    { id: 'claude-3-7-model-date', name: 'Claude Model 3.7', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: true } },
-    { id: 'claude-3-5-model-date', name: 'Claude Model 3.5', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
-    { id: 'claude-3-model-date', name: 'Claude Model 3', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
-    { id: 'claude-2.0', name: 'Claude 2.0', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'claude-model-4-date', name: 'Claude Model 4', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: true, caching: false } },
+    { id: 'claude-3-7-sonnet-date', name: 'Claude Model 3.7', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: true, caching: true } },
+    { id: 'claude-3-5-model-date', name: 'Claude Model 3.5', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false, caching: false } },
+    { id: 'claude-3-model-date', name: 'Claude Model 3', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false, caching: false } },
+    { id: 'claude-2.0', name: 'Claude 2.0', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
   ])
   expect(await loadModels('anthropic', config)).toStrictEqual(models)
 })
@@ -244,7 +244,7 @@ test('Anthropic stream with tools caching', async () => {
   anthropic.addPlugin(new NamedPlugin('plugin5', 'hopefully cached'))
   anthropic.addPlugin(new NamedPlugin('plugin6', 'whatever'))
   anthropic.addPlugin(new NamedPlugin('plugin7', 'must be cached'))
-  await anthropic.stream(anthropic.buildModel('model'), [
+  await anthropic.stream(anthropic.buildModel('claude-3-7-sonnet-date'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4, caching: true })
@@ -265,7 +265,7 @@ test('Anthropic stream with tools caching', async () => {
 
 test('Anthropic stream with system caching', async () => {
   const anthropic = new Anthropic(config)
-  await anthropic.stream(anthropic.buildModel('model'), [
+  await anthropic.stream(anthropic.buildModel('claude-3-7-sonnet-date'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4, caching: true })
@@ -280,7 +280,7 @@ test('Anthropic stream with tools and system caching 1', async () => {
   anthropic.addPlugin(new NamedPlugin('plugin1', 'should be cached'))
   anthropic.addPlugin(new NamedPlugin('plugin2', 'not cached'))
   anthropic.addPlugin(new NamedPlugin('plugin3', 'not in cache'))
-  await anthropic.stream(anthropic.buildModel('model'), [
+  await anthropic.stream(anthropic.buildModel('claude-3-7-sonnet-date'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_k: 4, caching: true })
@@ -301,7 +301,7 @@ test('Anthropic stream with tools and system caching 2', async () => {
   anthropic.addPlugin(new NamedPlugin('plugin2', 'should be cached'))
   anthropic.addPlugin(new NamedPlugin('plugin3', 'should be cached'))
   anthropic.addPlugin(new NamedPlugin('plugin4', 'not in cache'))
-  await anthropic.stream(anthropic.buildModel('model'), [
+  await anthropic.stream(anthropic.buildModel('claude-3-7-sonnet-date'), [
     new Message('system', 'will be cached'),
     new Message('user', 'prompt'),
   ], { top_k: 4, caching: true })
@@ -323,7 +323,7 @@ test('Anthropic stream with tools and system caching 3', async () => {
   anthropic.addPlugin(new NamedPlugin('plugin2', 'should be cached'))
   anthropic.addPlugin(new NamedPlugin('plugin3', 'should be cached'))
   anthropic.addPlugin(new NamedPlugin('plugin4', 'should be cached'))
-  await anthropic.stream(anthropic.buildModel('model'), [
+  await anthropic.stream(anthropic.buildModel('claude-3-7-sonnet-date'), [
     new Message('system', 'not cached'),
     new Message('user', 'prompt'),
   ], { top_k: 4, caching: true })

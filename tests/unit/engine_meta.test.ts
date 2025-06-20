@@ -68,8 +68,8 @@ beforeEach(() => {
 test('Meta Load Chat Models', async () => {
   const models = await loadMetaModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'Llama-4-Maverick-17B-128E-Instruct-FP8', name: 'Llama-4-Maverick-17B-128E-Instruct-FP8', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
-    { id: 'Llama-3.3-8B-Instruct', name: 'Llama-3.3-8B-Instruct', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'Llama-4-Maverick-17B-128E-Instruct-FP8', name: 'Llama-4-Maverick-17B-128E-Instruct-FP8', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false, caching: false } },
+    { id: 'Llama-3.3-8B-Instruct', name: 'Llama-3.3-8B-Instruct', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
   ])
   expect(models!.image).toStrictEqual([])
   expect(await loadModels('meta', config)).toStrictEqual(models)

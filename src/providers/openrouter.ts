@@ -28,7 +28,7 @@ export default class extends OpenAI {
   getModelCapabilities(model: ModelOpenRouter): ModelCapabilities {
 
     let input_modalities: string[] = model.architecture?.input_modalities
-    if (!input_modalities && model.architecture.modality) {
+    if (!input_modalities && model.architecture?.modality) {
       input_modalities = model.architecture.modality.split('->')[0].split('+')
     }
 
@@ -36,6 +36,7 @@ export default class extends OpenAI {
       tools: model.supported_parameters?.includes('tools') ?? false,
       vision: input_modalities?.includes('image') ?? false,
       reasoning: model.supported_parameters?.includes('reasoning') ?? false,
+      caching: false,
     }
 
   }

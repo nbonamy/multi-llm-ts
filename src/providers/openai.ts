@@ -67,7 +67,8 @@ export default class extends LlmEngine {
     return {
       tools: !modelId.startsWith('chatgpt-') && !modelId.startsWith('o1-mini'),
       vision: visionGlobs.some((m) => minimatch(modelId, m)) && !excludeVisionGlobs.some((m) => minimatch(modelId, m)),
-      reasoning: modelId.startsWith('o')
+      reasoning: modelId.startsWith('o'),
+      caching: false,
     }
   }
 

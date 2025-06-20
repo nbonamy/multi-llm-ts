@@ -23,6 +23,7 @@ export type ModelCapabilities = {
   tools: undefined|boolean
   vision: boolean
   reasoning: boolean
+  caching: boolean
 }
 
 export type Model = {

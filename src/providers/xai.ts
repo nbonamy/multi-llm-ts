@@ -30,6 +30,7 @@ export default class extends OpenAI {
       tools: !vision,
       vision: vision,
       reasoning: reasoning,
+      caching: false,
     }
   }
 

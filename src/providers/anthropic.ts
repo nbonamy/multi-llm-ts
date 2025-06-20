@@ -61,15 +61,26 @@ export default class extends LlmEngine {
       'computer-use',
     ]
 
-    const reasoning = model.id === 'claude-3-7-sonnet-thinking' || 
+    const reasoning = model.id === 'claude-3-7-sonnet-thinking' ||
       model.id.includes('claude-3-7') ||
-      model.id.includes('claude-3.7') || 
-      minimatch(model.id, 'claude-*-4-*');
+      model.id.includes('claude-3.7') ||
+      minimatch(model.id, 'claude-*-4-*')
+
+    const cachingGlobs = [
+      'claude-opus-4-*',
+      'claude-sonnet-4-*',
+      'claude-3-7-sonnet-*',
+      'claude-3-5-sonnet-*',
+      'claude-3-5-haiku-*',
+      'claude-3-opus-*',
+      'claude-3-haiku-*',
+    ]
 
     return {
       tools: true,
       vision: visionGlobs.some((m) => minimatch(model.id, m)),
-      reasoning
+      reasoning,
+      caching: cachingGlobs.some((m) => minimatch(model.id, m)),
     }
 
   }
@@ -358,6 +369,11 @@ export default class extends LlmEngine {
 
     // no caching
     if (!opts.caching) {
+      return params
+    }
+
+    // not all models support caching
+    if (!model.capabilities.caching) {
       return params
     }
 

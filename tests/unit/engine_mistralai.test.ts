@@ -70,11 +70,11 @@ beforeEach(() => {
 test('MistralAI Load Models', async () => {
   const models = await loadMistralAIModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'magistral6', name: 'magistral6', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: true } },
-    { id: 'model5', name: 'model5', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false } },
-    { id: 'model4', name: 'Model 4', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false } },
-    { id: 'model3', name: 'model3', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false } },
-    { id: 'model2', name: 'model2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false } },
+    { id: 'magistral6', name: 'magistral6', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: true, caching: false } },
+    { id: 'model5', name: 'model5', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false, caching: false } },
+    { id: 'model4', name: 'Model 4', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false, caching: false } },
+    { id: 'model3', name: 'model3', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false, caching: false } },
+    { id: 'model2', name: 'model2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
   ])
   expect(await loadModels('mistralai', config)).toStrictEqual(models)
 })
