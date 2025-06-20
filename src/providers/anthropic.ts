@@ -1,21 +1,23 @@
 import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCapabilities } from '../types/index'
-import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload, LlmStreamingResponse, LlmToolCallInfo } from '../types/llm'
+import { LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload, LlmStreamingResponse, LlmToolCallInfo, LlmChunk } from '../types/llm'
 import { minimatch } from 'minimatch'
 import Message from '../models/message'
+import Attachment from '../models/attachment'
 import LlmEngine, { LlmStreamingContextBase } from '../engine'
 import { Plugin } from '../plugin'
 import logger from '../logger'
 
 import Anthropic from '@anthropic-ai/sdk'
-import { Tool, MessageParam, MessageStreamEvent, TextBlock, InputJSONDelta, Usage, RawMessageStartEvent, RawMessageDeltaEvent, MessageDeltaUsage, ToolUseBlock } from '@anthropic-ai/sdk/resources'
+import { Tool, MessageParam, TextBlock, InputJSONDelta, Usage, RawMessageStartEvent, RawMessageDeltaEvent, MessageDeltaUsage, ToolUseBlock, ContentBlockParam, MessageStreamEvent } from '@anthropic-ai/sdk/resources'
 import { BetaToolUnion, MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/beta/messages/messages'
-import Attachment from 'models/attachment'
 
 //
 // https://docs.anthropic.com/en/api/getting-started
 //
 
 type AnthropicTool = Tool|BetaToolUnion
+
+const kAnthropicCachedItems = 4
 
 export interface AnthropicComputerToolInfo {
   plugin: Plugin
@@ -124,13 +126,13 @@ export default class extends LlmEngine {
     
     // call
     logger.log(`[anthropic] prompting model ${model.id}`)
-    const response = await this.client.messages.create({
+    const response = await this.client.messages.create(this.cacheRequest(model, opts ?? {}, {
       model: model.id,
       system: thread[0].contentForModel,
       messages: thread.slice(1) as MessageParam[],
       ...this.getCompletionOpts(model, opts),
       ...await this.getToolOpts(model, opts),
-    });
+    }));
 
     // tool call
     if (response.stop_reason === 'tool_use') {
@@ -285,19 +287,19 @@ export default class extends LlmEngine {
 
   async doStreamNormal(context: AnthropicStreamingContext): Promise<LlmStream> {
     logger.log(`[anthropic] prompting model ${context.model.id}`)
-    return this.client.messages.create({
+    return this.client.messages.create(this.cacheRequest(context.model, context.opts, {
       model: context.model.id,
       system: context.system,
       messages: context.thread,
       ...this.getCompletionOpts(context.model, context.opts),
       ...await this.getToolOpts(context.model, context.opts),
       stream: true,
-    })
+    }))
   }
 
   async doStreamBeta(context: AnthropicStreamingContext): Promise<LlmStream> {
     logger.log(`[anthropic] prompting model ${context.model.id}`)
-    return this.client.beta.messages.create({
+    return this.client.beta.messages.create(this.cacheRequest(context.model, context.opts, {
       model: this.getComputerUseRealModel(),
       betas: [ 'computer-use-2024-10-22' ],
       system: context.system,
@@ -305,7 +307,7 @@ export default class extends LlmEngine {
       ...this.getCompletionOpts(context.model, context.opts),
       ...await this.getToolOpts(context.model, context.opts),
       stream: true,
-    })
+    }))
   }
 
   getCompletionOpts(model: ChatModel, opts?: LlmCompletionOpts): Omit<MessageCreateParamsBase, 'model'|'messages'|'stream'|'tools'|'tool_choice'> {
@@ -341,16 +343,64 @@ export default class extends LlmEngine {
           type: 'object',
           properties: tool.function.parameters.properties,
           required: tool.function.parameters.required,
-        }
+        },
       }
     })
 
+    // done
     return tools.length ? {
       tool_choice: { type: 'auto' },
       tools: tools as Tool[]
     } as T : {} as T 
   }
-  
+
+  cacheRequest<T extends MessageCreateParamsBase>(model: ChatModel, opts: LlmCompletionOpts, params: T): T {
+
+    // no caching
+    if (!opts.caching) {
+      return params
+    }
+
+    // calculate length of description of tool and each properties for each tool
+    const itemsSizes: { name: string, size: number }[] = []
+    for (const tool of params.tools as Tool[] || []) {
+      if (!('description' in tool)) continue
+      const descriptionLength = tool.description ? tool.description.length : 0
+      const propertiesLength = 'input_schema' in tool ? Object.values(tool.input_schema.properties || {}).reduce((propAcc, prop) => {
+        return propAcc + (prop.description ? prop.description.length : 0)
+      }, 0) : 0
+      if (descriptionLength + propertiesLength === 0) continue
+      itemsSizes.push({ name: tool.name, size: descriptionLength + propertiesLength })
+    }
+
+    // add system prompt
+    const systemPromptName = '__system__prompt__'
+    if (typeof params.system === 'string') {
+      itemsSizes.push({ name: systemPromptName, size: params.system.length })
+    }
+
+    const sortedItems = itemsSizes.sort((a, b) => b.size - a.size).slice(0, kAnthropicCachedItems).map(tool => tool.name)
+    for (const item of sortedItems) {
+      if (item === systemPromptName) {
+        params.system = [{
+          type: 'text',
+          text: params.system as string,
+          cache_control: { type: 'ephemeral',  }
+        }]
+
+      } else {
+        const tool = params.tools?.find((t: any) => t.name === item)
+        if (tool) {
+          tool.cache_control = { type: 'ephemeral', }
+        }
+      }
+    }
+
+    // done
+    return params
+
+  }
+
   async stop(stream: LlmStream): Promise<void> {
     stream.controller?.abort()
   }
@@ -358,13 +408,16 @@ export default class extends LlmEngine {
   async *nativeChunkToLlmChunk(chunk: MessageStreamEvent, context: AnthropicStreamingContext): AsyncGenerator<LlmChunk, void, void> {
     
     // log
-    //console.dir(chunk, { depth: null })
+    console.dir(chunk, { depth: null })
 
     // usage
     const usage: Usage|MessageDeltaUsage = (chunk as RawMessageStartEvent).message?.usage ?? (chunk as RawMessageDeltaEvent).usage
     if (context.usage && usage) {
       if ('input_tokens' in usage) {
         context.usage.prompt_tokens += (usage as Usage).input_tokens ?? 0
+      }
+      if ('cache_read_input_tokens' in usage && context.usage.prompt_tokens_details?.cached_tokens !== undefined) {
+        context.usage.prompt_tokens_details.cached_tokens += (usage as Usage).cache_read_input_tokens ?? 0
       }
       context.usage.completion_tokens += usage.output_tokens ?? 0
     }
@@ -571,9 +624,10 @@ export default class extends LlmEngine {
     }
   }
 
-  buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+  buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): any[] {
+    
     const payload: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
-    return payload.filter((payload) => payload.role != 'system').map((payload): LLmCompletionPayload => {
+    return payload.filter((payload) => payload.role != 'system').map((payload): MessageParam => {
       //if (payload.role == 'system') return null
       if (typeof payload.content == 'string') {
         return {
@@ -583,23 +637,7 @@ export default class extends LlmEngine {
       } else {
         return {
           role: payload.role as 'user'|'assistant',
-          content: payload.content/*!.map((content: LlmContentPayload): TextBlockParam|ImageBlockParam => {
-            if (content.type == 'image') {
-              return {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: (content as LLmContentPayloadImageAnthropic).source!.media_type,
-                  data: (content as LLmContentPayloadImageAnthropic).source!.data,
-                }
-              }
-            } else {
-              return {
-                type: 'text',
-                text: (content as LLmContentPayloadText).text
-              }
-            }
-          })*/
+          content: payload.content as ContentBlockParam[]
         }
       }
     })

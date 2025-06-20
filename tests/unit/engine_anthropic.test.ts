@@ -1,5 +1,5 @@
 import { vi, beforeEach, expect, test } from 'vitest'
-import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
+import { NamedPlugin, Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import Anthropic, { AnthropicStreamingContext } from '../../src/providers/anthropic'
@@ -233,6 +233,110 @@ test('Anthropic stream', async () => {
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', call: { params: ['arg'], result: 'result2' }, done: true })
   await anthropic.stop(stream)
   expect(stream.controller!.abort).toHaveBeenCalled()
+})
+
+test('Anthropic stream with tools caching', async () => {
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new NamedPlugin('plugin1', 'should be cached'))
+  anthropic.addPlugin(new NamedPlugin('plugin2', 'not cached'))
+  anthropic.addPlugin(new NamedPlugin('plugin3', 'not in cache'))
+  anthropic.addPlugin(new NamedPlugin('plugin4', 'will be cached'))
+  anthropic.addPlugin(new NamedPlugin('plugin5', 'hopefully cached'))
+  anthropic.addPlugin(new NamedPlugin('plugin6', 'whatever'))
+  anthropic.addPlugin(new NamedPlugin('plugin7', 'must be cached'))
+  await anthropic.stream(anthropic.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { top_k: 4, caching: true })
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    system: 'instruction',
+    messages: [ { role: 'user', content: [{ type: 'text', text: 'prompt', }] } ],
+    tools: [
+      { name: 'plugin1', description: expect.any(String), input_schema: expect.any(Object), cache_control: { type: 'ephemeral' } },
+      { name: 'plugin2', description: expect.any(String), input_schema: expect.any(Object), cache_control: undefined },
+      { name: 'plugin3', description: expect.any(String), input_schema: expect.any(Object), cache_control: undefined },
+      { name: 'plugin4', description: expect.any(String), input_schema: expect.any(Object), cache_control: { type: 'ephemeral' } },
+      { name: 'plugin5', description: expect.any(String), input_schema: expect.any(Object), cache_control: { type: 'ephemeral' } },
+      { name: 'plugin6', description: expect.any(String), input_schema: expect.any(Object), cache_control: undefined },
+      { name: 'plugin7', description: expect.any(String), input_schema: expect.any(Object), cache_control: { type: 'ephemeral' } },
+    ]
+  }))
+})
+
+test('Anthropic stream with system caching', async () => {
+  const anthropic = new Anthropic(config)
+  await anthropic.stream(anthropic.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { top_k: 4, caching: true })
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    system: [ { type: 'text', text: 'instruction', cache_control: { type: 'ephemeral' } } ],
+    messages: [ { role: 'user', content: [{ type: 'text', text: 'prompt', }] } ],
+  }))
+})
+
+test('Anthropic stream with tools and system caching 1', async () => {
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new NamedPlugin('plugin1', 'should be cached'))
+  anthropic.addPlugin(new NamedPlugin('plugin2', 'not cached'))
+  anthropic.addPlugin(new NamedPlugin('plugin3', 'not in cache'))
+  await anthropic.stream(anthropic.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { top_k: 4, caching: true })
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    system: [ { type: 'text', text: 'instruction', cache_control: { type: 'ephemeral' } } ],
+    messages: [ { role: 'user', content: [{ type: 'text', text: 'prompt', }] } ],
+    tools: [
+      { name: 'plugin1', description: expect.any(String), input_schema: expect.any(Object), cache_control: { type: 'ephemeral' } },
+      { name: 'plugin2', description: expect.any(String), input_schema: expect.any(Object), cache_control: { type: 'ephemeral' } },
+      { name: 'plugin3', description: expect.any(String), input_schema: expect.any(Object), cache_control: { type: 'ephemeral' } },
+    ]
+  }))
+})
+
+test('Anthropic stream with tools and system caching 2', async () => {
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new NamedPlugin('plugin1', 'should be cached'))
+  anthropic.addPlugin(new NamedPlugin('plugin2', 'should be cached'))
+  anthropic.addPlugin(new NamedPlugin('plugin3', 'should be cached'))
+  anthropic.addPlugin(new NamedPlugin('plugin4', 'not in cache'))
+  await anthropic.stream(anthropic.buildModel('model'), [
+    new Message('system', 'will be cached'),
+    new Message('user', 'prompt'),
+  ], { top_k: 4, caching: true })
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    system: [ { type: 'text', text: 'will be cached', cache_control: { type: 'ephemeral' } } ],
+    messages: [ { role: 'user', content: [{ type: 'text', text: 'prompt', }] } ],
+    tools: [
+      { name: 'plugin1', description: expect.any(String), input_schema: expect.any(Object), cache_control: { type: 'ephemeral' } },
+      { name: 'plugin2', description: expect.any(String), input_schema: expect.any(Object), cache_control: { type: 'ephemeral' } },
+      { name: 'plugin3', description: expect.any(String), input_schema: expect.any(Object), cache_control: { type: 'ephemeral' } },
+      { name: 'plugin4', description: expect.any(String), input_schema: expect.any(Object), cache_control: undefined },
+    ]
+  }))
+})
+
+test('Anthropic stream with tools and system caching 3', async () => {
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new NamedPlugin('plugin1', 'should be cached'))
+  anthropic.addPlugin(new NamedPlugin('plugin2', 'should be cached'))
+  anthropic.addPlugin(new NamedPlugin('plugin3', 'should be cached'))
+  anthropic.addPlugin(new NamedPlugin('plugin4', 'should be cached'))
+  await anthropic.stream(anthropic.buildModel('model'), [
+    new Message('system', 'not cached'),
+    new Message('user', 'prompt'),
+  ], { top_k: 4, caching: true })
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    system: 'not cached',
+    messages: [ { role: 'user', content: [{ type: 'text', text: 'prompt', }] } ],
+    tools: [
+      { name: 'plugin1', description: expect.any(String), input_schema: expect.any(Object), cache_control: { type: 'ephemeral' } },
+      { name: 'plugin2', description: expect.any(String), input_schema: expect.any(Object), cache_control: { type: 'ephemeral' } },
+      { name: 'plugin3', description: expect.any(String), input_schema: expect.any(Object), cache_control: { type: 'ephemeral' } },
+      { name: 'plugin4', description: expect.any(String), input_schema: expect.any(Object), cache_control: { type: 'ephemeral' } },
+    ]
+  }))
 })
 
 test('Anthropic stream tools disabled', async () => {

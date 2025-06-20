@@ -2,6 +2,34 @@
 import { PluginExecutionContext, PluginParameter } from '../../src/types/plugin'
 import { CustomToolPlugin, MultiToolPlugin, Plugin } from '../../src/plugin'
 
+export class NamedPlugin extends Plugin {
+
+  name: string
+  description: string
+
+  constructor(name: string, description: string) {
+    super()
+    this.name = name
+    this.description = description
+  }
+
+  isEnabled(): boolean {
+    return true
+  }
+
+  getName(): string {
+    return this.name
+  }
+
+  getDescription(): string {
+    return this.description
+  }
+
+  getParameters(): PluginParameter[] {
+    return []
+  }
+}
+
 export class Plugin1 extends Plugin {
   
   isEnabled(): boolean {

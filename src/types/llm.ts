@@ -68,6 +68,7 @@ export type LlmModelOpts = {
 
 export type LlmCompletionOpts = {
   tools?: boolean
+  caching?: boolean
   visionFallbackModel?: ChatModel
   usage?: boolean
   citations?: boolean
