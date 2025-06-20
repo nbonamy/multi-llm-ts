@@ -500,7 +500,7 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
     if (!imageModels.map(m => m.id).includes('gpt-image-1')) {
       imageModels.unshift({ id: 'gpt-image-1', name: 'GPT Image', meta: {
         id: 'gpt-image-1', object: 'model', created: 0, owned_by: 'system'
-      }, capabilities: { tools: false, vision: false, reasoning: false } });
+      }, capabilities: { tools: false, vision: false, reasoning: false, caching: false, } });
     }
     
     // chat models are the rest

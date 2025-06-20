@@ -254,6 +254,7 @@ test('OpenAI nativeChunkToLlmChunk Text', async () => {
     opts: {},
     toolCalls: [],
     usage: { prompt_tokens: 0, completion_tokens: 0 },
+    thinking: false,
   }
   for await (const llmChunk of openai.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
