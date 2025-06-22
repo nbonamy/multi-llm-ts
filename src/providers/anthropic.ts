@@ -591,6 +591,7 @@ export default class extends LlmEngine {
           type: 'tool',
           id: context.toolCall.id,
           name: context.toolCall!.function,
+          status: this.getToolCompletedDescription(context.toolCall!.function, args, content),
           done: true,
           call: {
             params: args,

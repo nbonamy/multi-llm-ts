@@ -32,6 +32,11 @@ export class Plugin {
     throw new Error('Not implemented')
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  getCompletedDescription(tool: string, args: any, results: any): string|undefined {
+    return undefined
+  }
+
   getParameters(): PluginParameter[] {
     throw new Error('Not implemented')
   }

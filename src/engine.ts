@@ -343,6 +343,11 @@ export default abstract class LlmEngine {
     return plugin?.getRunningDescription(tool, args) || ''
   }
 
+  protected getToolCompletedDescription(tool: string, args: any, results: any): string|undefined {
+    const plugin = this.getPluginForTool(tool)
+    return plugin?.getCompletedDescription(tool, args, results)
+  }
+
   protected async callTool(context: PluginExecutionContext, tool: string, args: any): Promise<any> {
 
     // get the plugin
