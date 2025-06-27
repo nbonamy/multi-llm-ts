@@ -3,6 +3,7 @@ import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMistralAI } from '
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import { zeroUsage } from '../usage'
 import logger from '../logger'
 
 import { Mistral } from '@mistralai/mistralai'
@@ -153,7 +154,7 @@ export default class extends LlmEngine {
       thread: this.buildPayload(model, thread, opts) as MistralMessages,
       opts: opts || {},
       toolCalls: [],
-      usage: this.zeroUsage(),
+      usage: zeroUsage(),
     }
 
     // do it
@@ -191,19 +192,22 @@ export default class extends LlmEngine {
     }
   }
 
-  async getToolOpts<T>(model: ChatModel, opts?: LlmCompletionOpts): Promise<Omit<T, 'model'|'messages'|'stream'>> {
+  async getToolOpts(model: ChatModel, opts?: LlmCompletionOpts): Promise<Omit<ChatCompletionStreamRequest, 'model'|'messages'|'stream'>> {
 
     // disabled?
     if (opts?.tools === false || !model.capabilities?.tools) {
-      return {} as T
+      return {}
     }
 
     // tools
     const tools = await this.getAvailableTools()
     return tools.length ? {
       tools: tools,
-      toolChoice: 'auto',
-    } as T : {} as T
+      toolChoice: opts?.toolChoice?.type === 'tool' ? {
+        type: 'function',
+        function: { name: opts.toolChoice.name }
+      } : opts?.toolChoice?.type ?? 'auto',
+    } : {}
 
   }
    
@@ -319,6 +323,11 @@ export default class extends LlmEngine {
           },
         }
 
+      }
+
+      // clear force tool call to avoid infinite loop
+      if (context.opts.toolChoice?.type === 'tool') {
+        delete context.opts.toolChoice
       }
 
       // switch to new stream

@@ -2,8 +2,9 @@
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGoogle } from '../types/index'
 import { LLmCompletionPayload, LLmContentPayloadText, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCallInfo } from '../types/llm'
 import Attachment from '../models/attachment'
-import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import { zeroUsage } from '../usage'
+import Message from '../models/message'
 import logger from '../logger'
 
 import { Content, FunctionCallingConfigMode, FunctionDeclaration, FunctionResponse, GenerateContentConfig, GenerateContentResponse, GoogleGenAI, Part, Schema, Type } from '@google/genai'
@@ -219,7 +220,7 @@ export default class extends LlmEngine {
         instruction: this.getInstructions(model, thread),
       },
       toolCalls: [],
-      usage: this.zeroUsage()
+      usage: zeroUsage()
     }
 
     // do it
@@ -316,8 +317,21 @@ export default class extends LlmEngine {
         }
 
         // done
-        config.toolConfig = { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } }
         config.tools = [{ functionDeclarations: functionDeclarations }]
+
+        // tool call options
+        if (opts?.toolChoice?.type === 'none') {
+          config.toolConfig = { functionCallingConfig: { mode: FunctionCallingConfigMode.NONE } }
+        } else if (opts?.toolChoice?.type === 'required') {
+          config.toolConfig = { functionCallingConfig: { mode: FunctionCallingConfigMode.ANY } }
+        } else if (opts?.toolChoice?.type === 'tool') {
+          config.toolConfig = { functionCallingConfig: {
+            mode: FunctionCallingConfigMode.ANY,
+            allowedFunctionNames: [ opts.toolChoice.name! ]
+          }}
+        } else {
+          config.toolConfig = { functionCallingConfig: { mode: FunctionCallingConfigMode.AUTO } }
+        }
 
       }
     }
@@ -471,6 +485,11 @@ export default class extends LlmEngine {
         role: 'tool',
         parts: results.map((r) => ({ functionResponse: r }) ),
       })
+
+      // clear force tool call to avoid infinite loop
+      if (context.opts.toolChoice?.type === 'tool') {
+        delete context.opts.toolChoice
+      }
 
       // switch to new stream
       yield {

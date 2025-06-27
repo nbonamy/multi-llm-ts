@@ -2,6 +2,7 @@ import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpe
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import { zeroUsage } from '../usage'
 import logger from '../logger'
 
 import OpenAI, { ClientOptions } from 'openai'
@@ -259,7 +260,7 @@ export default class extends LlmEngine {
       thread: this.buildPayload(model, thread, opts),
       opts: opts || {},
       toolCalls: [],
-      usage: this.zeroUsage(),
+      usage: zeroUsage(),
       thinking: false,
       done: false,
     }
@@ -315,7 +316,10 @@ export default class extends LlmEngine {
     const tools = await this.getAvailableTools()
     return tools.length ? {
       tools: tools,
-      tool_choice: 'auto',
+      tool_choice: opts?.toolChoice?.type === 'tool' ? {
+        type: 'function',
+        function: { name: opts.toolChoice.name }
+      } : opts?.toolChoice?.type ?? 'auto',
     } : {}
 
   }
@@ -455,6 +459,11 @@ export default class extends LlmEngine {
           },
         }
 
+      }
+
+      // clear force tool call to avoid infinite loop
+      if (context.opts.toolChoice?.type === 'tool') {
+        delete context.opts.toolChoice
       }
 
       // switch to new stream

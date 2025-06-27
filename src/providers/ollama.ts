@@ -420,6 +420,11 @@ export default class extends LlmEngine {
 
       }
 
+      // clear force tool call to avoid infinite loop
+      if (context.opts.toolChoice?.type === 'tool') {
+        delete context.opts.toolChoice
+      }
+
       // switch to new stream
       yield {
         type: 'stream',

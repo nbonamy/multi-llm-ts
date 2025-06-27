@@ -3,6 +3,16 @@ import { ChatModel } from './index'
 
 export type LlmRole = 'system'|'developer'|'user'|'assistant'|'tool'
 
+export type LlmToolChoiceAuto = { type: 'auto' }
+export type LlmToolChoiceNone = { type: 'none' }
+export type LlmToolChoiceRequired = { type: 'required' }
+export type LlmToolChoiceNamed = {
+  type: 'tool'
+  name: string
+}
+
+export type LlmToolChoice = LlmToolChoiceNone | LlmToolChoiceAuto | LlmToolChoiceRequired | LlmToolChoiceNamed
+
 export type LlmToolCallInfo = {
   name: string
   params: any
@@ -10,13 +20,10 @@ export type LlmToolCallInfo = {
 }
 
 export type LlmResponse = {
-  type: 'text'|'image'
+  type: 'text'
   content?: string
   toolCalls?: LlmToolCallInfo[]
-  original_prompt?: string
-  revised_prompt?: string
   usage?: LlmUsage
-  url?: string
 }
 
 export type LlmToolCall = {
@@ -68,6 +75,7 @@ export type LlmModelOpts = {
 
 export type LlmCompletionOpts = {
   tools?: boolean
+  toolChoice?: LlmToolChoice
   caching?: boolean
   visionFallbackModel?: ChatModel
   usage?: boolean
@@ -80,7 +88,6 @@ export type LLmCompletionPayload = {
   images?: string[]
   tool_call_id?: string
   tool_calls?: any[]
-  name?: string
 }
 
 export type LLmContentPayloadText = {

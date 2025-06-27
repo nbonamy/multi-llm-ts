@@ -235,6 +235,39 @@ test('Anthropic stream', async () => {
   expect(stream.controller!.abort).toHaveBeenCalled()
 })
 
+test('Anthropic stream tool choice option', async () => {
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new Plugin1())
+  anthropic.addPlugin(new Plugin2())
+  anthropic.addPlugin(new Plugin3())
+  await anthropic.stream(anthropic.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'none'} })
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenLastCalledWith(expect.objectContaining({
+    tool_choice: { type: 'none' },
+  }))
+  await anthropic.stream(anthropic.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'required'} })
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenLastCalledWith(expect.objectContaining({
+    tool_choice: { type: 'any' },
+  }))
+  const { stream, context } = await anthropic.stream(anthropic.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'tool', name: 'plugin1' } })
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenLastCalledWith(expect.objectContaining({
+    tool_choice: { type: 'tool', name: 'plugin1' },
+  }))
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  for await (const chunk of stream) { for await (const msg of anthropic.nativeChunkToLlmChunk(chunk, context)) {/* empty */ } }
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenLastCalledWith(expect.objectContaining({
+    tool_choice: { type: 'auto' },
+  }))
+})
+
 test('Anthropic stream with tools caching', async () => {
   const anthropic = new Anthropic(config)
   anthropic.addPlugin(new NamedPlugin('plugin1', 'should be cached'))

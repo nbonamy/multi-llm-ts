@@ -329,6 +329,37 @@ test('OpenAI stream', async () => {
   expect(stream.controller!.abort).toHaveBeenCalled()
 })
 
+test('OpenAI stream tool choice option', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin2())
+  await openai.stream(openai.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'none' } })
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    tool_choice: 'none',
+  }))
+  await openai.stream(openai.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'required' } })
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    tool_choice: 'required',
+  }))
+  const { stream, context } = await openai.stream(openai.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'tool', name: 'plugin1' } })
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenNthCalledWith(3, expect.objectContaining({
+    tool_choice: { type: 'function', function: { name: 'plugin1' } },
+  }))
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  for await (const chunk of stream) { for await (const msg of openai.nativeChunkToLlmChunk(chunk, context)) {/* empty */ } }
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenNthCalledWith(4, expect.objectContaining({
+    tool_choice: 'auto',
+  }))
+})
+
 test('OpenAI stream tools disabled', async () => {
   const openai = new OpenAI(config)
   openai.addPlugin(new Plugin1())

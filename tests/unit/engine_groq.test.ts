@@ -159,7 +159,38 @@ test('Groq stream', async () => {
   expect(stream.controller!.abort).toHaveBeenCalled()
 })
 
-test('Groq stream tools disabled', async () => {
+test('Groq stream tool choice option', async () => {
+  const groq = new Groq(config)
+  groq.addPlugin(new Plugin1())
+  await groq.stream(groq.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'none' } })
+  expect(_Groq.prototype.chat.completions.create).toHaveBeenLastCalledWith(expect.objectContaining({
+    tool_choice: 'none',
+  }))
+  await groq.stream(groq.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'required' } })
+  expect(_Groq.prototype.chat.completions.create).toHaveBeenLastCalledWith(expect.objectContaining({
+    tool_choice: 'required',
+  }))
+  const { stream, context } = await groq.stream(groq.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'tool', name: 'plugin1' } })
+  expect(_Groq.prototype.chat.completions.create).toHaveBeenLastCalledWith(expect.objectContaining({
+    tool_choice: { type: 'function', function: { name: 'plugin1' } },
+  }))
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  for await (const chunk of stream) { for await (const msg of groq.nativeChunkToLlmChunk(chunk, context)) {/* empty */ } }
+  expect(_Groq.prototype.chat.completions.create).toHaveBeenLastCalledWith(expect.objectContaining({
+    tool_choice: 'auto',
+  }))
+})
+
+  test('Groq stream tools disabled', async () => {
   const groq = new Groq(config)
   groq.addPlugin(new Plugin1())
   groq.addPlugin(new Plugin2())

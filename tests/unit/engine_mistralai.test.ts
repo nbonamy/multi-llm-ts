@@ -192,6 +192,49 @@ test('MistralAI stream with tools', async () => {
   //expect(Mistral.prototype.abort).toHaveBeenCalled()
 })
 
+test('OpenAI stream tool choice option', async () => {
+  const mistralai = new MistralAI(config)
+  mistralai.addPlugin(new Plugin1())
+  await mistralai.stream({
+    id: 'model', name: 'model', capabilities: mistralai.getModelCapabilities({
+      id: 'model', capabilities: { functionCalling: true },
+    })
+  }, [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'none' } })
+  expect(Mistral.prototype.chat.stream).toHaveBeenLastCalledWith(expect.objectContaining({
+    toolChoice: 'none',
+  }))
+  await mistralai.stream({
+    id: 'model', name: 'model', capabilities: mistralai.getModelCapabilities({
+      id: 'model', capabilities: { functionCalling: true },
+    })
+  }, [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'required' } })
+  expect(Mistral.prototype.chat.stream).toHaveBeenLastCalledWith(expect.objectContaining({
+    toolChoice: 'required',
+  }))
+  const { stream, context } = await mistralai.stream({
+    id: 'model', name: 'model', capabilities: mistralai.getModelCapabilities({
+      id: 'model', capabilities: { functionCalling: true },
+    })
+  }, [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'tool', name: 'plugin1' } })
+  expect(Mistral.prototype.chat.stream).toHaveBeenLastCalledWith(expect.objectContaining({
+    toolChoice: { type: 'function', function: { name: 'plugin1' } },
+  }))
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  for await (const chunk of stream) { for await (const msg of mistralai.nativeChunkToLlmChunk(chunk, context)) {/* empty */ } }
+  expect(Mistral.prototype.chat.stream).toHaveBeenLastCalledWith(expect.objectContaining({
+    toolChoice: 'auto',
+  }))
+})
+
 test('MistralAI stream without tools', async () => {
   const mistralai = new MistralAI(config)
   mistralai.addPlugin(new Plugin1())

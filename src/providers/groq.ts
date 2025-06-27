@@ -1,8 +1,9 @@
 
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGroq } from '../types/index'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
-import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import Message from '../models/message'
+import { zeroUsage } from '../usage'
 import logger from '../logger'
 
 import Groq from 'groq-sdk'
@@ -169,7 +170,7 @@ export default class extends LlmEngine {
       thread: this.buildPayload(model, thread, opts),
       opts: opts || {},
       toolCalls: [],
-      usage: this.zeroUsage(),
+      usage: zeroUsage(),
     }
 
     // do it
@@ -220,7 +221,10 @@ export default class extends LlmEngine {
     const tools = await this.getAvailableTools()
     return tools.length ? {
       tools: tools,
-      tool_choice: 'auto',
+      tool_choice: opts?.toolChoice?.type === 'tool' ? {
+        type: 'function',
+        function: { name: opts.toolChoice.name }
+      } : opts?.toolChoice?.type ?? 'auto',
     } : {}
 
   }
@@ -343,6 +347,11 @@ export default class extends LlmEngine {
           },
         }
 
+      }
+
+      // clear force tool call to avoid infinite loop
+      if (context.opts.toolChoice?.type === 'tool') {
+        delete context.opts.toolChoice
       }
 
       // switch to new stream

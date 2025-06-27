@@ -4,11 +4,12 @@ import { minimatch } from 'minimatch'
 import Message from '../models/message'
 import Attachment from '../models/attachment'
 import LlmEngine, { LlmStreamingContextBase } from '../engine'
+import { zeroUsage } from '../usage'
 import { Plugin } from '../plugin'
 import logger from '../logger'
 
 import Anthropic from '@anthropic-ai/sdk'
-import { Tool, MessageParam, TextBlock, InputJSONDelta, Usage, RawMessageStartEvent, RawMessageDeltaEvent, MessageDeltaUsage, ToolUseBlock, ContentBlockParam, MessageStreamEvent } from '@anthropic-ai/sdk/resources'
+import { Tool, MessageParam, TextBlock, InputJSONDelta, Usage, RawMessageStartEvent, RawMessageDeltaEvent, MessageDeltaUsage, ToolUseBlock, ContentBlockParam, MessageStreamEvent, MessageCreateParams, ToolChoice } from '@anthropic-ai/sdk/resources'
 import { BetaToolUnion, MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 
 //
@@ -243,7 +244,7 @@ export default class extends LlmEngine {
       system: thread[0].contentForModel,
       thread: this.buildPayload(model, thread, opts) as MessageParam[],
       opts: opts || {},
-      usage: this.zeroUsage(),
+      usage: zeroUsage(),
       firstTextBlockStart: true
     }
 
@@ -303,7 +304,7 @@ export default class extends LlmEngine {
       system: context.system,
       messages: context.thread,
       ...this.getCompletionOpts(context.model, context.opts),
-      ...await this.getToolOpts(context.model, context.opts),
+      ...await this.getToolOpts<MessageCreateParams>(context.model, context.opts),
       stream: true,
     }))
   }
@@ -316,7 +317,7 @@ export default class extends LlmEngine {
       system: context.system,
       messages: context.thread,
       ...this.getCompletionOpts(context.model, context.opts),
-      ...await this.getToolOpts(context.model, context.opts),
+      ...await this.getToolOpts<MessageCreateParams>(context.model, context.opts),
       stream: true,
     }))
   }
@@ -358,9 +359,18 @@ export default class extends LlmEngine {
       }
     })
 
+    let toolChoice: ToolChoice = { type: 'auto' }
+    if (opts?.toolChoice?.type === 'auto' || opts?.toolChoice?.type === 'none') {
+      toolChoice = opts.toolChoice
+    } else if (opts?.toolChoice?.type === 'required') {
+      toolChoice = { type: 'any' }
+    } else if (opts?.toolChoice?.type === 'tool') {
+      toolChoice = { type: 'tool', name: opts.toolChoice.name }
+    }
+
     // done
     return tools.length ? {
-      tool_choice: { type: 'auto' },
+      tool_choice: toolChoice,
       tools: tools as Tool[]
     } as T : {} as T 
   }
@@ -424,7 +434,7 @@ export default class extends LlmEngine {
   async *nativeChunkToLlmChunk(chunk: MessageStreamEvent, context: AnthropicStreamingContext): AsyncGenerator<LlmChunk, void, void> {
     
     // log
-    console.dir(chunk, { depth: null })
+    //console.dir(chunk, { depth: null })
 
     // usage
     const usage: Usage|MessageDeltaUsage = (chunk as RawMessageStartEvent).message?.usage ?? (chunk as RawMessageDeltaEvent).usage
@@ -597,6 +607,11 @@ export default class extends LlmEngine {
             params: args,
             result: content
           },
+        }
+
+        // clear force tool call to avoid infinite loop
+        if (context.opts.toolChoice?.type === 'tool') {
+          delete context.opts.toolChoice
         }
 
         // switch to new stream

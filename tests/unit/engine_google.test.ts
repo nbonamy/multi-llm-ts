@@ -57,7 +57,7 @@ vi.mock('@google/genai', async () => {
     })
   }
   const Type = { STRING: 'string', NUMBER: 'number', OBJECT: 'object' }
-  const FunctionCallingConfigMode = { AUTO: 'auto' }
+  const FunctionCallingConfigMode = { AUTO: 'auto', NONE: 'none', ANY: 'any' }
   return { GoogleGenAI, Type, FunctionCallingConfigMode }
 })
 
@@ -293,6 +293,47 @@ test('Google stream', async () => {
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 'plugin2', name: 'plugin2', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
   await google.stop(stream)
   //expect(response.controller.abort).toHaveBeenCalled()
+})
+
+test('Google stream tool choice option', async () => {
+  const google = new Google(config);
+  google.addPlugin(new Plugin1())
+  google.addPlugin(new Plugin2())
+  google.addPlugin(new Plugin3())
+  await google.stream(google.buildModel('gemini-pro'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'none' } })
+  expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenLastCalledWith(expect.objectContaining({
+    config: expect.objectContaining({
+      toolConfig: { functionCallingConfig: { mode: 'none' } },
+    })
+  }))
+  await google.stream(google.buildModel('gemini-pro'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'required' } })
+  expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenLastCalledWith(expect.objectContaining({
+    config: expect.objectContaining({
+      toolConfig: { functionCallingConfig: { mode: 'any' } },
+    })
+  }))
+  const { stream, context } = await google.stream(google.buildModel('gemini-pro'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { toolChoice: { type: 'tool', name: 'plugin1' } })
+  expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenLastCalledWith(expect.objectContaining({
+    config: expect.objectContaining({
+      toolConfig: { functionCallingConfig: { mode: 'any', allowedFunctionNames: ['plugin1'] } },
+    })
+  }))
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  for await (const chunk of stream) { for await (const msg of google.nativeChunkToLlmChunk(chunk, context)) {/* empty */ } }
+  expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenLastCalledWith(expect.objectContaining({
+    config: expect.objectContaining({
+      toolConfig: { functionCallingConfig: { mode: 'auto' } },
+    })
+  }))
 })
 
 test('Google stream tools disabled', async () => {

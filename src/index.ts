@@ -4,7 +4,10 @@ export * from './types/llm'
 
 import Attachment, { textFormats, imageFormats, extensionToMimeType, mimeTypeToExtension } from './models/attachment'
 import Message from './models/message'
+
 import { Plugin, CustomToolPlugin, MultiToolPlugin } from './plugin'
+
+import { addUsages } from './usage'
 
 import LlmEngine from './engine'
 
@@ -67,4 +70,5 @@ export {
   extensionToMimeType,
   mimeTypeToExtension,
   defaultCapabilities,
+  addUsages
 }

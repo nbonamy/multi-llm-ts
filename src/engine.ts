@@ -6,6 +6,7 @@ import { PluginExecutionContext, PluginParameter } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 import Attachment from './models/attachment'
 import Message from './models/message'
+import { addUsages } from './usage'
 
 export type LlmStreamingContextBase = {
   model: ChatModel
@@ -387,21 +388,6 @@ export default abstract class LlmEngine {
         id: model,
         name: model,
       }),
-    }
-  }
-
-  zeroUsage(): LlmUsage {
-    return {
-      prompt_tokens: 0,
-      completion_tokens: 0,
-      prompt_tokens_details: {
-        cached_tokens: 0,
-        audio_tokens: 0,
-      },
-      completion_tokens_details: {
-        reasoning_tokens: 0,
-        audio_tokens: 0
-      }
     }
   }
 
