@@ -7,6 +7,7 @@ import Message from '../../src/models/message'
 import Azure from '../../src/providers/azure'
 import { AzureClientOptions, AzureOpenAI } from 'openai'
 import { LlmChunk } from '../../src/types/llm'
+import { z } from 'zod'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -132,4 +133,17 @@ test('Azure stream without tools', async () => {
     }
   })
   expect(stream).toBeDefined()
+})
+
+test('Azure structured output', async () => {
+  const azure = new Azure(config)
+  await azure.stream(azure.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { structuredOutput: { name: 'test', structure: z.object({}) } })
+  // @ts-expect-error mock
+  expect(AzureOpenAI.prototype.chat.completions.create.mock.calls[0][0].response_format).toMatchObject({
+    type: 'json_schema',
+    json_schema: expect.any(Object),
+  })
 })

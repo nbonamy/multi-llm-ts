@@ -7,6 +7,7 @@ import Message from '../../src/models/message'
 import XAI from '../../src/providers/xai'
 import OpenAI, { ClientOptions } from 'openai'
 import { LlmChunk } from '../../src/types/llm'
+import { z } from 'zod'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -150,4 +151,17 @@ test('xAI stream without tools', async () => {
     }
   })
   expect(stream).toBeDefined()
+})
+
+test('xAI structured output', async () => {
+  const xai = new XAI(config)
+  await xai.stream(xai.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { structuredOutput: { name: 'test', structure: z.object({}) } })
+  // @ts-expect-error mock
+  expect(OpenAI.prototype.chat.completions.create.mock.calls[0][0].response_format).toMatchObject({
+    type: 'json_schema',
+    json_schema: expect.any(Object),
+  })
 })

@@ -8,6 +8,7 @@ import logger from '../logger'
 import OpenAI, { ClientOptions } from 'openai'
 import { ChatCompletionChunk, CompletionUsage } from 'openai/resources'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
+import { zodResponseFormat } from 'openai/helpers/zod'
 import { minimatch } from 'minimatch'
 
 const defaultBaseUrl = 'https://api.openai.com/v1'
@@ -96,6 +97,11 @@ export default class extends LlmEngine {
 
   modelSupportsReasoningEffort(model: ChatModel): boolean {
     return model.capabilities.reasoning
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  modelSupportsStructuredOutput(model: ChatModel): boolean {
+    return true
   }
 
   get systemRole(): LlmRole {
@@ -301,6 +307,7 @@ export default class extends LlmEngine {
       ...(this.modelSupportsTopK(model) && opts?.top_k ? { logprobs: true, top_logprobs: opts?.top_k } : {} ),
       ...(this.modelSupportsTopP(model) && opts?.top_p ? { top_p: opts?.top_p } : {} ),
       ...(this.modelSupportsReasoningEffort(model) && opts?.reasoningEffort ? { reasoning_effort: opts?.reasoningEffort } : {}),
+      ...(this.modelSupportsStructuredOutput(model) && opts?.structuredOutput ? { response_format: zodResponseFormat(opts.structuredOutput.structure, opts.structuredOutput.name) } : {}),
       ...(opts?.customOpts ? opts.customOpts : {}),
     }
   }

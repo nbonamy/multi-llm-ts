@@ -1,6 +1,6 @@
 
 import Message from '../models/message'
-import { EngineCreateOpts, ModelCapabilities, ModelOpenRouter } from '../types/index'
+import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelOpenRouter } from '../types/index'
 import { LlmRole } from '../types/llm'
 import OpenAI from './openai'
 
@@ -39,6 +39,11 @@ export default class extends OpenAI {
       caching: false,
     }
 
+  }
+
+  modelSupportsStructuredOutput(model: ChatModel): boolean {
+    const meta: ModelOpenRouter = model.meta as ModelOpenRouter
+    return meta?.supported_parameters?.includes('response_format') ?? false
   }
 
   get systemRole(): LlmRole {

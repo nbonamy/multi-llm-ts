@@ -9,6 +9,7 @@ import logger from '../logger'
 // importing from 'ollama' directly imports 'fs' which fails in browser
 import { Ollama, ChatRequest, ChatResponse, ProgressResponse, ShowResponse } from 'ollama/dist/browser.cjs'
 import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.e009de91.cjs'
+import { zodToJsonSchema } from 'zod-to-json-schema'
 import Attachment from 'models/attachment'
 import { minimatch } from 'minimatch'
 
@@ -310,6 +311,9 @@ export default class extends LlmEngine {
     }
     if (opts?.top_p) {
       chatOptions.options!.top_p = opts.top_p
+    }
+    if (opts?.structuredOutput) {
+      chatOptions.format = zodToJsonSchema(opts.structuredOutput.structure, { name: opts.structuredOutput.name })
     }
     if (Object.keys(opts || {}).length === 0) {
       delete chatOptions.options

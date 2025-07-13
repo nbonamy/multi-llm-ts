@@ -8,6 +8,7 @@ import Message from '../models/message'
 import logger from '../logger'
 
 import { Content, FunctionCallingConfigMode, FunctionDeclaration, FunctionResponse, GenerateContentConfig, GenerateContentResponse, GoogleGenAI, Part, Schema, Type } from '@google/genai'
+import { zodToJsonSchema } from 'zod-to-json-schema'
 import { minimatch } from 'minimatch'
 
 //
@@ -252,6 +253,10 @@ export default class extends LlmEngine {
     return ['gemini'].some((m) => model.id.includes(m))
   }
 
+  private supportsStructuredOutput(model: ChatModel): boolean {
+    return ['gemini'].some((m) => model.id.includes(m))
+  }
+
   private getInstructions(model: ChatModel, thread: Message[]): string|undefined {
     return (this.supportsInstructions(model) && thread.length > 1 && thread[0].role === 'system') ? thread[0].content : undefined  
   }
@@ -276,6 +281,12 @@ export default class extends LlmEngine {
     // add instructions
     if (opts?.instruction) {
       config.systemInstruction = opts!.instruction
+    }
+
+    // add structured output
+    if (this.supportsStructuredOutput(model) && opts?.structuredOutput) {
+      config.responseMimeType = 'application/json'
+      config.responseJsonSchema = zodToJsonSchema(opts.structuredOutput.structure)
     }
 
     // add tools

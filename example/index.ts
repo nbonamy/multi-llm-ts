@@ -1,4 +1,5 @@
 
+import { z } from 'zod'
 import { ChatModel, EngineCreateOpts, LlmEngine, Message, igniteEngine, loadModels } from '../src/index'
 import Answer from './answer'
 import dotenv from 'dotenv';
@@ -50,6 +51,22 @@ const conversation = async (llm: LlmEngine, model: ChatModel, messages: Message[
   }
   console.log(response)
   messages.splice(2,2)
+}
+
+const structured = async (llm: LlmEngine, model: ChatModel, messages: Message[]) => {
+  console.log('\n** Structured Output' + (llm.plugins.length ? ' with plugins' : ''))
+  console.log(await llm.complete(model, messages, {
+    structuredOutput: {
+      name: 'items',
+      structure: z.object({
+        items: z.array(z.object({
+          name: z.string(),
+          description: z.string(),
+          price: z.number(),
+        })),
+      }),
+    },
+  }))
 }
 
 (async () => {
@@ -110,5 +127,11 @@ const conversation = async (llm: LlmEngine, model: ChatModel, messages: Message[
   llm.addPlugin(new Answer())
   await completion(llm, model, messages)
   await streaming(llm, model, messages)
+
+  // structured outputs
+  await structured(llm, model, [
+    new Message('system', 'You are a helpful math tutor.'),
+    new Message('user', 'create a JSON list of random items'),
+  ])
 
 })()

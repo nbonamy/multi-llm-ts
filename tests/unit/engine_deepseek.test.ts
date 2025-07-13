@@ -7,6 +7,7 @@ import Message from '../../src/models/message'
 import OpenAI, { ClientOptions } from 'openai'
 import { loadDeepSeekModels, loadModels } from '../../src/llm'
 import { LlmChunk } from '../../src/types/llm'
+import { z } from 'zod'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -175,3 +176,14 @@ test('DeepSeek stream without tools', async () => {
   })
   expect(stream).toBeDefined()
 })
+
+test('DeepSeek structured output', async () => {
+  const deepseek = new DeepSeek(config)
+  await deepseek.stream(deepseek.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { structuredOutput: { name: 'test', structure: z.object({}) } })
+  // @ts-expect-error mock
+  expect(OpenAI.prototype.chat.completions.create.mock.calls[0][0].response_format).toBeUndefined()
+})
+

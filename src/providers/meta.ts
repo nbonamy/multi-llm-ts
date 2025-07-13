@@ -1,6 +1,6 @@
 
 import Message from '../models/message'
-import { EngineCreateOpts, ModelCapabilities, ModelMeta } from '../types/index'
+import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMeta } from '../types/index'
 import { LlmRole } from '../types/llm'
 import { minimatch } from 'minimatch'
 import OpenAI from './openai'
@@ -32,6 +32,11 @@ export default class extends OpenAI {
       reasoning: false,
       caching: false,
     }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  modelSupportsStructuredOutput(model: ChatModel): boolean {
+    return false
   }
 
   get systemRole(): LlmRole {

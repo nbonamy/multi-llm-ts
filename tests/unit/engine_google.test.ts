@@ -9,6 +9,7 @@ import { loadGoogleModels, loadModels } from '../../src/llm'
 import { GenerateContentResponse, FinishReason } from '@google/genai'
 import * as _Google from '@google/genai'
 import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
+import { z } from 'zod'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -364,6 +365,24 @@ test('Google stream without tools', async () => {
       systemInstruction: 'instruction',
       topP: 4
     }
+  })
+})
+
+
+test('Google structured output', async () => {
+  const google = new Google(config)
+  await google.stream(google.buildModel('gemini-pro'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { structuredOutput: { name: 'test', structure: z.object({}) } })
+  // @ts-expect-error mock
+  expect(_Google.GoogleGenAI.prototype.models.generateContentStream.mock.calls[0][0].config.responseMimeType).toBe('application/json')
+  // @ts-expect-error mock
+  expect(_Google.GoogleGenAI.prototype.models.generateContentStream.mock.calls[0][0].config.responseJsonSchema).toMatchObject({
+    type: 'object',
+    $schema: expect.any(String),
+    additionalProperties: false,
+    properties: expect.any(Object),
   })
 })
 

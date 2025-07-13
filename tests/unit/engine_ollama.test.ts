@@ -8,6 +8,7 @@ import * as _ollama from 'ollama/dist/browser.cjs'
 import { loadModels, loadOllamaModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
+import { z } from 'zod'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -269,6 +270,20 @@ test('Ollama stream without tools and options', async () => {
     }
   })
   expect(stream).toBeDefined()
+})
+
+test('Ollama structured output', async () => {
+  const ollama = new Ollama(config)
+  await ollama.stream(ollama.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { structuredOutput: { name: 'test', structure: z.object({}) } })
+  // @ts-expect-error mock
+  expect(_ollama.Ollama.prototype.chat.mock.calls[0][0].format).toMatchObject({
+    $ref: expect.any(String),
+    $schema: expect.any(String),
+    definitions: expect.any(Object),
+  })
 })
 
 test('Ollama nativeChunkToLlmChunk Text', async () => {

@@ -7,6 +7,7 @@ import OpenRouter from '../../src/providers/openrouter'
 import Message from '../../src/models/message'
 import OpenAI, { ClientOptions } from 'openai'
 import { LlmChunk } from '../../src/types/llm'
+import { z } from 'zod'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -20,7 +21,7 @@ vi.mock('openai', async () => {
       return {
         data: [
           { id: 'chat1', name: 'chat1', architecture: { input_modalities: [ 'text' ], modality: 'text->text' } },
-          { id: 'chat2', name: 'chat2', architecture: { input_modalities: [ 'text', 'image' ], modality: 'text+image->text' }, supported_parameters: ['tools'] },
+          { id: 'chat2', name: 'chat2', architecture: { input_modalities: [ 'text', 'image' ], modality: 'text+image->text' }, supported_parameters: ['tools', 'response_format'] },
           { id: 'chat3', name: 'chat3', architecture: { modality: 'text+image->text' }, supported_parameters: ['top_k'] },
           { id: 'image', name: 'image', architecture: { input_modalities: [ 'text' ], modality: 'text->image' } },
         ]
@@ -159,4 +160,27 @@ test('OpenRouter stream without tools', async () => {
     }
   })
   expect(stream).toBeDefined()
+})
+
+
+test('OpenRouter structured output', async () => {
+  const openrouter = new OpenRouter(config)
+  await openrouter.stream({
+    id: 'model', name: 'model', capabilities: openrouter.getModelCapabilities({
+      // @ts-expect-error mock
+      architecture: { input_modalities: [ 'text' ] },
+    }),
+    // @ts-expect-error mock
+    meta: {
+      supported_parameters: ['response_format']
+    }
+  }, [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { structuredOutput: { name: 'test', structure: z.object({}) } })
+  // @ts-expect-error mock
+  expect(OpenAI.prototype.chat.completions.create.mock.calls[0][0].response_format).toMatchObject({
+    type: 'json_schema',
+    json_schema: expect.any(Object),
+  })
 })

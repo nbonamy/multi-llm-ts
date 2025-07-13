@@ -1,4 +1,5 @@
 
+import { ZodType } from 'zod'
 import { ChatModel } from './index'
 
 export type LlmRole = 'system'|'developer'|'user'|'assistant'|'tool'
@@ -80,6 +81,10 @@ export type LlmCompletionOpts = {
   visionFallbackModel?: ChatModel
   usage?: boolean
   citations?: boolean
+  structuredOutput?: {
+    name: string
+    structure: ZodType
+  }
 } & LlmModelOpts
 
 export type LLmCompletionPayload = {

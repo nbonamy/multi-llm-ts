@@ -7,6 +7,7 @@ import Message from '../../src/models/message'
 import Meta from '../../src/providers/meta'
 import OpenAI, { ClientOptions } from 'openai'
 import { LlmChunk } from '../../src/types/llm'
+import { z } from 'zod'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -141,4 +142,14 @@ test('Meta stream without tools', async () => {
     }
   })
   expect(stream).toBeDefined()
+})
+
+test('Meta structured output', async () => {
+  const meta = new Meta(config)
+  await meta.stream(meta.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { structuredOutput: { name: 'test', structure: z.object({}) } })
+  // @ts-expect-error mock
+  expect(OpenAI.prototype.chat.completions.create.mock.calls[0][0].response_format).toBeUndefined()
 })

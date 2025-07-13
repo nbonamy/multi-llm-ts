@@ -10,6 +10,7 @@ import { CompletionEvent } from '@mistralai/mistralai/models/components'
 import { loadMistralAIModels, loadModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
 import { LlmStreamingContextTools } from '../../src/engine'
+import { z } from 'zod'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -277,4 +278,16 @@ test('MistralAI stream without tools', async () => {
     ],
   })
   expect(stream).toBeDefined()
+})
+
+test('MistralAI structured output', async () => {
+  const mistralai = new MistralAI(config)
+  await mistralai.stream(mistralai.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { structuredOutput: { name: 'test', structure: z.object({}) } })
+  // @ts-expect-error mock
+  expect(Mistral.prototype.chat.stream.mock.calls[0][0].response_format).toStrictEqual({
+    type: 'json_object',
+  })
 })

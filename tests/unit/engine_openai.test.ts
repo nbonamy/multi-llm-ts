@@ -9,6 +9,7 @@ import * as _openai from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
 import { loadModels, loadOpenAIModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
+import { z } from 'zod'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -443,6 +444,19 @@ test('OpenAI reasoning effort', async () => {
   ], { reasoningEffort: 'low' })
   // @ts-expect-error mock
   expect(_openai.default.prototype.chat.completions.create.mock.calls[1][0].reasoning_effort).toBe('low')
+})
+
+test('OpenAI structured output', async () => {
+  const openai = new OpenAI(config)
+  await openai.stream(openai.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { structuredOutput: { name: 'test', structure: z.object({}) } })
+  // @ts-expect-error mock
+  expect(_openai.default.prototype.chat.completions.create.mock.calls[0][0].response_format).toMatchObject({
+    type: 'json_schema',
+    json_schema: expect.any(Object),
+  })
 })
 
 test('OpenAI custom options', async () => {

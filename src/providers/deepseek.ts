@@ -1,6 +1,6 @@
 
 import Message from '../models/message'
-import { EngineCreateOpts, Model, ModelCapabilities, ModelDeepseek } from '../types/index'
+import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelDeepseek } from '../types/index'
 import { LlmRole } from '../types/llm'
 import OpenAI from './openai'
 
@@ -35,7 +35,12 @@ export default class extends OpenAI {
   }
   
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  modelSupportsReasoningEffort(model: string|Model): boolean {
+  modelSupportsReasoningEffort(model: ChatModel): boolean {
+    return false
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  modelSupportsStructuredOutput(model: ChatModel): boolean {
     return false
   }
 

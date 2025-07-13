@@ -11,6 +11,7 @@ Features include:
 - Text Attachments
 - Vision model (image attachments)
 - Function calling
+- Structured output
 - Usage reporting (tokens count)
 
 ## <span style="color: red">4.0 Breaking Changes</span>
@@ -42,25 +43,26 @@ async execute(context: PluginExecutionContext , parameters: any): Promise<any>
 
 ## Providers supported
 
-|Provider|id|Completion<br>&&nbsp;Streaming|Vision|Function calling|Reasoning|Parametrization<sup>1</sup>|Usage reporting|
-|---|---|---|---|---|--|--|--|
-|**Anthropic**|`anthropic`|yes|yes|yes|yes|yes|yes|
-|**Azure AI**|`azure`|yes|yes|yes|yes|yes|yes|
-|**Cerebras**|`cerebras`|yes|no|no|no|yes|yes|
-|**DeepSeek**|`deepseek`|yes|no|yes|yes|yes|yes|
-|**Google**|`google`|yes|yes|yes|no|yes|yes|
-|**Groq**|`groq`|yes|yes|yes|no|yes|yes|
-|**Meta/Llama**|`meta`|yes|yes|yes|no|yes|yes|
-|**MistralAI**|`mistralai`|yes|yes|yes|no|yes|yes|
-|**Ollama**|`ollama`|yes|yes|yes|yes|yes|yes|
-|**OpenAI**|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|yes|yes|yes|
-|**OpenRouter**|`openrouter`|yes|yes|yes|no|yes|yes|
-|**TogetherAI**<sup>3</sup>|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|no|yes|yes|
-|**xAI**|`xai`|yes|yes|yes|no|yes|yes|
+|Provider|id|Completion<br>&&nbsp;Streaming|Vision|Function calling|Reasoning|Parametrization<sup>1</sup>|Structured Output|Usage reporting|
+|---|---|---|---|---|--|--|--|--|
+|**Anthropic**|`anthropic`|yes|yes|yes|yes|yes|no|yes|
+|**Azure AI**|`azure`|yes|yes|yes|yes|yes|yes|yes|
+|**Cerebras**|`cerebras`|yes|no|no|no|yes|yes|yes|
+|**DeepSeek**|`deepseek`|yes|no|yes|yes|yes|no|yes|
+|**Google**|`google`|yes|yes|yes|no|yes|yes<sup>4</sup>|yes|
+|**Groq**|`groq`|yes|yes|yes|no|yes|yes|yes|
+|**Meta/Llama**|`meta`|yes|yes|yes|no|yes|no|yes|
+|**MistralAI**|`mistralai`|yes|yes|yes|no|yes|yes<sup>4</sup>|yes|
+|**Ollama**|`ollama`|yes|yes|yes|yes|yes|yes|yes|
+|**OpenAI**|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|yes|yes|yes|yes|
+|**OpenRouter**|`openrouter`|yes|yes|yes|no|yes|yes|yes|
+|**TogetherAI**<sup>3</sup>|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|no|yes|yes|yes|
+|**xAI**|`xai`|yes|yes|yes|no|yes|yes|yes|
 
 <div><sup>1</sup> Max tokens, Temperature... Support varies across providers and models
 <div><sup>2</sup> Not supported for o1 family</div>
 <div><sup>3</sup> Using `openai` provider. use `https://api.together.xyz/v1` as `baseURL`
+<div><sup>4</sup> Provider supports JSON output but does not enforce a specific schema. You need to describe the schema in the user message.
 
 ## See it in action
 

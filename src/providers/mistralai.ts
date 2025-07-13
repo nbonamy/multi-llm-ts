@@ -189,6 +189,7 @@ export default class extends LlmEngine {
       maxTokens: opts?.maxTokens,
       temperature: opts?.temperature,
       topP: opts?.top_p,
+      ...(opts?.structuredOutput ? { response_format: { type: 'json_object' } } : {} ),
     }
   }
 

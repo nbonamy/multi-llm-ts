@@ -207,6 +207,7 @@ export default class extends LlmEngine {
       ...(opts?.temperature ? { temperature: opts?.temperature } : {} ),
       //...(opts?.top_k ? { logprobs: true, top_logprobs: opts?.top_k } : {} ),
       ...(opts?.top_p ? { top_p: opts?.top_p } : {} ),
+      ...(opts?.structuredOutput ? { response_format: { type: 'json_object' } } : {} ),
     }
   }
 
