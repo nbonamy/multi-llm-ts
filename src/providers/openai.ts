@@ -104,6 +104,11 @@ export default class extends LlmEngine {
     return true
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  doesNotSendToolCallFinishReason(model: ChatModel): boolean {
+    return false
+  }
+
   get systemRole(): LlmRole {
     return 'system'//'developer'
   }
@@ -179,40 +184,39 @@ export default class extends LlmEngine {
     const choice = response.choices?.[0]
 
     // tool call
-    if (choice?.finish_reason === 'tool_calls') {
+    if (choice.message.tool_calls && (choice?.finish_reason === 'tool_calls' || this.doesNotSendToolCallFinishReason(model))) {
 
       // add tool call message
       thread.push(choice.message)
 
-      const toolCalls = choice.message.tool_calls!
-      for (const toolCall of toolCalls) {
+      for (const tool_call of choice.message.tool_calls) {
 
         // log
-        logger.log(`[openai] tool call ${toolCall.function.name} with ${toolCall.function.arguments}`)
+        logger.log(`[openai] tool call ${tool_call.function.name} with ${tool_call.function.arguments}`)
 
         // this can error
         let args = null
         try {
-          args = JSON.parse(toolCall.function.arguments)
+          args = JSON.parse(tool_call.function.arguments)
         } catch (err) {
-          throw new Error(`[openai] tool call ${toolCall.function.name} with invalid JSON args: "${toolCall.function.arguments}"`, { cause: err })
+          throw new Error(`[openai] tool call ${tool_call.function.name} with invalid JSON args: "${tool_call.function.arguments}"`, { cause: err })
         }
         
         // now execute
-        const content = await this.callTool({ model: model.id }, toolCall.function.name, args)
-        logger.log(`[openai] tool call ${toolCall.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
+        const content = await this.callTool({ model: model.id }, tool_call.function.name, args)
+        logger.log(`[openai] tool call ${tool_call.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool response message
         thread.push({
           role: 'tool',
-          tool_call_id: toolCall.id,
-          name: toolCall.function.name,
+          tool_call_id: tool_call.id,
+          name: tool_call.function.name,
           content: JSON.stringify(content)
         })
 
         // save tool call info
         toolCallInfo.push({
-          name: toolCall.function.name,
+          name: tool_call.function.name,
           params: args,
           result: content
         })
@@ -346,62 +350,69 @@ export default class extends LlmEngine {
     }
 
     // tool calls
-    const tool_call = chunk.choices[0]?.delta?.tool_calls?.[0]
-    if (tool_call?.function) {
+    for (const tool_call of chunk.choices[0]?.delta?.tool_calls || []) {
+      
+      if (tool_call?.function) {
 
-      // arguments or new tool?
-      if (tool_call.id !== null && tool_call.id !== undefined && tool_call.id !== '') {
+        // arguments or new tool?
+        if (tool_call.id !== null && tool_call.id !== undefined && tool_call.id !== '') {
 
-        // try to find if we already have this tool call
-        const existingToolCall = context.toolCalls.find(tc => tc.id === tool_call.id)
-        if (existingToolCall) {
+          // try to find if we already have this tool call
+          const existingToolCall = context.toolCalls.find(tc => tc.id === tool_call.id)
+          if (existingToolCall) {
 
-          // append arguments to existing tool call
-          existingToolCall.args += tool_call.function.arguments
+            // append arguments to existing tool call
+            existingToolCall.args += tool_call.function.arguments
 
+          } else {
+
+            // debug
+            //logger.log(`[${this.getName()}] tool call start:`, chunk)
+
+            // record the tool call
+            const toolCall: LlmToolCall = {
+              id: tool_call.id,
+              message: chunk.choices[0].delta.tool_calls!.map((tc: any) => {
+                delete tc.index
+                return tc
+              }),
+              function: tool_call.function.name || '',
+              args: tool_call.function.arguments || '',
+            }
+            context.toolCalls.push(toolCall)
+
+            // first notify
+            yield {
+              type: 'tool',
+              id: toolCall.id,
+              name: toolCall.function,
+              status: this.getToolPreparationDescription(toolCall.function),
+              done: false
+            }
+
+          }
+
+          // done
+          //return
+        
         } else {
 
-          // debug
-          //logger.log(`[${this.getName()}] tool call start:`, chunk)
+          // append arguments
+          const toolCall = context.toolCalls[context.toolCalls.length-1]
+          toolCall.args += tool_call.function.arguments
+          toolCall.message[toolCall.message.length-1].function.arguments = toolCall.args
 
-          // record the tool call
-          const toolCall: LlmToolCall = {
-            id: tool_call.id,
-            message: chunk.choices[0].delta.tool_calls!.map((tc: any) => {
-              delete tc.index
-              return tc
-            }),
-            function: tool_call.function.name || '',
-            args: tool_call.function.arguments || '',
-          }
-          context.toolCalls.push(toolCall)
-
-          // first notify
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.function,
-            status: this.getToolPreparationDescription(toolCall.function),
-            done: false
-          }
+          // done
+          //return
 
         }
 
-        // done
-        //return
-      
-      } else {
-
-        // append arguments
-        const toolCall = context.toolCalls[context.toolCalls.length-1]
-        toolCall.args += tool_call.function.arguments
-        toolCall.message[toolCall.message.length-1].function.arguments = toolCall.args
-
-        // done
-        //return
-
       }
+    }
 
+    // some providers (xai) do not send a finish_reason
+    if (context.toolCalls.length && this.doesNotSendToolCallFinishReason(context.model)) {
+      chunk.choices[0].finish_reason = chunk.choices[0].finish_reason || 'tool_calls'
     }
 
     // now tool calling

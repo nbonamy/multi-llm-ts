@@ -37,9 +37,11 @@ vi.mock('openai', async () => {
           return {
             async * [Symbol.asyncIterator]() {
               
-              // first we yield tool call chunks
-              yield { choices: [{ delta: { tool_calls: [ { id: 0, function: { name: 'plugin2', arguments: '[ "ar' }} ] }, finish_reason: 'none' } ] }
-              yield { choices: [{ delta: { tool_calls: [ { function: { arguments: [ 'g" ]' ] } }] }, finish_reason: 'tool_calls' } ] }
+              // first we yield a tool call as a single chunk
+              yield { choices: [{ delta: { tool_calls: [
+                { id: 0, function: { name: 'plugin2', arguments: '[ "arg1" ]' } },
+                { id: 1, function: { name: 'plugin2', arguments: '[ "arg2" ]' } },
+              ] } } ] }
               
               // now the text response
               const content = 'response'
@@ -125,10 +127,14 @@ test('xAI stream', async () => {
     }
   }
   expect(response).toBe('response')
-  expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, ['arg'])
+  expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, ['arg1'])
+  expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, ['arg2'])
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 0, name: 'plugin2', status: 'prep2', done: false })
-  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 0, name: 'plugin2', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
-  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 0, name: 'plugin2', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', status: 'prep2', done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 0, name: 'plugin2', status: 'run2', call: { params: ['arg1'], result: undefined }, done: false })
+  expect(toolCalls[3]).toStrictEqual({ type: 'tool', id: 0, name: 'plugin2', call: { params: ['arg1'], result: 'result2' }, status: undefined, done: true })
+  expect(toolCalls[4]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', status: 'run2', call: { params: ['arg2'], result: undefined }, done: false })
+  expect(toolCalls[5]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', call: { params: ['arg2'], result: 'result2' }, status: undefined, done: true })
   await xai.stop(stream)
   expect(stream.controller!.abort).toHaveBeenCalled()
 })

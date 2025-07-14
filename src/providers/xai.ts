@@ -1,6 +1,6 @@
 
 import Message from '../models/message'
-import { EngineCreateOpts, ModelCapabilities, ModelxAI } from '../types/index'
+import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelxAI } from '../types/index'
 import { LlmRole } from '../types/llm'
 import OpenAI from './openai'
 
@@ -36,6 +36,11 @@ export default class extends OpenAI {
 
   get systemRole(): LlmRole {
     return 'system'
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  doesNotSendToolCallFinishReason(model: ChatModel): boolean {
+    return true
   }
 
   async getModels(): Promise<ModelxAI[]> {
