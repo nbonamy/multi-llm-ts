@@ -1,8 +1,9 @@
 
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelOllama, ModelsList } from '../types/index'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
-import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import Attachment from '../models/attachment'
+import Message from '../models/message'
 import logger from '../logger'
 
 // we do this for so that this can be imported in a browser
@@ -10,7 +11,6 @@ import logger from '../logger'
 import { Ollama, ChatRequest, ChatResponse, ProgressResponse, ShowResponse } from 'ollama/dist/browser.cjs'
 import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.e009de91.cjs'
 import { zodToJsonSchema } from 'zod-to-json-schema'
-import Attachment from 'models/attachment'
 import { minimatch } from 'minimatch'
 
 export type OllamaStreamingContext = LlmStreamingContextTools & {
@@ -60,6 +60,7 @@ export default class extends LlmEngine {
       'command-r-plus',
       'command-r7b',
       'command-r7b-arabic',
+      'deepseek-r1',
       'devstral',
       'firefunction-v2',
       'granite3-dense',
@@ -75,11 +76,13 @@ export default class extends LlmEngine {
       'llama3.2',
       'llama3.3',
       'llama4',
+      'magistral',
       'mistral',
       'mistral-large',
       'mistral-nemo',
       'mistral-small',
       'mistral-small3.1',
+      'mistral-small3.2',
       'mixtral',
       'nemotron',
       'nemotron-mini',
@@ -103,6 +106,7 @@ export default class extends LlmEngine {
       'llava-phi3',
       'minicpm-v',
       'mistral-small3.1',
+      'mistral-small3.2',
       'moondream',
       'qwen2.5vl',
     ]
