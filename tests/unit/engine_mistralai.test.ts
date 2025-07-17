@@ -28,7 +28,9 @@ vi.mock('@mistralai/mistralai', async() => {
         { id: 'model8', description: 'model8', created: 8, capabilities: { completionChat: false, functionCalling: false } },
         { id: 'model5', description: 'model5', created: 5, capabilities: { completionChat: true, vision: true } },
         { id: 'model3', description: 'model3', created: 3, capabilities: { completionChat: true, functionCalling: false, vision: true } },
-        { id: 'model4', name: 'Model 4', created: 4, capabilities: { completionChat: true, functionCalling: true, vision: true } },
+        { id: 'model-4', name: 'model-4', created: 4, aliases: ['model-4-latest', 'model-4-previous'], capabilities: { completionChat: true, functionCalling: true, vision: true } },
+        { id: 'model-4-latest', name: 'model-4-latest', created: 4, aliases: ['model-4', 'model-4-previous'], capabilities: { completionChat: true, functionCalling: true, vision: true } },
+        { id: 'model-4-previous', name: 'model-4-previous', created: 4, aliases: ['model-4-latest', 'model-4'], capabilities: { completionChat: true, functionCalling: true, vision: true } },
       ] }
     })
   }
@@ -71,11 +73,11 @@ beforeEach(() => {
 test('MistralAI Load Models', async () => {
   const models = await loadMistralAIModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'magistral6', name: 'magistral6', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: true, caching: false } },
-    { id: 'model5', name: 'model5', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false, caching: false } },
-    { id: 'model4', name: 'Model 4', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false, caching: false } },
-    { id: 'model3', name: 'model3', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false, caching: false } },
-    { id: 'model2', name: 'model2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
+    { id: 'magistral6', name: 'Magistral6', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: true, caching: false } },
+    { id: 'model5', name: 'Model5', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false, caching: false } },
+    { id: 'model-4-latest', name: 'Model 4 Latest', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false, caching: false } },
+    { id: 'model3', name: 'Model3', meta: expect.any(Object), capabilities: { tools: false, vision: true, reasoning: false, caching: false } },
+    { id: 'model2', name: 'Model2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
   ])
   expect(await loadModels('mistralai', config)).toStrictEqual(models)
 })

@@ -193,8 +193,31 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
     return null
   }
 
+  // deduplicate based on version field
+  const uniques: ModelGoogle[] = []
+  const versions = new Set<string>()
+  for (const model of metas) {
+
+    // if no version add it
+    if (!model.version) {
+      uniques.push(model)
+      continue
+    }
+
+    // already added
+    if (versions.has(model.version)) {
+      continue
+    }
+
+    // add to uniques
+    uniques.push(model)
+
+    // add version
+    versions.add(model.version)
+  }
+
   // xform
-  const models: ChatModel[] = metas.map(m => ({
+  const models: ChatModel[] = uniques.map(m => ({
     id: m.name.replace('models/', ''),
     name: m.displayName ?? m.name,
     capabilities: google.getModelCapabilities(m),
@@ -323,7 +346,7 @@ export const loadMetaModels = async (engineConfig: EngineCreateOpts): Promise<Mo
   // xform
   const models: ChatModel[] = metas.map(m => ({
     id: m.id,
-    name: m.id,
+    name: m.id.split('-').join(' '),
     capabilities: meta.getModelCapabilities(m),
     meta: m,
   })).sort((a, b) => b.meta.created - a.meta.created)
@@ -351,10 +374,36 @@ export const loadMistralAIModels = async (engineConfig: EngineCreateOpts): Promi
     return null
   }
 
+
+  // first deduplicate based on aliases
+  const uniques: ModelMistralAI[] = []
+  const aliases = new Set<string>()
+  for (const model of metas) {
+
+    // already added
+    if (aliases.has(model.id)) {
+      continue
+    }
+
+    // check if there is a latest alias
+    const latest = model.aliases?.filter(alias => alias.endsWith('-latest'))
+    if (latest?.length === 1) {
+      model.id = latest[0]
+      model.name = model.id
+    }
+
+    // add to uniques
+    uniques.push(model)
+
+    // add aliases
+    model.aliases?.forEach(alias => aliases.add(alias))
+
+  }
+
   // xform
-  const models: ChatModel[] = metas.map(m => ({
+  const models: ChatModel[] = uniques.map(m => ({
     id: m.id,
-    name: m.name || m.id,
+    name: (m.name || m.id).split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
     capabilities: mistralai.getModelCapabilities(m),
     meta: m,
   })).sort((a, b) => {

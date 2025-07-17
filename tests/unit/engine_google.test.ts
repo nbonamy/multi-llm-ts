@@ -1,5 +1,5 @@
 
-import { EngineCreateOpts } from '../../src/types/index'
+import { EngineCreateOpts, ModelGoogle } from '../../src/types/index'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
@@ -18,14 +18,14 @@ vi.mock('@google/genai', async () => {
   GoogleGenAI.prototype.models = {
     list: vi.fn(() => ({
       async *[Symbol.asyncIterator]() {
-        const models = [
+        const models: ModelGoogle[] = [
           { name: 'models/embed-content', displayName: 'Non Generate Content', description: '', supportedActions: ['embedContent'] },
           { name: 'models/deprecated', displayName: 'Deprecated', description: 'was deprecated in', supportedActions: ['generateContent'] },
           { name: 'models/discontinued', displayName: 'Discontinued', description: 'was discontinued in', supportedActions: ['generateContent'] },
           { name: 'models/tuning', displayName: 'Tuning', description: 'can be used to tune', supportedActions: ['generateContent'] },
           { name: 'models/gemini-001', displayName: 'Gemini 001', description: '', supportedActions: ['generateContent'] },
-          { name: 'models/gemini-1.5', displayName: 'Gemini 1.5', description: '', supportedActions: ['generateContent'] },
-          { name: 'models/gemini-1.5-latest', displayName: 'Gemini 1.5', description: '', supportedActions: ['generateContent'] },
+          { name: 'models/gemini-1.5', displayName: 'Gemini 1.5', description: '', version: '1-5', supportedActions: ['generateContent'] },
+          { name: 'models/gemini-1.5-latest', displayName: 'Gemini 1.5', description: '', version: '1-5', supportedActions: ['generateContent'] },
           { name: 'models/gemini-2.0', displayName: 'Gemini 2.0', supportedActions: ['generateContent', 'bidiGenerateContent'] },
           { name: 'models/gemini-2.5-tts', displayName: 'Gemini 2.5 TTS', supportedActions: [ 'generateContent'] },
           { name: 'models/gemma-model', displayName: 'Gemma Model', description: '', supportedActions: ['generateContent'] },
@@ -74,7 +74,7 @@ test('Google Load Models', async () => {
   const models = await loadGoogleModels(config)
   expect(models!.chat).toStrictEqual([
     { id: 'gemini-1.5-latest', name: 'Gemini 1.5', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
-    { id: 'gemini-1.5', name: 'Gemini 1.5', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
+    //{ id: 'gemini-1.5', name: 'Gemini 1.5', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
     { id: 'gemma-model', name: 'Gemma Model', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false, caching: false } },
   ])
   expect(models!.image).toStrictEqual([
