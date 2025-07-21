@@ -23,13 +23,14 @@ vi.mock('@google/genai', async () => {
           { name: 'models/deprecated', displayName: 'Deprecated', description: 'was deprecated in', supportedActions: ['generateContent'] },
           { name: 'models/discontinued', displayName: 'Discontinued', description: 'was discontinued in', supportedActions: ['generateContent'] },
           { name: 'models/tuning', displayName: 'Tuning', description: 'can be used to tune', supportedActions: ['generateContent'] },
-          { name: 'models/gemini-001', displayName: 'Gemini 001', description: '', supportedActions: ['generateContent'] },
+          // { name: 'models/gemini-001', displayName: 'Gemini 001', description: '', supportedActions: ['generateContent'] },
           { name: 'models/gemini-1.5', displayName: 'Gemini 1.5', description: '', version: '1-5', supportedActions: ['generateContent'] },
           { name: 'models/gemini-1.5-latest', displayName: 'Gemini 1.5', description: '', version: '1-5', supportedActions: ['generateContent'] },
           { name: 'models/gemini-2.0', displayName: 'Gemini 2.0', supportedActions: ['generateContent', 'bidiGenerateContent'] },
           { name: 'models/gemini-2.5-tts', displayName: 'Gemini 2.5 TTS', supportedActions: [ 'generateContent'] },
           { name: 'models/gemma-model', displayName: 'Gemma Model', description: '', supportedActions: ['generateContent'] },
-          { name: 'models/image-model', displayName: 'Image Model', description: '', supportedActions: ['bidiGenerateContent'] },
+          { name: 'models/image-model', displayName: 'Image Model', description: '', supportedActions: ['predict'] },
+          { name: 'models/video-model', displayName: 'Video Model', description: '', supportedActions: ['predictLongRunning'] },
           { name: 'models/native-audio-dialog-model', displayName: 'Dialog Model', description: '', supportedActions: ['bidiGenerateContent'] },
         ]
         for (const model of models) {
@@ -79,7 +80,10 @@ test('Google Load Models', async () => {
   ])
   expect(models!.image).toStrictEqual([
     { id: 'image-model', name: 'Image Model', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
-    { id: 'gemini-2.0', name: 'Gemini 2.0', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
+    // { id: 'gemini-2.0', name: 'Gemini 2.0', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
+  ])
+  expect(models!.video).toStrictEqual([
+    { id: 'video-model', name: 'Video Model', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
   ])
   expect(models!.embedding).toStrictEqual([
     { id: 'embed-content', name: 'Non Generate Content', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },

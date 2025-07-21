@@ -225,14 +225,24 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
   })).filter(m => !m.id.includes('generation')) // remove generation models
 
   const realtimeModels = models.filter(model => model.id.includes('dialog'))
-  const imageModels = models.filter((m) => (m.meta as ModelGoogle).supportedActions?.includes('bidiGenerateContent')).filter(model => !realtimeModels.includes(model))
+  
+  const imageModels = models.filter((m) => (
+    (m.meta as ModelGoogle).supportedActions?.includes('predict')
+  ))
+  
+  const videoModels = models.filter((m) => (
+    (m.meta as ModelGoogle).supportedActions?.includes('predictLongRunning')
+  ))
   const embeddingModels = models.filter((m) => (m.meta as ModelGoogle).supportedActions?.includes('embedContent'))
+  
   const ttsModels = models.filter(model => model.id.endsWith('tts'))
 
   const chatModels = models
     .filter((m) => (m.meta as ModelGoogle).supportedActions?.includes('generateContent'))
+    .filter((m) => !(m.meta as ModelGoogle).supportedActions?.includes('bidiGenerateContent'))
     .filter(model => 
         !imageModels.includes(model) &&
+        !videoModels.includes(model) &&
         !embeddingModels.includes(model) &&
         !realtimeModels.includes(model) &&
         !ttsModels.includes(model)
@@ -248,6 +258,7 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
   return {
     chat: chatModels,
     image: imageModels,
+    video: videoModels,
     embedding: embeddingModels,
     realtime: realtimeModels,
     tts: ttsModels

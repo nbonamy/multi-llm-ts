@@ -105,6 +105,7 @@ const structured = async (llm: LlmEngine, model: ChatModel, messages: Message[])
   //   console.log(`- ${model.id}: ${model.name}`)
   // }
   console.log(`${models!.image?.length ?? 0} image models found`)
+  console.log(`${models!.video?.length ?? 0} video models found`)
   console.log(`${models!.embedding?.length ?? 0} embedding models found`)
   console.log(`${models!.realtime?.length ?? 0} realtime models found`)
   console.log(`${models!.computer?.length ?? 0} computer use models found`)

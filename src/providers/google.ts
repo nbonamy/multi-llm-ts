@@ -91,17 +91,24 @@ export default class extends LlmEngine {
       return []
     }
 
+    // fpr debugging purposes
+    // const actions = new Set<string>()
+
     // we may have to iterate over multiple pages
     const models: ModelGoogle[] = []
     const pager = await this.client.models.list()
     for await (const model of pager) {
+      // model.supportedActions?.forEach((action) => actions.add(action))
       if (!model.name) continue
-      if (model.name.match(/\d\d\d$/)) continue
+      //if (model.name.match(/\d\d\d$/)) continue
       if (model.name.includes('tuning')) continue
       if (model.description?.includes('deprecated')) continue
       if (model.description?.includes('discontinued')) continue
       models.push(model as ModelGoogle)
     }
+
+    // debugging
+    //console.log(actions)
 
     // reverse
     models.reverse()
