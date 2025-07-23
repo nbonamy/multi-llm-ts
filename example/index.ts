@@ -90,6 +90,7 @@ const structured = async (llm: LlmEngine, model: ChatModel, messages: Message[])
     baseURL: baseURL,
     deployment: deployment,
     apiVersion: apiVersion,
+    preferResponses: modelName.startsWith('o3') || modelName.startsWith('o4'),
   }
   const llm = igniteEngine(engine, config)
   const messages = [

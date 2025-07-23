@@ -81,6 +81,7 @@ export type LlmCompletionOpts = {
   visionFallbackModel?: ChatModel
   usage?: boolean
   citations?: boolean
+  useOpenAIResponsesApi?: boolean
   structuredOutput?: {
     name: string
     structure: ZodType
