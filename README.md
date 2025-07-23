@@ -257,6 +257,19 @@ export default class extends Plugin {
 }
 ```
 
+## OpenAI Responses API
+
+If you prefer to use the OpenAI Responses API, you can do so by:
+
+- setting `EngineCreateOpts.useOpenAIResponsesApi` to true when creating your engine
+- settings `LlmCompletionOpts.useOpenAIResponsesApi` to true when sumbitting a prompt (completion or streaming)
+
+Not that some models are **not** compatible with the Completions API: the Responses API will automatically be activated for those.
+
+```ts
+const llm = igniteEngine('openai', { apiKey: 'KEY', useOpenAIResponsesApi: true })
+```
+
 ## Tests
 
 `npm run test`

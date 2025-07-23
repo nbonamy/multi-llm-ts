@@ -6,6 +6,8 @@ export type EngineCreateOpts = {
   maxRetries?: number
   deployment?: string
   apiVersion?: string
+  useOpenAIResponsesApi?: boolean
+  preferResponses?: boolean
 }
 
 export type ModelsList = {
@@ -20,7 +22,7 @@ export type ModelsList = {
 }
 
 export type ModelCapabilities = {
-  tools: undefined|boolean
+  tools: undefined | boolean
   vision: boolean
   reasoning: boolean
   caching: boolean
