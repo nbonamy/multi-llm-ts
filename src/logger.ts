@@ -7,7 +7,7 @@ export default {
 
   // Debug helper – emits only when DEBUG flag is set
   debug: (...args: any[]) => {
-    if (process.env.DEBUG) {
+    if (typeof process !== 'undefined' && process.env.DEBUG) {
       _log(...args);
     }
   },
