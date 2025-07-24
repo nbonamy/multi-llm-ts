@@ -53,7 +53,7 @@
     "groq-sdk": "^0.16.0",
     "minimatch": "^10.0.1",
     "ollama": "^0.5.15",
-    "openai": "^5.10.2",
+    "openai": "^4.104.0",
     "zod": "^3.25.76",
     "zod-to-json-schema": "^3.24.6"
   }

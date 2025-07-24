@@ -120,7 +120,7 @@ export default class extends LlmEngine {
   }
 
   modelRequiresResponsesApi(model: ChatModel): boolean {
-    return ['o3-pro*', 'codex'].some((m) => minimatch(model.id, m))
+    return ['o3-pro*', 'codex*'].some((m) => minimatch(model.id, m))
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -686,6 +686,9 @@ export default class extends LlmEngine {
   // Responses API – via official SDK with automatic tool execution
   async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
+    // log
+    logger.log(`[${this.getName()}] prompting model ${model.id}`)
+
     // Build request for Responses API
     const request = this.buildResponsesRequest(model, thread, opts, false)
     
@@ -785,7 +788,10 @@ export default class extends LlmEngine {
   }
 
   async responsesStream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<OpenAIStreamingResponse> {
-    
+
+    // log
+    logger.log(`[${this.getName()}] prompting model ${model.id}`)
+
     const request = this.buildResponsesRequest(model, thread, opts, true)
     
     // attach tool definitions if any
