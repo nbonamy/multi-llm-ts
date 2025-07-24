@@ -1,6 +1,6 @@
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpenAI } from '../types/index'
 
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import { zeroUsage } from '../usage'
@@ -9,20 +9,11 @@ import logger from '../logger'
 import OpenAI, { ClientOptions } from 'openai'
 import { CompletionUsage } from 'openai/resources'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
-import { ResponseCreateParams } from 'openai/resources/responses/responses'
+import { Response, ResponseCreateParams, ResponseFunctionToolCall, ResponseOutputMessage, ResponseStreamEvent, ResponseUsage, Tool, ToolChoiceFunction, ToolChoiceOptions } from 'openai/resources/responses/responses'
 import { zodResponseFormat } from 'openai/helpers/zod'
 import { minimatch } from 'minimatch'
 
-// Minimal interface for OpenAI Responses API requests
-interface OpenAIResponsesRequest {
-  model: string
-  input: string
-  stream: boolean
-  instructions?: string
-  previous_response_id?: string
-  tools?: unknown[]
-  tool_choice?: string
-}
+type OpenAIToolOpts = Omit<ChatCompletionCreateParamsBase, 'model' | 'messages' | 'stream'>
 
 const defaultBaseUrl = 'https://api.openai.com/v1'
 
@@ -31,7 +22,7 @@ const defaultBaseUrl = 'https://api.openai.com/v1'
 // 
 
 export type OpenAIStreamingContext = LlmStreamingContextTools & {
-  responseApi: boolean
+  responsesApi: boolean
   thinking: boolean
   done?: boolean
 }
@@ -44,7 +35,6 @@ type OpenAIStreamingResponse = {
 export default class extends LlmEngine {
 
   client: OpenAI
-  private lastResponseId?: string
 
   constructor(config: EngineCreateOpts, opts?: ClientOptions) {
     super(config)
@@ -195,7 +185,7 @@ export default class extends LlmEngine {
 
     // process with responses api?
     if (this.shouldUseResponsesApi(model, opts)) {
-      return this.responses(model, thread as any, opts)
+      return this.responsesChat(model, thread as any, opts)
     }
 
     // Fallback to Chat Completions
@@ -307,7 +297,7 @@ export default class extends LlmEngine {
     model = this.selectModel(model, thread, opts)
     const context: OpenAIStreamingContext = {
       model: model,
-      responseApi: false,
+      responsesApi: false,
       thread: this.buildPayload(model, thread, opts),
       opts: opts || {},
       toolCalls: [],
@@ -357,7 +347,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async getToolsOpts(model: ChatModel, opts?: LlmCompletionOpts): Promise<Omit<ChatCompletionCreateParamsBase, 'model' | 'messages' | 'stream'>> {
+  async getToolsOpts(model: ChatModel, opts?: LlmCompletionOpts): Promise<OpenAIToolOpts> {
 
     // check if enabled
     if (opts?.tools === false || !model.capabilities?.tools) {
@@ -367,11 +357,6 @@ export default class extends LlmEngine {
     // tools
     const tools = await this.getAvailableTools()
     if (!tools.length) return {}
-
-    // convert schema for Responses API if applicable
-    if (this.shouldUseResponsesApi(model, opts)) {
-      return { tools: this.transformTools(tools) }
-    }
 
     // default chat-completions style
     return {
@@ -391,7 +376,7 @@ export default class extends LlmEngine {
   async *nativeChunkToLlmChunk(chunk: any, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk, void, void> {
 
     // response api events have already been translated to LLmChunk's
-    if (context.responseApi) {
+    if (context.responsesApi) {
       yield chunk as LlmChunk
       return
     }
@@ -566,7 +551,6 @@ export default class extends LlmEngine {
     if (chunk.choices?.length && chunk.choices?.[0]?.delta?.reasoning_content) {
       yield {
         type: 'reasoning',
-
         text: chunk.choices?.[0]?.delta?.reasoning_content || '',
         done: done,
       }
@@ -598,40 +582,22 @@ export default class extends LlmEngine {
 
   accumulateUsage(cumulate: LlmUsage, usage: CompletionUsage) {
 
-    // Fallback mapping for Responses API
-    const altInput = (usage as any).input_tokens as number | undefined
-    const altOutput = (usage as any).output_tokens as number | undefined
-    const altReasoning = (usage as any).reasoning_tokens as number | undefined
-    if (altInput !== undefined) {
-      usage.prompt_tokens = (usage.prompt_tokens ?? 0) + altInput
-    }
-    if (altOutput !== undefined) {
-      usage.completion_tokens = (usage.completion_tokens ?? 0) + altOutput
-    }
-    if (altReasoning !== undefined) {
-      if (!usage.completion_tokens_details) {
-        // initialise partial structure when absent
-        usage.completion_tokens_details = { reasoning_tokens: 0 } as any
-      }
-      usage.completion_tokens_details!.reasoning_tokens = (usage.completion_tokens_details!.reasoning_tokens ?? 0) + altReasoning
-    }
-
     cumulate.prompt_tokens += usage.prompt_tokens ?? 0
     cumulate.completion_tokens += usage.completion_tokens ?? 0
-
+    
     if (usage.prompt_tokens_details?.cached_tokens) {
       cumulate.prompt_tokens_details!.cached_tokens! += usage.prompt_tokens_details?.cached_tokens
     }
     if (usage.prompt_tokens_details?.audio_tokens) {
       cumulate.prompt_tokens_details!.audio_tokens! += usage.prompt_tokens_details?.audio_tokens
     }
-
+    
     if (usage.completion_tokens_details?.reasoning_tokens) {
       cumulate.completion_tokens_details!.reasoning_tokens! += usage.completion_tokens_details?.reasoning_tokens
     }
     if (usage.completion_tokens_details?.audio_tokens) {
       cumulate.completion_tokens_details!.audio_tokens! += usage.completion_tokens_details?.audio_tokens
-    }
+    }    
   }
 
   //
@@ -639,151 +605,109 @@ export default class extends LlmEngine {
   //
 
   // ---------------------------------------------------------------------------
-  // Responses API – via official SDK
-  // ---------------------------------------------------------------------------
-  // Helpers
-  private async executeToolCalls(model: ChatModel, calls: Array<{ call_id: string; name: string; arguments: any }>): Promise<Array<{ call_id: string; name: string; content: unknown }>> {
-    const outputs: { call_id: string; name: string; content: unknown }[] = []
-    for (const call of calls) {
-      let argsObj: any = call.arguments
-      if (typeof argsObj === 'string') {
-        try {
-          argsObj = JSON.parse(argsObj)
-        } catch (parseErr) {
-          logger.debug(`[executeToolCalls] Failed to parse JSON args for call ${call.call_id}: ${argsObj}`, parseErr)
-        }
-      }
-      try {
-        const content = await this.callTool({ model: model.id }, call.name, argsObj)
-        outputs.push({ call_id: call.call_id, name: call.name, content })
-      } catch (toolErr) {
-        logger.debug(`[executeToolCalls] Error executing tool ${call.name} (${call.call_id}): ${toolErr}`)
-        outputs.push({ call_id: call.call_id, name: call.name, content: { error: String(toolErr) } })
-      }
-    }
-    return outputs
-  }
-
-
-  private extractToolCallsFromResponse(resp: any): Array<{ call_id: string; name: string; arguments: any }> {
-    const calls: any[] = []
-    const output = resp?.output ?? resp?.data?.output ?? []
-    if (Array.isArray(output)) {
-      for (const item of output) {
-        if (item?.type === 'function_call') {
-          calls.push({
-            call_id: item.call_id ?? item.id,
-            name: item.name,
-            arguments: item.arguments,
-          })
-        }
-      }
-    }
-    return calls
-  }
-
-  // ---------------------------------------------------------------------------
   // Responses API – via official SDK with automatic tool execution
-  async responses(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async responsesChat(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // log
     logger.log(`[${this.getName()}] prompting model ${model.id}`)
 
     // Build request for Responses API
-    const request = this.buildResponsesRequest(model, thread, opts, false)
-    
-    // attach tool definitions if any
-    const toolOpts = await this.getToolsOpts(model, opts)
-    if ((toolOpts as any).tools) {
-      (request as any).tools = (toolOpts as any).tools
-      if ((toolOpts as any).tool_choice) {
-        (request as any).tool_choice = (toolOpts as any).tool_choice
-      }
-    }
+    const request = await this.buildResponsesRequest(model, thread, opts, false)
 
-    logger.debug('[responses] REQUEST', JSON.stringify(request, null, 2))
-    
-    // call
-    let response: any = await this.client.responses.create(request)
-
-    // ------------------------------------------------------------
-    // If the model issued tool calls, execute them and send back!
-    // ------------------------------------------------------------
-    const calls = this.extractToolCallsFromResponse(response)
-    if (calls.length) {
-      const tool_outputs = await this.executeToolCalls(model, calls)
-      logger.debug('[responses] TOOL OUTPUTS', JSON.stringify(tool_outputs, null, 2))
-
-      // Convert tool outputs to the Responses API "function_call_output" input items
-      const followUpInput = tool_outputs.map((o: any) => ({
-        type: 'function_call_output',
-        call_id: o.call_id,
-        output: typeof o.content === 'string' ? o.content : JSON.stringify(o.content),
-      }))
-
-      const followUpReq: any = {
-        model: model.id,
-        previous_response_id: response.id ?? response.data?.id,
-        input: followUpInput,
-        stream: false,
-      }
-      logger.debug('[responses] FOLLOW-UP REQUEST', JSON.stringify(followUpReq, null, 2))
-      response = await (this.client as any).responses.create(followUpReq)
-    }
-
-    // update responseId tracking
-    this.lastResponseId = response?.id ?? response?.data?.id ?? this.lastResponseId
-    logger.debug('[responses] RESPONSE', response)
-
-    // Aggregate text from the output array – handle several shapes
+    // init stuff
     let text = ''
-    // Handle different Response API shapes
-    if (Array.isArray(response.output)) {
-      for (const item of response.output) {
-        // Shape 1: message wrapper
-        if (item.type === 'message' && Array.isArray(item.content)) {
-          for (const piece of item.content) {
-            if (piece.type === 'text' && piece.text) {
-              text += piece.text
-            }
-          }
-          continue
-        }
-        // Shape 2: direct content pieces
-        if (item.type === 'text' && item.text) {
-          text += item.text
-          continue
-        }
-        // Shape 3: message nested under .message
-        if (item.message?.content && Array.isArray(item.message.content)) {
-          for (const piece of item.message.content) {
-            if (piece.type === 'text' && piece.text) {
-              text += piece.text
-            }
+    const toolCallInfo: LlmToolCallInfo[] = []
+    const usage: LlmUsage = zeroUsage()
+
+    // debug
+    logger.debug('[responses] REQUEST', JSON.stringify(request, null, 2))
+
+    // call
+    let response: Response = await this.client.responses.create(request) as Response
+
+    // we can loop several times calling tools
+    while (true) {
+
+      // update responseId tracking
+      logger.debug('[responses] RESPONSE', response)
+
+      // cumulate usage
+      if (opts?.usage && response.usage) {
+        this.accumulateResponsesUsage(usage, response.usage)
+      }
+
+      // concatenate text from the output array
+      const messages = response.output.filter((o: any) => o.type === 'message') as ResponseOutputMessage[]
+      for (const message of messages) {
+        for (const content of message.content) {
+          if (content.type === 'output_text') {
+            text += content.text || ''
           }
         }
       }
-    } else if (response.output?.content && Array.isArray(response.output.content)) {
-      // Shape 4: single message object with .content array
-      for (const piece of response.output.content) {
-        if (piece.type === 'text' && piece.text) {
-          text += piece.text
+      
+      // check if we have tool calls
+      const toolCalls = response.output?.filter((o: any) => o.type === 'function_call') as ResponseFunctionToolCall[]
+      if (toolCalls.length) {
+
+        const followReqInput: any[] = []
+        for (const toolCall of toolCalls) {
+
+          // log
+          logger.log(`[openai] tool call ${toolCall.name} with ${toolCall.arguments}`)
+
+          // this can error
+          let args = null
+          try {
+            args = JSON.parse(toolCall.arguments)
+          } catch (err) {
+            throw new Error(`[openai] tool call ${toolCall.name} with invalid JSON args: "${toolCall.arguments}"`, { cause: err })
+          }
+
+          // now execute
+          const content = await this.callTool({ model: model.id }, toolCall.name, args)
+          logger.log(`[openai] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
+
+          // store
+          followReqInput.push({
+            type: 'function_call_output',
+            call_id: toolCall.call_id,
+            output: typeof content === 'string' ? content : JSON.stringify(content),
+          })
+
+          // save tool call info
+          toolCallInfo.push({
+            name: toolCall.name,
+            params: args,
+            result: content
+          })
+        
         }
+
+        // build follow-up request
+        const followUpReq: ResponseCreateParams = {
+          model: model.id,
+          previous_response_id: response.id,
+          input: followReqInput,
+          stream: false,
+        }
+        
+        // debug
+        logger.debug('[responses] FOLLOW-UP REQUEST', JSON.stringify(followUpReq, null, 2))
+
+        // continue
+        response = await this.client.responses.create(followUpReq)
+        continue
       }
-    }
 
-    if (!text && typeof response.output_text === 'string') {
-      text = response.output_text as string
-    } else if (!text && typeof response.output === 'string') {
-      text = response.output as string
-    } else if (!text && response.output?.text) {
-      text = response.output.text
-    }
-
-    return {
-      type: 'text',
-      content: text,
-      ...(opts?.usage && response.usage ? { usage: response.usage } : {}),
+      // done
+      return {
+        type: 'text',
+        content: text,
+        toolCalls: toolCallInfo,
+        openAIResponseId: response?.id,
+        ...(opts?.usage ? { usage: usage } : {}),
+      }
     }
   }
 
@@ -792,173 +716,206 @@ export default class extends LlmEngine {
     // log
     logger.log(`[${this.getName()}] prompting model ${model.id}`)
 
-    const request = this.buildResponsesRequest(model, thread, opts, true)
-    
-    // attach tool definitions if any
-    const toolOpts = await this.getToolsOpts(model, opts)
-    if ((toolOpts as any).tools) {
-      (request as any).tools = (toolOpts as any).tools
-      if ((toolOpts as any).tool_choice) {
-        (request as any).tool_choice = (toolOpts as any).tool_choice
-      }
-    }
-
-    const stream = await this.client.responses.create(request) as AsyncIterable<any>
+    const request = await this.buildResponsesRequest(model, thread, opts, true)
+    const stream = await this.client.responses.create(request) as AsyncIterable<ResponseStreamEvent>
     logger.debug('[responsesStream] subscribed')
 
     // async generator bound to preserve class context
     async function* generator(this: any) {
       
+      // track the response id
+      let responseId: string = ''
+
+      // we need to accumulate usage
+      const usage: LlmUsage = zeroUsage()
+
       // We may need to run multiple streaming passes if the model calls tools.
-      let currentStream: AsyncIterable<any> | null = stream
-      while (currentStream) {
-        
+      let currentStream: AsyncIterable<ResponseStreamEvent> | null = stream
+      while (true) {
+
         // Track function-call tool invocations that the model initiates while streaming.
         // We gather their incremental arguments and execute them once finalized.
-        const pendingCalls: Array<{ call_id: string; name: string; arguments: any }> = []
-        let responseId: string | undefined
+        const pendingCalls: ResponseFunctionToolCall[] = []
+        let thinking = false
 
-        for await (const ev of currentStream as any) {
+        for await (const ev of currentStream!) {
 
-          const type = ev.event ?? ev.type
-          switch (type) {
+          switch (ev.type) {
 
-            case 'outputTextDelta':
-            case 'output_text_delta':
-            case 'response.output_text.delta': {
-              const rawDelta: any = ev.delta ?? ev.data?.delta ?? ev.data ?? ev.text
-              const txt = typeof rawDelta === 'string' ? rawDelta : (rawDelta?.delta ?? rawDelta?.text ?? '')
-              if (txt) {
-                yield { type: 'content', text: txt, done: false }
-              }
+            case 'response.created':
+              responseId = ev.response.id
               break
-            }
 
-            case 'response.output_text': {
-              const raw: any = ev.text ?? ev.data?.text ?? ev.data
-              const txt = typeof raw === 'string' ? raw : (raw?.text ?? '')
-              if (txt) {
-                yield { type: 'content', text: txt, done: false }
-              }
+            case 'response.in_progress':
+              // nop for us
               break
-            }
 
             case 'response.completed': {
-              responseId = ev.data?.id ?? ev.id
-              yield { type: 'content', text: '', done: true }
-              if (opts?.usage && ev.usage) {
-                yield { type: 'usage', usage: ev.usage }
+              if (opts?.usage && ev.response.usage) {
+                this.accumulateResponsesUsage(usage, ev.response.usage)
               }
               break
             }
 
-            case 'toolCallCreated':
-            case 'tool_call_created':
-              pendingCalls.push({ call_id: ev.data?.id ?? ev.id, name: ev.data?.name, arguments: '' })
-              yield { type: 'toolCall', id: ev.data?.id ?? ev.id }
+            case 'response.output_item.added':
+              switch (ev.item.type) {
+                
+                case 'message':
+                  thinking = false
+                  break
+                
+                case 'reasoning':
+                  thinking = true
+                  break
+                
+                case 'function_call':
+                  
+                  // record the tool call
+                  pendingCalls.push(ev.item)
+
+                  // first notify
+                  yield {
+                    type: 'tool',
+                    id: ev.item.id,
+                    name: ev.item.name,
+                    status: this.getToolPreparationDescription(ev.item.name),
+                    done: false
+                  }
+
+                  // done
+                  break
+              }
               break
 
-            // --------------------------------------------------------------------
-            // Responses API – function-call streaming (new o3/o4 models)
-            // --------------------------------------------------------------------
-            case 'response.function_call_arguments.delta': {
-              const id = ev.item_id ?? ev.data?.item_id ?? ev.id
-              const delta: string = ev.delta ?? ev.data?.delta ?? ev.data?.arguments_delta ?? ''
-              if (!delta) break
-              let call = pendingCalls.find(c => c.call_id === id)
-              if (!call) {
-                call = { call_id: id, name: ev.data?.name ?? ev.name ?? '', arguments: '' }
-                pendingCalls.push(call)
-                // Notify caller that a new tool call has started
-                yield { type: 'toolCall', id }
+            case 'response.output_item.done':
+              switch (ev.item.type) {
+                case 'reasoning':
+                  thinking = false
+                  break
               }
-              call.arguments += delta
+              break
+
+            case 'response.output_text.delta': {
+              if (ev.delta) {
+                yield {
+                  type: thinking ? 'reasoning' : 'content',
+                  text: ev.delta,
+                  done: false
+                }
+              }
+              break
+            }
+
+            case 'response.function_call_arguments.delta': {
+              const call = pendingCalls.find(c => c.id == ev.item_id)
+              if (call) {
+                call.arguments += ev.delta
+              }
               break
             }
 
             case 'response.function_call_arguments.done': {
-              const id = ev.item_id ?? ev.data?.item_id ?? ev.id
-              const call = pendingCalls.find(c => c.call_id === id)
-              if (call) {
-                // Emit the finalized tool call block to the consumer
-                yield { type: 'toolCallDone', id, args: call.arguments }
-              }
+              const call = pendingCalls.find(c => c.id == ev.item_id)
+              if (call) { /* nop */ }
               break
             }
 
-            // --------------------------------------------------------------------
-            // Legacy aliases kept for backward-compatibility: real OpenAI streams still emit these until SDK ≥ 5.0.1 removes them
-            // --------------------------------------------------------------------
-            case 'toolCallArguments':
-            case 'tool_call_arguments': {
-              const id = ev.data?.id ?? ev.id
-              const delta: string = ev.data?.arguments_delta ?? ev.arguments_delta ?? ''
-              if (!delta) break
-              let call = pendingCalls.find(c => c.call_id === id)
-              if (!call) {
-                call = { call_id: id, name: ev.data?.name ?? '', arguments: '' }
-                pendingCalls.push(call)
-                yield { type: 'toolCall', id }
-              }
-              call.arguments += delta
-              break
-            }
-            case 'toolCallDone':
-            case 'tool_call_done': {
-              const id = ev.data?.id ?? ev.id
-              const call = pendingCalls.find(c => c.call_id === id)
-              yield { type: 'toolCallDone', id, args: call?.arguments }
-              break
-            }
-            case 'done':
-              yield { type: 'content', text: '', done: true }
-              break
-            default:
-              // ignore
-              break
           }
+
         }
 
-        // If tool calls collected, execute them and request follow-up stream
-        if (pendingCalls.length) {
-          const tool_outputs = await this.executeToolCalls(model, pendingCalls)
-          const followInput = tool_outputs.map((o: any) => ({
+        // if no pending calls we are done
+        if (!pendingCalls.length) {
+          if (opts?.usage) {
+            yield { type: 'usage', usage: usage }
+          }
+          yield { type: 'content', text: '', done: true }
+          break
+        }
+
+        // run tool calls
+        const followReqInput: any[] = []
+        for (const toolCall of pendingCalls) {
+
+          // this can error
+          let args = null
+          try {
+            args = JSON.parse(toolCall.arguments)
+          } catch (err) {
+            throw new Error(`[openai] tool call ${toolCall.name} with invalid JSON args: "${args}"`, { cause: err })
+          }
+
+          // first notify
+          yield {
+            type: 'tool',
+            id: toolCall.id,
+            name: toolCall.name,
+            status: this.getToolRunningDescription(toolCall.name, args),
+            call: {
+              params: args,
+              result: undefined
+            },
+            done: false
+          }
+
+          // now execute
+          const content = await this.callTool({ model: model.id }, toolCall.name, args)
+          logger.log(`[openai] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
+
+          // add
+          // followReqInput.push(toolCall)
+          
+          // store
+          followReqInput.push({
             type: 'function_call_output',
-            call_id: o.call_id,
-            output: typeof o.content === 'string' ? o.content : JSON.stringify(o.content),
-          }))
-          const followReq: OpenAIResponsesRequest = {
-            model: model.id,
-            previous_response_id: responseId,
-            input: followInput,
-            stream: true,
+            call_id: toolCall.call_id,
+            output: typeof content === 'string' ? content : JSON.stringify(content),
+          })
+
+          // clear
+          yield {
+            type: 'tool',
+            id: toolCall.id,
+            name: toolCall.name,
+            status: this.getToolCompletedDescription(toolCall.name, args, content),
+            done: true,
+            call: {
+              params: args,
+              result: content
+            },
           }
-          if ((toolOpts as any).tools) {
-            followReq.tools = (toolOpts as any).tools;
-            if ((toolOpts as any).tool_choice) {
-              followReq.tool_choice = (toolOpts as any).tool_choice;
-            }
-          }
-          logger.debug('[responsesStream] FOLLOW-UP STREAM REQ', JSON.stringify(followReq, null, 2))
-          currentStream = await (this.client as any).responses.create(followReq)
-          // continue outer while loop to process new stream
-          continue
+
         }
 
-        // otherwise we are done
-        currentStream = null
+        // now we can build the follow-up request
+        const followReq: ResponseCreateParams = {
+          model: model.id,
+          previous_response_id: responseId,
+          input: followReqInput,
+          tools: request.tools,
+          tool_choice: request.tool_choice,
+          stream: true,
+        }
+        
+        // debug
+        logger.debug('[responsesStream] FOLLOW-UP STREAM REQ', JSON.stringify(followReq, null, 2))
+
+        // switch stream
+        currentStream = await this.client.responses.create(followReq) as AsyncIterable<ResponseStreamEvent>
+
       }
+
     }
 
     return {
       stream: (generator.bind(this))(),
       context: {
-        responseApi: true,
+        responsesApi: true,
       } as OpenAIStreamingContext
     }
   }
 
-  private buildResponsesRequest(model: ChatModel, thread: Message[], opts: LlmCompletionOpts | undefined, stream: boolean): ResponseCreateParams {
+  private async buildResponsesRequest(model: ChatModel, thread: Message[], opts: LlmCompletionOpts | undefined, stream: boolean): Promise<ResponseCreateParams> {
     
     logger.debug('[buildResponsesRequest] THREAD', JSON.stringify(thread, null, 2))
     
@@ -998,49 +955,104 @@ export default class extends LlmEngine {
       userContent = extractText(payload[payload.length - 1])
     }
 
-    const req: any = {
+    const req: ResponseCreateParams = {
       model: model.id,
-      // The Responses API expects the *raw* user input string — NOT a message wrapper.
+      ...(instructions ? { instructions } : {}),
+      ...(opts?.openAIResponseId ? { previous_response_id: opts.openAIResponseId } : {}),
       input: userContent,
       stream,
     }
-    if (instructions) req.instructions = instructions
-    if (this.lastResponseId) req.previous_response_id = this.lastResponseId
+
+    // attach tool definitions if any
+    const tools = await this.getResponsesTools(model, opts)
+    if (tools.length) {
+      req.tools = tools
+      req.tool_choice = this.getResponsesToolChoice(opts?.toolChoice)
+    }
+
+    // done
     return req
   }
 
-  // ---------------------------------------------------------------------------
-  // Converts internal tool definitions to the schema required by the OpenAI SDK.
-  // Ensures every entry contains the mandatory `type` field so we avoid
-  // "Missing required parameter: 'tools[0].type'" errors when calling the
-  // Responses API on o3/o4 models.
-  private transformTools(internal: any[]): any[] {
-    return (internal ?? []).map((t: any) => {
-      // Internal objects may expose either `type` or legacy `kind`.
-      const kind = (t.kind ?? t.type) as string
+  async getResponsesTools(model: ChatModel, opts?: LlmCompletionOpts): Promise<Tool[]> {
+
+    // check if enabled
+    if (opts?.tools === false || !model.capabilities?.tools) {
+      return []
+    }
+
+    // tools
+    const tools = await this.getAvailableTools()
+    if (!tools.length) return []
+
+    // convert schema for Responses API
+    return tools.map((t: LlmTool): Tool => {
 
       // Function tools carry a JSON schema plus name & description.
-      if (kind === 'function') {
-        const fn = t.function ?? {
-          name: t.name,
-          description: t.description,
-          parameters: t.jsonSchema || t.input_schema || t.parameters,
+      if (t.type === 'function') {
+
+        // clone it
+        const parameters = t.function.parameters ? {
+            ...JSON.parse(JSON.stringify(t.function.parameters)),
+            required: Object.keys(t.function.parameters.properties || {}),
+            additionalProperties: false,
+          } : {
+            type: 'object',
+            properties: {},
+            required: [],
+            additionalProperties: false
+          }
+        
+        // now we need to add additionalProperties: false to items properties
+        for (const value of Object.values(parameters.properties) as any) {
+          if (value.type === 'array' && value.items && typeof value.items === 'object' && value.items.type === 'object') {
+            value.items.required = Object.keys(value.items.properties)
+            value.items.additionalProperties = false
+          }
         }
+
+        // done
         return {
           type: 'function',
-          name: fn.name,
-          description: fn.description,
-          parameters: fn.parameters ?? { type: 'object', properties: {} },
+          name: t.function.name,
+          description: t.function.description,
+          parameters: parameters,
+          strict: true
         }
+      
+      } else {
+
+        // does not exist yet
+        throw new Error(`[openai] tool type ${t.type} is not supported in Responses API`)
+
       }
 
-      // Hosted built-ins such as web_search_preview / code_interpreter
-      return { type: kind }
     })
+
   }
 
-  // ---------------------------------------------------------------------------
-  // Convenience helpers for stateful continuation / forking
+  private getResponsesToolChoice(toolChoice?: LlmToolChoice): ToolChoiceOptions|ToolChoiceFunction {
+
+    if (!toolChoice) {
+      return 'auto'
+    }
+
+    switch (toolChoice.type) {
+      case 'none':
+        return 'none'
+      case 'auto':
+        return 'auto'
+      case 'required':
+        return 'required'
+      case 'tool':
+        return {
+          type: 'function',
+          name: toolChoice.name
+        }
+    }
+
+  }
+
   async continueResponse(model: ChatModel, previousId: string, input: string, opts?: LlmCompletionOpts): Promise<LlmResponse> {
     const req: any = {
       model: model.id,
@@ -1062,6 +1074,13 @@ export default class extends LlmEngine {
   async forkResponse(model: ChatModel, previousId: string, input: string, opts?: LlmCompletionOpts): Promise<LlmResponse> {
     // For fork we simply call continueResponse for now (no server-side diff yet)
     return await this.continueResponse(model, previousId, input, opts)
+  }
+
+  private accumulateResponsesUsage(cumulate: LlmUsage, usage: ResponseUsage) {
+    cumulate.prompt_tokens += usage.input_tokens
+    cumulate.completion_tokens += usage.output_tokens
+    cumulate.prompt_tokens_details!.cached_tokens! += usage.input_tokens_details.cached_tokens
+    cumulate.completion_tokens_details!.reasoning_tokens! += usage.output_tokens_details.reasoning_tokens
   }
 
 }

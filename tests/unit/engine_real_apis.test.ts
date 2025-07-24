@@ -75,7 +75,10 @@ const realApiTest = async (engine: string, apiKey: string|undefined, modelName: 
 
 test.concurrent('OpenAI real test', { timeout: 1000 * 60 }, async () => {
   await realApiTest('openai', process.env.OPENAI_API_KEY, 'gpt-4o-mini')
-  await realApiTest('openai', process.env.OPENAI_API_KEY, 'o3-mini')
+})
+
+test.concurrent('OpenAI Responses real test', { timeout: 1000 * 60 }, async () => {
+  await realApiTest('openai', process.env.OPENAI_API_KEY, 'o3-pro')
 })
 
 test.concurrent('Antrophic real test', { timeout: 1000 * 60 }, async () => {
@@ -91,7 +94,7 @@ test.concurrent('xAI real test', { timeout: 1000 * 60 }, async () => {
 })
 
 test.concurrent('Meta real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('meta', process.env.META_API_KEY, 'Llama-4-Scout-17B-16E-Instruct-FP8')
+  await realApiTest('meta', process.env.META_API_KEY, 'Llama-3.3-8B-Instruct')
 })
 
 test.concurrent('DeepSeek real test', { timeout: 1000 * 60 }, async () => {
@@ -103,7 +106,7 @@ test.concurrent('MistralAI real test', { timeout: 1000 * 60 }, async () => {
 })
 
 test.concurrent('OpenRouter real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('openrouter', process.env.OPENROUTER_API_KEY, 'qwen/qwen-2-7b-instruct')
+  await realApiTest('openrouter', process.env.OPENROUTER_API_KEY, 'qwen/qwen-2-72b-instruct')
 })
 
 test.concurrent('Groq real test', { timeout: 1000 * 60 }, async () => {

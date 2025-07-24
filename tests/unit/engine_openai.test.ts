@@ -254,6 +254,7 @@ test('OpenAI nativeChunkToLlmChunk Text', async () => {
     thread: [],
     opts: {},
     toolCalls: [],
+    responsesApi: false,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     thinking: false,
   }

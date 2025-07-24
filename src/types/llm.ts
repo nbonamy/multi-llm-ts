@@ -24,6 +24,7 @@ export type LlmResponse = {
   type: 'text'
   content?: string
   toolCalls?: LlmToolCallInfo[]
+  openAIResponseId?: string
   usage?: LlmUsage
 }
 
@@ -82,6 +83,7 @@ export type LlmCompletionOpts = {
   usage?: boolean
   citations?: boolean
   useOpenAIResponsesApi?: boolean
+  openAIResponseId?: string
   structuredOutput?: {
     name: string
     structure: ZodType
@@ -195,7 +197,7 @@ export type LlmToolOpenAI = {
     description: string
     parameters: {
       type: 'object'
-      properties: { [key: string]: LlmToolParameterOpenAI }
+      properties: Record<string, LlmToolParameterOpenAI>
       required: string[]
     }
   }
