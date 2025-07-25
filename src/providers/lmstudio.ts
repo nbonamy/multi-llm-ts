@@ -81,12 +81,14 @@ export default class extends OpenAI {
   async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk, void, void> {
 
     // <think/> toggles thinking
-    if (chunk.choices[0].delta.content === '<think>') {
-      context.thinking = true
-      return
-    } else if (chunk.choices[0].delta.content === '</think>') {
-      context.thinking = false
-      return
+    if (Array.isArray(chunk.choices) && chunk.choices.length > 0 && chunk.choices[0].delta) {
+      if (chunk.choices[0].delta.content === '<think>') {
+        context.thinking = true
+        return
+      } else if (chunk.choices[0].delta.content === '</think>') {
+        context.thinking = false
+        return
+      }
     }
     
     // parent call
