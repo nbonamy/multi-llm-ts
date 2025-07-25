@@ -32,6 +32,7 @@ const realApiTest = async (engine: string, apiKey: string|undefined, modelName: 
 
   // build model
   const model = llm.buildModel(modelName)
+  model.capabilities.tools = true
 
   // add plugins
   llm.addPlugin(new Plugin1())
@@ -73,6 +74,38 @@ const realApiTest = async (engine: string, apiKey: string|undefined, modelName: 
 
 }
 
+test.concurrent('Antrophic real test', { timeout: 1000 * 60 }, async () => {
+  await realApiTest('anthropic', process.env.ANTHROPIC_API_KEY, 'claude-3-5-haiku-latest')
+})
+
+test.concurrent('Cerebras real test', { timeout: 1000 * 60 }, async () => {
+  await realApiTest('cerebras', process.env.CEREBRAS_API_KEY, 'llama3.1-8b')
+})
+
+test.concurrent('DeepSeek real test', { timeout: 1000 * 60 }, async () => {
+  await realApiTest('deepseek', process.env.DEEPSEEK_API_KEY, 'deepseek-chat')
+})
+
+test.concurrent('Google real test', { timeout: 1000 * 60 }, async () => {
+  await realApiTest('google', process.env.GOOGLE_API_KEY, 'gemini-2.0-flash')
+})
+
+test.concurrent('Groq real test', { timeout: 1000 * 60 }, async () => {
+  await realApiTest('groq', process.env.GROQ_API_KEY, 'llama3-8b-8192')
+})
+
+test.concurrent('LM Studio real test', { timeout: 1000 * 60 }, async () => {
+  await realApiTest('lmstudio', 'apiKey', 'llama-3.2-3b-instruct')
+})
+
+test.concurrent('Meta real test', { timeout: 1000 * 60 }, async () => {
+  await realApiTest('meta', process.env.META_API_KEY, 'Llama-3.3-8B-Instruct')
+})
+
+test.concurrent('MistralAI real test', { timeout: 1000 * 60 }, async () => {
+  await realApiTest('mistralai', process.env.MISTRALAI_API_KEY, 'mistral-small')
+})
+
 test.concurrent('OpenAI real test', { timeout: 1000 * 60 }, async () => {
   await realApiTest('openai', process.env.OPENAI_API_KEY, 'gpt-4o-mini')
 })
@@ -81,38 +114,11 @@ test.concurrent('OpenAI Responses real test', { timeout: 1000 * 60 }, async () =
   await realApiTest('openai', process.env.OPENAI_API_KEY, 'o3-pro')
 })
 
-test.concurrent('Antrophic real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('anthropic', process.env.ANTHROPIC_API_KEY, 'claude-3-5-haiku-latest')
-})
-
-test.concurrent('Google real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('google', process.env.GOOGLE_API_KEY, 'gemini-2.0-flash')
+test.concurrent('OpenRouter real test', { timeout: 1000 * 60 }, async () => {
+  await realApiTest('openrouter', process.env.OPENROUTER_API_KEY, 'qwen/qwen-2-72b-instruct')
 })
 
 test.concurrent('xAI real test', { timeout: 1000 * 60 }, async () => {
   await realApiTest('xai', process.env.XAI_API_KEY, 'grok-3-mini-fast-beta')
 })
 
-test.concurrent('Meta real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('meta', process.env.META_API_KEY, 'Llama-3.3-8B-Instruct')
-})
-
-test.concurrent('DeepSeek real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('deepseek', process.env.DEEPSEEK_API_KEY, 'deepseek-chat')
-})
-
-test.concurrent('MistralAI real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('mistralai', process.env.MISTRALAI_API_KEY, 'mistral-small')
-})
-
-test.concurrent('OpenRouter real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('openrouter', process.env.OPENROUTER_API_KEY, 'qwen/qwen-2-72b-instruct')
-})
-
-test.concurrent('Groq real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('groq', process.env.GROQ_API_KEY, 'llama3-8b-8192')
-})
-
-test.concurrent('Cerebras real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('cerebras', process.env.CEREBRAS_API_KEY, 'llama3.1-8b')
-})

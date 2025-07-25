@@ -1,5 +1,5 @@
 
-import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCerebras, ModelDeepseek, ModelGeneric, ModelGoogle, ModelGroq, ModelMeta, ModelMistralAI, ModelOllama, ModelOpenAI, ModelOpenRouter, ModelsList, ModelTogether, ModelxAI } from './types/index'
+import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCerebras, ModelDeepseek, ModelGoogle, ModelGroq, ModelLMStudio, ModelMeta, ModelMistralAI, ModelOllama, ModelOpenAI, ModelOpenRouter, ModelsList, ModelTogether, ModelxAI } from './types/index'
 import LlmEngine from './engine'
 import Anthropic, { AnthropicComputerToolInfo } from './providers/anthropic'
 import Azure from './providers/azure'
@@ -312,7 +312,7 @@ export const loadGroqModels = async (engineConfig: EngineCreateOpts): Promise<Mo
 export const loadLMStudioModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
 
   const lmStudio = new LMStudio(engineConfig)
-  let metas: ModelGeneric[] = []
+  let metas: ModelLMStudio[] = []
 
   try {
     metas = await lmStudio.getModels()
@@ -326,7 +326,7 @@ export const loadLMStudioModels = async (engineConfig: EngineCreateOpts): Promis
   // xform
   const models: ChatModel[] = metas.map(m => ({
     id: m.id,
-    name: m.id.split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
+    name: m.name,
     capabilities: lmStudio.getModelCapabilities(m),
     meta: m,
   }))

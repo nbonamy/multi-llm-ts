@@ -84,6 +84,13 @@ export type ModelGroq = {
   max_completion_tokens?: number
 }
 
+export type ModelLMStudio = {
+  id: string
+  name: string
+  trainedForToolUse: boolean
+  vision: boolean
+}
+
 export type ModelMeta = {
   id: string
   created: number
@@ -199,5 +206,5 @@ export type ModelxAI = {
 
 export type ModelMetadata =  ModelGeneric |
   ModelAnthropic | ModelCerebras | ModelDeepseek | ModelGoogle |
-  ModelGroq | ModelMeta | ModelMistralAI | ModelOllama | ModelOpenAI |
+  ModelGroq | ModelLMStudio |ModelMeta | ModelMistralAI | ModelOllama | ModelOpenAI |
   ModelOpenRouter | ModelTogether | ModelxAI
