@@ -86,7 +86,9 @@ export type ModelGroq = {
 
 export type ModelLMStudio = {
   id: string
-  name: string
+  displayName: string
+  arhitecture?: string
+  maxContextLength: number
   trainedForToolUse: boolean
   vision: boolean
 }

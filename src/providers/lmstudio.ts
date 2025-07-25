@@ -1,7 +1,7 @@
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelLMStudio, ModelsList } from '../types/index'
 import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
-import { Chat, ChatMessage, LLMPredictionConfigInput, LLMTool, LMStudioClient, Tool, ToolCallContext } from '@lmstudio/sdk'
+import { Chat, ChatMessage, LLMInfo, LLMPredictionConfigInput, LLMTool, LMStudioClient, Tool, ToolCallContext } from '@lmstudio/sdk'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
 
@@ -64,13 +64,11 @@ export default class extends LlmEngine {
 
   async getModels(): Promise<ModelLMStudio[]> {
     try {
-      const response = await this.client.llm.model()
-      return [{
-        id: response.identifier,
-        name: response.displayName,
-        trainedForToolUse: response.trainedForToolUse,
-        vision: response.vision,
-      }]
+      const response: LLMInfo[] = await this.client.system.listDownloadedModels('llm')
+      return response.map(model => ({
+        id: model.modelKey,
+        ...model
+      }))
     } catch (error) {
       console.error('Error listing models:', error);
       return [] 

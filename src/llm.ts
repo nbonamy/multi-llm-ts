@@ -326,7 +326,7 @@ export const loadLMStudioModels = async (engineConfig: EngineCreateOpts): Promis
   // xform
   const models: ChatModel[] = metas.map(m => ({
     id: m.id,
-    name: m.name,
+    name: m.displayName,
     capabilities: lmStudio.getModelCapabilities(m),
     meta: m,
   }))
