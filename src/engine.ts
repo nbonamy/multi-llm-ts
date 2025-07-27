@@ -2,11 +2,10 @@
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
 import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage } from './types/llm'
-import { PluginExecutionContext, PluginParameter } from './types/plugin'
+import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 import Attachment from './models/attachment'
 import Message from './models/message'
-import { addUsages } from './usage'
 
 export type LlmStreamingContextBase = {
   model: ChatModel
@@ -22,7 +21,7 @@ export type LlmStreamingContextTools = LlmStreamingContextBase & {
 export default abstract class LlmEngine {
 
   config: EngineCreateOpts
-  plugins: Plugin[]
+  plugins: IPlugin[]
 
   static isConfigured = (opts: EngineCreateOpts): boolean => {
     return (opts?.apiKey != null && opts.apiKey.length > 0)
@@ -96,7 +95,7 @@ export default abstract class LlmEngine {
     }
   }
 
-  protected abstract nativeChunkToLlmChunk(chunk: any, context: LlmStreamingContext): AsyncGenerator<LlmChunk, void, void>
+  protected abstract nativeChunkToLlmChunk(chunk: any, context: LlmStreamingContext): AsyncGenerator<LlmChunk>
 
   clearPlugins(): void {
     this.plugins = []
@@ -351,26 +350,53 @@ export default abstract class LlmEngine {
     return plugin?.getCompletedDescription(tool, args, results)
   }
 
-  protected async callTool(context: PluginExecutionContext, tool: string, args: any): Promise<any> {
+  protected async *callTool(context: PluginExecutionContext, tool: string, args: any): AsyncGenerator<PluginExecutionUpdate> {
 
     // get the plugin
-    const plugin = this.plugins.find((plugin) => plugin.getName() === tool)
-    if (plugin) {
-      return await plugin.execute(context, args)
-    }
+    let payload = args
+    let toolOwner = this.plugins.find((plugin) => plugin.getName() === tool)
+    if (!toolOwner) {
 
-    // try multi-tools
-    for (const plugin of Object.values(this.plugins)) {
-      if (plugin instanceof MultiToolPlugin) {
-        const multiToolPlugin = plugin as MultiToolPlugin
-        if (multiToolPlugin.handlesTool(tool)) {
-          return await plugin.execute(context, { tool: tool, parameters: args })
+      // try multi-tools
+      for (const plugin of Object.values(this.plugins)) {
+        if (plugin instanceof MultiToolPlugin) {
+          const multiToolPlugin = plugin as MultiToolPlugin
+          if (multiToolPlugin.handlesTool(tool)) {
+            toolOwner = plugin
+            payload = { tool: tool, parameters: args }
+            break
+          }
         }
       }
+    
     }
 
-    // too bad
-    return { error: `Tool ${tool} does not exist. Check the tool list and try again.` }
+    // check
+    if (!toolOwner) {
+      yield {
+        type: 'result',
+        result: { error: `Tool ${tool} does not exist. Check the tool list and try again.` }
+      }
+      return
+    }
+
+    // now we can run depending on plugin implementation
+    if ('executeWithUpdates' in toolOwner) {
+
+      for await (const update of toolOwner.executeWithUpdates!(args, payload)) {
+        yield update
+      }
+    
+    } else {
+
+      // now we can run
+      const result = await toolOwner.execute(context, payload)
+      yield {
+        type: 'result',
+        result: result
+      }
+    
+    }
 
   }
 

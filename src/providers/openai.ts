@@ -228,7 +228,14 @@ export default class extends LlmEngine {
         }
 
         // now execute
-        const content = await this.callTool({ model: model.id }, tool_call.function.name, args)
+        let content: any = undefined
+        for await (const update of this.callTool({ model: model.id }, tool_call.function.name, args)) {
+          if (update.type === 'result') {
+            content = update.result
+          }
+        }
+
+        // log
         logger.log(`[openai] tool call ${tool_call.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool response message
@@ -373,7 +380,7 @@ export default class extends LlmEngine {
     stream?.controller?.abort()
   }
 
-  async *nativeChunkToLlmChunk(chunk: any, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk, void, void> {
+  async *nativeChunkToLlmChunk(chunk: any, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk> {
 
     // response api events have already been translated to LLmChunk's
     if (context.responsesApi) {
@@ -491,7 +498,29 @@ export default class extends LlmEngine {
         }
 
         // now execute
-        const content = await this.callTool({ model: context.model.id }, toolCall.function, args)
+        let content: any = undefined
+        for await (const update of this.callTool({ model: context.model.id }, toolCall.function, args)) {
+
+          if (update.type === 'status') {
+            yield {
+              type: 'tool',
+              id: toolCall.id,
+              name: toolCall.function,
+              status: update.status,
+              call: {
+                params: args,
+                result: undefined
+              },
+              done: false
+            }
+
+          } else if (update.type === 'result') {
+            content = update.result
+          }
+
+        }
+
+        // log
         logger.log(`[openai] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message
@@ -665,7 +694,14 @@ export default class extends LlmEngine {
           }
 
           // now execute
-          const content = await this.callTool({ model: model.id }, toolCall.name, args)
+          let content: any = undefined
+          for await (const update of this.callTool({ model: model.id }, toolCall.name, args)) {
+            if (update.type === 'result') {
+              content = update.result
+            }
+          }
+
+          // log
           logger.log(`[openai] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
           // store
@@ -858,9 +894,31 @@ export default class extends LlmEngine {
             done: false
           }
 
-          // now execute
-          const content = await this.callTool({ model: model.id }, toolCall.name, args)
-          logger.log(`[openai] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
+        // now execute
+        let content: any = undefined
+        for await (const update of this.callTool({ model: model.id }, toolCall.name, args)) {
+
+          if (update.type === 'status') {
+            yield {
+              type: 'tool',
+              id: toolCall.id,
+              name: toolCall.name,
+              status: update.status,
+              call: {
+                params: args,
+                result: undefined
+              },
+              done: false
+            }
+
+          } else if (update.type === 'result') {
+            content = update.result
+          }
+
+        }
+
+        // log
+        logger.log(`[openai] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
           // add
           // followReqInput.push(toolCall)

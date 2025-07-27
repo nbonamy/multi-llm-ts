@@ -78,7 +78,7 @@ export default class extends OpenAI {
     return super.defaultRequiresFlatTextPayload(msg)
   }
 
-  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk, void, void> {
+  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk> {
 
     // <think/> toggles thinking
     if (Array.isArray(chunk.choices) && chunk.choices.length > 0 && chunk.choices[0].delta) {

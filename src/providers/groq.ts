@@ -101,7 +101,14 @@ export default class extends LlmEngine {
         }
         
         // now execute
-        const content = await this.callTool({ model: model.id }, toolCall.function.name, args)
+        let content: any = undefined
+        for await (const update of this.callTool({ model: model.id }, toolCall.function.name, args)) {
+          if (update.type === 'result') {
+            content = update.result
+          }
+        }
+
+        // log
         logger.log(`[groq] tool call ${toolCall.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message
@@ -234,7 +241,7 @@ export default class extends LlmEngine {
     stream.controller?.abort()
   }
 
-  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: LlmStreamingContextTools): AsyncGenerator<LlmChunk, void, void> {
+  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: LlmStreamingContextTools): AsyncGenerator<LlmChunk> {
 
     // debug
     //logger.log('nativeChunkToLlmChunk', JSON.stringify(chunk))
@@ -317,7 +324,29 @@ export default class extends LlmEngine {
         }
 
         // now execute
-        const content = await this.callTool({ model: context.model.id }, toolCall.function, args)
+        let content: any = undefined
+        for await (const update of this.callTool({ model: context.model.id }, toolCall.function, args)) {
+
+          if (update.type === 'status') {
+            yield {
+              type: 'tool',
+              id: toolCall.id,
+              name: toolCall.function,
+              status: update.status,
+              call: {
+                params: args,
+                result: undefined
+              },
+              done: false
+            }
+
+          } else if (update.type === 'result') {
+            content = update.result
+          }
+
+        }
+
+        // log
         logger.log(`[groq] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message

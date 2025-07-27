@@ -1,10 +1,10 @@
-import { PluginExecutionContext, PluginParameter } from './types/plugin'
+import { IPlugin, PluginExecutionContext, PluginParameter } from './types/plugin'
 
-export interface ICustomPlugin {
+export interface ICustomPlugin extends IPlugin {
   getTools(): Promise<any|any[]>
 }
 
-export class Plugin {
+export class Plugin implements IPlugin {
 
   serializeInTools(): boolean {
     return true
@@ -45,6 +45,9 @@ export class Plugin {
   async execute(context: PluginExecutionContext , parameters: any): Promise<any> {
     throw new Error('Not implemented')
   }
+
+  // this is optional so not implemented by default
+  // executeWithUpdates?(context: PluginExecutionContext , parameters: any): AsyncGenerator<PluginExecutionUpdate> {}
 
 }
 

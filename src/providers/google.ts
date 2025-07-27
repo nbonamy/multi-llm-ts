@@ -152,7 +152,14 @@ export default class extends LlmEngine {
         logger.log(`[google] tool call ${toolCall.name} with ${JSON.stringify(toolCall.args)}`)
 
         // now execute
-        const content = await this.callTool({ model: model.id }, toolCall.name!, toolCall.args)
+        let content: any = undefined
+        for await (const update of this.callTool({ model: model.id }, toolCall.name!, toolCall.args)) {
+          if (update.type === 'result') {
+            content = update.result
+          }
+        }
+
+        // log
         logger.log(`[google] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
         results.push({
@@ -408,7 +415,7 @@ export default class extends LlmEngine {
     //await stream?.controller?.abort()
   }
    
-  async *nativeChunkToLlmChunk(chunk: GenerateContentResponse, context: GoogleStreamingContext): AsyncGenerator<LlmChunk, void, void> {
+  async *nativeChunkToLlmChunk(chunk: GenerateContentResponse, context: GoogleStreamingContext): AsyncGenerator<LlmChunk> {
 
     // debug
     // logger.log('[google] chunk', JSON.stringify(chunk))
@@ -466,8 +473,30 @@ export default class extends LlmEngine {
         }
 
         // now execute
-        const content = await this.callTool({ model: context.model.id }, toolCall.function, args)
-        logger.log(`[google] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+        let content: any = undefined
+        for await (const update of this.callTool({ model: context.model.id }, toolCall.function, args)) {
+
+          if (update.type === 'status') {
+            yield {
+              type: 'tool',
+              id: toolCall.id,
+              name: toolCall.function,
+              status: update.status,
+              call: {
+                params: args,
+                result: undefined
+              },
+              done: false
+            }
+
+          } else if (update.type === 'result') {
+            content = update.result
+          }
+
+        }
+
+        // log
+      logger.log(`[google] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // send
         results.push({

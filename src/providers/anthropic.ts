@@ -154,9 +154,16 @@ export default class extends LlmEngine {
       // need
       logger.log(`[anthropic] tool call ${toolCall.name} with ${JSON.stringify(toolCall.input)}`)
 
-      // now execute
-      const content = await this.callTool({ model: model.id }, toolCall.name, toolCall.input)
-      logger.log(`[anthropic] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
+        // now execute
+        let content: any = undefined
+        for await (const update of this.callTool({ model: model.id }, toolCall.name, toolCall.input)) {
+          if (update.type === 'result') {
+            content = update.result
+          }
+        }
+
+        // log
+        logger.log(`[anthropic] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
       // add all response blocks
       thread.push(...response.content.map((c) => ({
@@ -431,7 +438,7 @@ export default class extends LlmEngine {
     stream.controller?.abort()
   }
    
-  async *nativeChunkToLlmChunk(chunk: MessageStreamEvent, context: AnthropicStreamingContext): AsyncGenerator<LlmChunk, void, void> {
+  async *nativeChunkToLlmChunk(chunk: MessageStreamEvent, context: AnthropicStreamingContext): AsyncGenerator<LlmChunk> {
     
     // log
     //console.dir(chunk, { depth: null })
@@ -539,7 +546,7 @@ export default class extends LlmEngine {
         yield {
           type: 'tool',
           id: context.toolCall.id,
-          name: context.toolCall!.function,
+          name: context.toolCall.function,
           status: this.getToolRunningDescription(context.toolCall!.function, args),
           call: {
             params: args,
@@ -549,7 +556,29 @@ export default class extends LlmEngine {
         }
 
         // now execute
-        const content = await this.callTool({ model: context.model.id }, context.toolCall!.function, args)
+        let content: any = undefined
+        for await (const update of this.callTool({ model: context.model.id }, context.toolCall.function, args)) {
+
+          if (update.type === 'status') {
+            yield {
+              type: 'tool',
+              id: context.toolCall.id,
+              name: context.toolCall.function,
+              status: update.status,
+              call: {
+                params: args,
+                result: undefined
+              },
+              done: false
+            }
+
+          } else if (update.type === 'result') {
+            content = update.result
+          }
+
+        }
+
+        // log
         logger.log(`[anthropic] tool call ${context.toolCall!.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add thinking block
@@ -600,7 +629,7 @@ export default class extends LlmEngine {
         yield {
           type: 'tool',
           id: context.toolCall.id,
-          name: context.toolCall!.function,
+          name: context.toolCall.function,
           status: this.getToolCompletedDescription(context.toolCall!.function, args, content),
           done: true,
           call: {

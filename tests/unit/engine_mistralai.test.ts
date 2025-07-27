@@ -195,7 +195,7 @@ test('MistralAI stream with tools', async () => {
   //expect(Mistral.prototype.abort).toHaveBeenCalled()
 })
 
-test('OpenAI stream tool choice option', async () => {
+test('MistralAI stream tool choice option', async () => {
   const mistralai = new MistralAI(config)
   mistralai.addPlugin(new Plugin1())
   await mistralai.stream({

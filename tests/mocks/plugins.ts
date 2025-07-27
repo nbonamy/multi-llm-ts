@@ -1,5 +1,5 @@
 
-import { PluginExecutionContext, PluginParameter } from '../../src/types/plugin'
+import { PluginExecutionContext, PluginExecutionUpdate, PluginParameter } from '../../src/types/plugin'
 import { CustomToolPlugin, MultiToolPlugin, Plugin } from '../../src/plugin'
 
 export class NamedPlugin extends Plugin {
@@ -52,7 +52,7 @@ export class Plugin1 extends Plugin {
     return []
   }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async execute(context: PluginExecutionContext, parameters: any): Promise<any> {
     return 'result1'
   }
@@ -250,6 +250,37 @@ export class MultiPlugin extends MultiToolPlugin {
 
   async execute(context: PluginExecutionContext, parameters: any): Promise<any> {
     return [parameters.tool, parameters.parameters]
+  }
+
+}
+
+export class PluginUpdate extends Plugin {
+  
+  isEnabled(): boolean {
+    return true
+  }
+
+  getName(): string {
+    return 'pluginUpdate'
+  }
+
+  getDescription(): string {
+    return 'Plugin Update'
+  }
+
+  getRunningDescription(tool: string, args: any): string {
+    return `run1 of ${tool} with ${JSON.stringify(args)}`
+  }
+
+  getParameters(): PluginParameter[] {
+    return []
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async *executeWithUpdates?(context: PluginExecutionContext , parameters: any): AsyncGenerator<PluginExecutionUpdate> {
+    yield { type: 'status', status: 'status1' }
+    yield { type: 'status', status: 'status2' }
+    yield { type: 'result', result: 'result' }
   }
 
 }

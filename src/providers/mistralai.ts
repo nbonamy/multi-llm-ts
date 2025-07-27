@@ -88,7 +88,14 @@ export default class extends LlmEngine {
         logger.log(`[mistralai] tool call ${toolCall.function.name} with ${toolCall.function.arguments}`)
 
         // now execute
-        const content = await this.callTool({ model: model.id }, toolCall.function.name, toolCall.function.arguments)
+        let content: any = undefined
+        for await (const update of this.callTool({ model: model.id }, toolCall.function.name, toolCall.function.arguments)) {
+          if (update.type === 'result') {
+            content = update.result
+          }
+        }
+
+        // log
         logger.log(`[mistralai] tool call ${toolCall.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message
@@ -215,7 +222,7 @@ export default class extends LlmEngine {
   }
 
    
-  async *nativeChunkToLlmChunk(chunk: CompletionEvent, context: LlmStreamingContextTools): AsyncGenerator<LlmChunk, void, void> {
+  async *nativeChunkToLlmChunk(chunk: CompletionEvent, context: LlmStreamingContextTools): AsyncGenerator<LlmChunk> {
 
     // debug
     //console.dir(chunk, { depth: null })
@@ -293,7 +300,29 @@ export default class extends LlmEngine {
         }
 
         // now execute
-        const content = await this.callTool({ model: context.model.id }, toolCall.function, args)
+        let content: any = undefined
+        for await (const update of this.callTool({ model: context.model.id }, toolCall.function, args)) {
+
+          if (update.type === 'status') {
+            yield {
+              type: 'tool',
+              id: toolCall.id,
+              name: toolCall.function,
+              status: update.status,
+              call: {
+                params: args,
+                result: undefined
+              },
+              done: false
+            }
+
+          } else if (update.type === 'result') {
+            content = update.result
+          }
+
+        }
+
+        // log
         logger.log(`[mistralai] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool call message
