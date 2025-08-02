@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage } from './types/llm'
+import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage, LlmStream } from './types/llm'
 import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 import Attachment from './models/attachment'
@@ -46,10 +46,13 @@ export default abstract class LlmEngine {
   
   abstract getModels(): Promise<ModelMetadata[]>
   
-  protected abstract chat(model: Model, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse>
+  protected abstract chat(model: Model, thread: LLmCompletionPayload[], opts?: LlmCompletionOpts): Promise<LlmResponse>
 
   protected abstract stream(model: Model, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse>
 
+  /**
+   * @deprecated This method is deprecated and may be removed in future versions. Use abortSignal in LlmCompletionOpts instead.
+   */
   abstract stop(stream: any): Promise<void>
 
   protected addTextToPayload(message: Message, attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
@@ -113,29 +116,67 @@ export default abstract class LlmEngine {
   }
 
   async *generate(model: ChatModel|string, thread: Message[], opts?: LlmCompletionOpts): AsyncIterable<LlmChunk> {
+    
+    // init the streaming
     const chatModel = this.toModel(model)
-    const response: LlmStreamingResponse|null = await this.stream(chatModel, thread, opts)
-    let stream = response?.stream
+    const response: LlmStreamingResponse = await this.stream(chatModel, thread, opts)
+    let currentStream: LlmStream = response.stream
+
+    // now we iterate as when the model emits tool call tokens
+    // we execute the tools and start a new stream with the results
     while (true) {
-      let stream2 = null
-      for await (const chunk of stream) {
-        const stream3 = this.nativeChunkToLlmChunk(chunk, response.context)
-        for await (const msg of stream3) {
+
+      // out next stream
+      let nextStream: LlmStream | null = null
+
+      // iterate the native stream (getting native = user-specific chunks)
+      for await (const chunk of currentStream) {
+        
+        // Check if abort signal has been triggered
+        if (opts?.abortSignal?.aborted) {
+          await currentStream.controller?.abort(opts?.abortSignal?.reason)
+          return
+        }
+        
+        // now we convert the native chunk to LlmChunks
+        // we may have several llm chunks for one native chunk
+        const llmChunkStream = this.nativeChunkToLlmChunk(chunk, response.context)
+        for await (const msg of llmChunkStream) {
+          
+          // Check again before yielding each message
+          if (opts?.abortSignal?.aborted) {
+            await this.stop(currentStream)
+            return
+          }
+          
+          // check message type
           if (msg.type === 'stream') {
-            stream2 = msg.stream
+
+            // stream switch!
+            nextStream = msg.stream
+          
           } else {
+            
             // if we are switching to a new stream make sure we don't send a done message
             // (anthropic sends a 'message_stop' message when finishing current stream for example)
-            if (stream2 !== null && msg.type === 'content' && msg.done) {
+            if (nextStream !== null && msg.type === 'content' && msg.done) {
               msg.done = false
             }
+
+            // just forward the message
             yield msg
+          
           }
         }
       }
-      if (!stream2) break
-      stream = stream2
+
+      // if no new stream we are done
+      // else make the next stream the current one
+      if (!nextStream) break
+      currentStream = nextStream
+    
     }
+  
   }
 
   protected requiresVisionModelSwitch(thread: Message[], currentModel: ChatModel): boolean {
@@ -196,7 +237,7 @@ export default abstract class LlmEngine {
           content: this.requiresFlatTextPayload(msg) ? msg.contentForModel : [{
             type: 'text',
             text: msg.contentForModel 
-          }]
+          }],
         }
         
         // Attachments array may be absent when Message-like objects are supplied.

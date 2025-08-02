@@ -43,7 +43,11 @@ export type LlmToolResponse = {
 export type LlmNonStreamingResponse = LlmResponse | LlmToolResponse
 
 export type LlmStream = AsyncIterable<any> & {
+
+  // this is the abort controller returned by the provider
+  // we use this to cancel the streaming on the provider side
   controller?: AbortController;
+
 }
 
 export type LlmStreamingContext = any
@@ -88,6 +92,11 @@ export type LlmCompletionOpts = {
     name: string
     structure: ZodType
   }
+
+  // this is provided by the caller
+  // to cancel the request if needed
+  abortSignal?: AbortSignal
+
 } & LlmModelOpts
 
 export type LLmCompletionPayload = {
@@ -167,7 +176,12 @@ export type LlmChunkUsage = {
   usage: LlmUsage
 }
 
-export type LlmChunk = LlmChunkContent | LlmChunkStream | LlmChunkTool | LlmChunkUsage
+export type LlmOpenAIMessageId = {
+  type: 'openai_message_id'
+  id: string
+}
+
+export type LlmChunk = LlmChunkContent | LlmChunkStream | LlmChunkTool | LlmChunkUsage | LlmOpenAIMessageId
 
 export type LlmToolArrayItem = {
   name: string

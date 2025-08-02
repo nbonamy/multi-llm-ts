@@ -217,7 +217,7 @@ test('OpenAI Responses API completion without tools', async () => {
   expect(_openai.default.prototype.responses.create).toHaveBeenCalledWith({
     model: 'gpt-4',
     instructions: 'instruction',
-    input: 'prompt',
+    input: [ { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'prompt', }] } ],
     stream: false
   })
 
@@ -247,7 +247,7 @@ test('OpenAI Responses API completion with tools', async () => {
   expect(_openai.default.prototype.responses.create).toHaveBeenNthCalledWith(1, {
     model: 'gpt-4',
     instructions: 'instruction',
-    input: 'prompt',
+    input: [ { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'prompt', }] } ],
     stream: false,
     tools: expect.arrayContaining([
       expect.objectContaining({
@@ -316,7 +316,7 @@ test('OpenAI Responses API stream without tools', async () => {
   expect(_openai.default.prototype.responses.create).toHaveBeenCalledWith({
     model: 'gpt-4',
     instructions: 'instruction',
-    input: 'prompt',
+    input: [ { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'prompt', }] } ],
     stream: true
   })
 
@@ -325,6 +325,7 @@ test('OpenAI Responses API stream without tools', async () => {
 
   let response = ''
   let usageChunk = null
+  let messageId = null
   let lastMsg: LlmChunkContent | null = null
   
   for await (const chunk of stream) {
@@ -333,10 +334,13 @@ test('OpenAI Responses API stream without tools', async () => {
       lastMsg = chunk
     } else if (chunk.type === 'usage') {
       usageChunk = chunk
+    } else if (chunk.type === 'openai_message_id') {
+      messageId = chunk.id
     }
   }
 
   expect(response).toBe('response1')
+  expect(messageId).toBe('resp_123')
   expect(lastMsg?.done).toBe(true)
   expect(usageChunk).toStrictEqual({
     type: 'usage',
@@ -393,7 +397,7 @@ test('OpenAI Responses API stream with tools', async () => {
   expect(_openai.default.prototype.responses.create).toHaveBeenNthCalledWith(1, {
     model: 'gpt-4',
     instructions: 'instruction',
-    input: 'prompt',
+    input: [ { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'prompt', }] } ],
     stream: true,
     tools: expect.any(Array),
     tool_choice: 'auto'
@@ -508,13 +512,16 @@ test('OpenAI Responses API multiple system messages', async () => {
   await openai.complete(openai.buildModel('gpt-4'), [
     new Message('system', 'You are helpful'),
     new Message('system', 'Be concise'),
-    new Message('user', 'Hello'),
+    new Message('user', 'prompt'),
   ], { useOpenAIResponsesApi: true })
 
   expect(_openai.default.prototype.responses.create).toHaveBeenCalledWith({
     model: 'gpt-4',
     instructions: 'You are helpful\nBe concise',
-    input: 'Hello',
+    input: [ { type: 'message', role: 'user', content: [{
+      type: 'input_text',
+      text: 'prompt',
+    }] } ],
     stream: false
   })
 })
