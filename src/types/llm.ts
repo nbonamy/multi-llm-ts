@@ -75,6 +75,11 @@ export type LlmModelOpts = {
   customOpts?: LLmCustomModelOpts
 } & LlmOpenAIModelOpts & LlmAnthropicModelOpts
 
+export type LlmStructuredOutput = {
+  name: string
+  structure: ZodType
+}
+
 export type LlmCompletionOpts = {
   tools?: boolean
   toolChoice?: LlmToolChoice
@@ -84,10 +89,7 @@ export type LlmCompletionOpts = {
   citations?: boolean
   useOpenAIResponsesApi?: boolean
   openAIResponseId?: string
-  structuredOutput?: {
-    name: string
-    structure: ZodType
-  }
+  structuredOutput?: LlmStructuredOutput
 } & LlmModelOpts
 
 export type LLmCompletionPayload = {

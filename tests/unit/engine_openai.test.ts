@@ -23,7 +23,7 @@ vi.mock('openai', async () => {
       if (OpenAI.prototype.baseURL == 'api.together.xyz' || OpenAI.prototype.baseURL == 'api.unknown.com') {
         return {
           data: [
-            { id: 'chat', type: 'chat', created: 1 },
+            { id: 'gpt', type: 'chat', created: 1 },
             { id: 'language', type: 'language', created: 2 },
             { id: 'code', type: 'code', created: 3 },
             { id: 'image', type: 'image', created: 4 },
@@ -145,7 +145,7 @@ test('OpenAI together load models', async () => {
   expect(models!.chat).toStrictEqual([
     { id: 'code', name: 'code', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
     { id: 'language', name: 'language', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
-    { id: 'chat', name: 'chat', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
+    { id: 'gpt', name: 'gpt', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
   ])
   expect(models!.image).toStrictEqual([
     { id: 'image', name: 'image', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
@@ -162,7 +162,7 @@ test('OpenAI compatibility mode', async () => {
     { id: 'image', name: 'image', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
     { id: 'code', name: 'code', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
     { id: 'language', name: 'language', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
-    { id: 'chat', name: 'chat', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
+    { id: 'gpt', name: 'gpt', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
   ])
 })
 
