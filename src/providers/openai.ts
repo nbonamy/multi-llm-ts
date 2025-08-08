@@ -110,6 +110,10 @@ export default class extends LlmEngine {
     return model.capabilities.reasoning
   }
 
+  modelSupportsVerbosity(model: ChatModel): boolean {
+    return model.id.startsWith('gpt-5')
+  } 
+
   modelRequiresResponsesApi(model: ChatModel): boolean {
     return ['o3-pro*', 'codex*'].some((m) => minimatch(model.id, m))
   }
@@ -350,6 +354,7 @@ export default class extends LlmEngine {
       ...(this.modelSupportsTopK(model) && opts?.top_k ? { logprobs: true, top_logprobs: opts?.top_k } : {}),
       ...(this.modelSupportsTopP(model) && opts?.top_p ? { top_p: opts?.top_p } : {}),
       ...(this.modelSupportsReasoningEffort(model) && opts?.reasoningEffort ? { reasoning_effort: opts?.reasoningEffort } : {}),
+      ...(this.modelSupportsVerbosity(model) && opts?.verbosity ? { verbosity: opts.verbosity } : {}),
       ...(this.modelSupportsStructuredOutput(model) && opts?.structuredOutput ? { response_format: zodResponseFormat(opts.structuredOutput.structure, opts.structuredOutput.name) } : {}),
       ...(opts?.customOpts ? opts.customOpts : {}),
     }

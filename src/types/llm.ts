@@ -59,10 +59,13 @@ export type LlmStreamingResponse = {
 
 export type LlmReasoningEffort = 'low'|'medium'|'high'
 
+export type LlmVerbosity = 'low'|'medium'|'high'
+
 export type LLmCustomModelOpts = Record<string, any>
 
 export type LlmOpenAIModelOpts = {
   reasoningEffort?: LlmReasoningEffort
+  verbosity?: LlmVerbosity
 }
 
 export type LlmAnthropicModelOpts = {

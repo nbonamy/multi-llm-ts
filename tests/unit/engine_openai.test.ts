@@ -447,6 +447,22 @@ test('OpenAI reasoning effort', async () => {
   expect(_openai.default.prototype.chat.completions.create.mock.calls[1][0].reasoning_effort).toBe('low')
 })
 
+test('OpenAI verbosity', async () => {
+  const openai = new OpenAI(config)
+  await openai.stream(openai.buildModel('gpt-4.1'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { verbosity: 'low' })
+  // @ts-expect-error mock
+  expect(_openai.default.prototype.chat.completions.create.mock.calls[0][0].verbosity).toBeUndefined()
+  await openai.stream(openai.buildModel('gpt-5'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { verbosity: 'low' })
+  // @ts-expect-error mock
+  expect(_openai.default.prototype.chat.completions.create.mock.calls[1][0].verbosity).toBe('low')
+})
+
 test('OpenAI structured output', async () => {
   const openai = new OpenAI(config)
   await openai.stream(openai.buildModel('model'), [
