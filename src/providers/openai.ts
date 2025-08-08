@@ -63,6 +63,7 @@ export default class extends LlmEngine {
       'chatgpt-4o',
       'gpt-4.1*',
       'gpt-4.5*',
+      'gpt-5*',
       'o1*',
       'o3*',
       'o4*',
