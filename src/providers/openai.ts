@@ -1,6 +1,6 @@
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpenAI } from '../types/index'
 
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmRole, LlmStream, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import { zeroUsage } from '../usage'
@@ -9,7 +9,7 @@ import logger from '../logger'
 import OpenAI, { ClientOptions } from 'openai'
 import { CompletionUsage } from 'openai/resources'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
-import { Response, ResponseCreateParams, ResponseFunctionToolCall, ResponseOutputMessage, ResponseStreamEvent, ResponseUsage, Tool, ToolChoiceFunction, ToolChoiceOptions } from 'openai/resources/responses/responses'
+import { Response, ResponseCreateParams, ResponseFunctionToolCall, ResponseInputItem, ResponseOutputMessage, ResponseStreamEvent, ResponseUsage, Tool, ToolChoiceFunction, ToolChoiceOptions } from 'openai/resources/responses/responses'
 import { zodResponseFormat } from 'openai/helpers/zod'
 import { minimatch } from 'minimatch'
 
@@ -635,7 +635,7 @@ export default class extends LlmEngine {
 
   // ---------------------------------------------------------------------------
   // Responses API – via official SDK with automatic tool execution
-  async responsesChat(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async responsesChat(model: ChatModel, thread: LLmCompletionPayload[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // log
     logger.log(`[${this.getName()}] prompting model ${model.id}`)
@@ -752,7 +752,7 @@ export default class extends LlmEngine {
     // log
     logger.log(`[${this.getName()}] prompting model ${model.id}`)
 
-    const request = await this.buildResponsesRequest(model, thread, opts, true)
+    const request = await this.buildResponsesRequestFromMessages(model, thread, opts, true)
     const stream = await this.client.responses.create(request) as AsyncIterable<ResponseStreamEvent>
     logger.debug('[responsesStream] subscribed')
 
@@ -783,7 +783,10 @@ export default class extends LlmEngine {
               break
 
             case 'response.in_progress':
-              // nop for us
+              yield {
+                type: 'openai_message_id',
+                id: ev.response.id,
+              }
               break
 
             case 'response.completed': {
@@ -973,21 +976,13 @@ export default class extends LlmEngine {
     }
   }
 
-  private async buildResponsesRequest(model: ChatModel, thread: Message[], opts: LlmCompletionOpts | undefined, stream: boolean): Promise<ResponseCreateParams> {
-    
-    logger.debug('[buildResponsesRequest] THREAD', JSON.stringify(thread, null, 2))
-    
-    // If thread elements are already in payload form (not Message instances), use directly
-    let payload: any[]
-    if (Array.isArray(thread) && thread.length && !(thread[0] instanceof Message)) {
-      payload = thread as any[]
-    } else {
-      payload = this.buildPayload(model, thread as any, opts)
-    }
-    logger.debug('[buildResponsesRequest] PAYLOAD', JSON.stringify(payload, null, 2))
+  private async buildResponsesRequestFromMessages(model: ChatModel, thread: Message[], opts: LlmCompletionOpts | undefined, stream: boolean): Promise<ResponseCreateParams> {
+    return this.buildResponsesRequest(model, this.buildPayload(model, thread, opts), opts, stream)
+  }
 
-    // -----------------------------------------------------------
-    // Helpers
+  private async buildResponsesRequest(model: ChatModel, payload: LLmCompletionPayload[], opts: LlmCompletionOpts | undefined, stream: boolean): Promise<ResponseCreateParams> {
+    
+    // helper to extract text from messages
     function extractText(msg: any): string {
       const c = msg?.content
       if (typeof c === 'string') return c
@@ -998,26 +993,108 @@ export default class extends LlmEngine {
       return JSON.stringify(c)
     }
 
-    // Merge all system messages into a single instructions string
+    // rebuild the instructions
     const instructions = payload
       .filter((m: any) => m.role === 'system')
       .map(extractText)
       .join('\n')
       .trim()
 
-    // Pick the last *user* message; if none exists (thread may be a bare string),
-    // fall back to the very last message in the thread.
-    const lastUser = [...payload].reverse().find((m: any) => m.role === 'user')
-    let userContent = lastUser ? extractText(lastUser) : extractText(payload[payload.length - 1] ?? { content: '' })
-    if (!userContent.trim() && payload.length) {
-      userContent = extractText(payload[payload.length - 1])
+    // now we need to build the input
+    let input: string | ResponseInputItem[] = ''
+
+    // if we have a response id we will continue the response
+    if (opts?.openAIResponseId) {
+      input = extractText(payload[payload.length - 1])
+    } else {
+      input = []
+      for (const msg of payload) {
+        if (msg.role === 'user') {
+          input.push({
+            type: 'message',
+            role: 'user',
+            content: typeof msg.content === 'string' ?
+              msg.content :
+              msg.content.map((c: LlmContentPayload) => {
+                if (c.type === 'text') {
+                  return {
+                    type: 'input_text',
+                    text: c.text
+                  }
+                } else if (c.type === 'image_url') {
+                  return {
+                    type: 'input_image',
+                    detail: 'auto',
+                    image_url: c.image_url.url,
+                  }
+                } else if (c.type === 'image') {
+                  return {
+                    type: 'input_image',
+                    detail: 'auto',
+                    image_url: c.source?.data,
+                  }
+                } else if (c.type === 'document') {
+                  return {
+                    type: 'input_file',
+                    file_data: c.source?.data,
+                  }
+                } else {
+                  // @ts-expect-error unknown content type
+                  console.log(`[openai] unknown content type ${c.type} in user message, using JSON.stringify`)
+                  return {
+                    type: 'input_text',
+                    text: JSON.stringify(c)
+                  }
+                }
+              }),
+
+          })
+
+        } else if (msg.role === 'assistant') {
+
+          input.push({
+            role: 'assistant',
+            content: extractText(msg)
+          })
+
+        // } else if (msg.role === 'assistant' && msg.messageId?.length) {
+
+        //   // dummy reasoning content
+        //   input.push({
+        //     type: 'reasoning',
+        //     id: msg.messageId.replace('resp_', 'rs_'),
+        //     summary: [],
+        //   })
+
+        //   // the message itself
+        //   input.push({
+        //     type: 'message',
+        //     role: 'assistant',
+        //     status: 'completed',
+        //     id: msg.messageId.replace('resp_', 'msg_'),
+        //     content: [{
+        //       type: 'output_text',
+        //       text: extractText(msg),
+        //       annotations: [],
+        //     }]
+        //   })
+
+        } else if (msg.role === 'tool') {
+          input.push({
+            type: 'function_call',
+            call_id: msg.tool_call_id!,
+            name: msg.tool_calls?.[0].name || '',
+            arguments: '',
+          })
+        }
+      }
     }
 
     const req: ResponseCreateParams = {
       model: model.id,
       ...(instructions ? { instructions } : {}),
       ...(opts?.openAIResponseId ? { previous_response_id: opts.openAIResponseId } : {}),
-      input: userContent,
+      input,
       stream,
     }
 
