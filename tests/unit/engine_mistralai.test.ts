@@ -289,7 +289,7 @@ test('MistralAI structured output', async () => {
     new Message('user', 'prompt'),
   ], { structuredOutput: { name: 'test', structure: z.object({}) } })
   // @ts-expect-error mock
-  expect(Mistral.prototype.chat.stream.mock.calls[0][0].response_format).toStrictEqual({
+  expect(Mistral.prototype.chat.stream.mock.calls[0][0].responseFormat).toStrictEqual({
     type: 'json_object',
   })
 })

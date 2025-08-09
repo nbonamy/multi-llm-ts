@@ -1,6 +1,6 @@
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpenAI } from '../types/index'
 
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
+import { LLmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import { zeroUsage } from '../usage'
@@ -1031,7 +1031,7 @@ export default class extends LlmEngine {
                   return {
                     type: 'input_image',
                     detail: 'auto',
-                    image_url: c.image_url.url,
+                    image_url: (c as LLmContentPayloadImageOpenai).image_url.url,
                   }
                 } else if (c.type === 'image') {
                   return {

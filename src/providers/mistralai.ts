@@ -1,13 +1,13 @@
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMistralAI } from '../types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
+import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import Message from '../models/message'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import { zeroUsage } from '../usage'
+import Attachment from '../models/attachment'
 import logger from '../logger'
 
 import { Mistral } from '@mistralai/mistralai'
 import { AssistantMessage, ChatCompletionStreamRequest, CompletionEvent, SystemMessage, ToolMessage, UserMessage } from '@mistralai/mistralai/models/components'
-import Attachment from 'models/attachment'
 
 type MistralMessages = Array<
 | (SystemMessage & { role: "system" })
@@ -195,7 +195,7 @@ export default class extends LlmEngine {
       maxTokens: opts?.maxTokens,
       temperature: opts?.temperature,
       topP: opts?.top_p,
-      ...(opts?.structuredOutput ? { response_format: { type: 'json_object' } } : {} ),
+      ...(opts?.structuredOutput ? { responseFormat: { type: 'json_object' } } : {} ),
     }
   }
 
@@ -384,9 +384,22 @@ export default class extends LlmEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addImageToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
-    if (!payload.images) payload.images = []
-    payload.images.push(attachment!.content)
-  }
+  protected addImageToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
 
+    // if we have a string content, convert it to an array
+    if (typeof payload.content === 'string') {
+      payload.content = [{
+        type: 'text',
+        text: payload.content,
+      }]
+    }
+
+    // now add the image
+    if (Array.isArray(payload.content)) {
+      payload.content.push({
+        type: 'image_url',
+        imageUrl: { url: `data:${attachment.mimeType};base64,${attachment.content}` }
+      })
+    }
+  }
 }

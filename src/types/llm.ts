@@ -147,11 +147,21 @@ export type LLmContentPayloadImageAnthropic = {
   }
 }
 
+export type LlmContextPayloadMistralai ={
+  type: 'image_url'
+  imageUrl: {
+    url: string
+  }
+}
+
+
+
 export type LlmContentPayload =
   LLmContentPayloadText |
   LLmContentPayloadImageOpenai |
   LLmContentPayloadDocumentAnthropic |
-  LLmContentPayloadImageAnthropic
+  LLmContentPayloadImageAnthropic |
+  LlmContextPayloadMistralai
 
 export type LlmChunkContent = {
   type: 'content'|'reasoning'
