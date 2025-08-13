@@ -168,7 +168,7 @@ export default class extends LlmEngine {
   }
 
   protected shouldUseResponsesApi(model: ChatModel, opts?: LlmCompletionOpts): boolean {
-    return this.modelRequiresResponsesApi(model) || (opts?.useOpenAIResponsesApi ?? false) || (this.config.useOpenAIResponsesApi ?? false)
+    return this.modelRequiresResponsesApi(model) || (opts?.useResponsesApi ?? false) || (this.config.useOpenAIResponsesApi ?? false)
   }
 
   buildPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
@@ -1010,7 +1010,7 @@ export default class extends LlmEngine {
     let input: string | ResponseInputItem[] = ''
 
     // if we have a response id we will continue the response
-    if (opts?.openAIResponseId) {
+    if (opts?.responseId) {
       input = extractText(payload[payload.length - 1])
     } else {
       input = []
@@ -1099,7 +1099,7 @@ export default class extends LlmEngine {
     const req: ResponseCreateParams = {
       model: model.id,
       ...(instructions ? { instructions } : {}),
-      ...(opts?.openAIResponseId ? { previous_response_id: opts.openAIResponseId } : {}),
+      ...(opts?.responseId ? { previous_response_id: opts.responseId } : {}),
       input,
       stream,
     }

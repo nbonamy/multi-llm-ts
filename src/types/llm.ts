@@ -64,6 +64,8 @@ export type LlmVerbosity = 'low'|'medium'|'high'
 export type LLmCustomModelOpts = Record<string, any>
 
 export type LlmOpenAIModelOpts = {
+  useResponsesApi?: boolean
+  responseId?: string
   reasoningEffort?: LlmReasoningEffort
   verbosity?: LlmVerbosity
 }
@@ -94,8 +96,6 @@ export type LlmCompletionOpts = {
   visionFallbackModel?: ChatModel
   usage?: boolean
   citations?: boolean
-  useOpenAIResponsesApi?: boolean
-  openAIResponseId?: string
   structuredOutput?: LlmStructuredOutput
 
   // this is provided by the caller

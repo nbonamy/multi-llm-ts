@@ -210,7 +210,7 @@ test('OpenAI Responses API completion without tools', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { 
-    useOpenAIResponsesApi: true,
+    useResponsesApi: true,
     tools: false 
   })
 
@@ -237,7 +237,7 @@ test('OpenAI Responses API completion with tools', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { 
-    useOpenAIResponsesApi: true,
+    useResponsesApi: true,
     usage: true
   })
 
@@ -308,7 +308,7 @@ test('OpenAI Responses API stream without tools', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { 
-    useOpenAIResponsesApi: true,
+    useResponsesApi: true,
     tools: false,
     usage: true
   })
@@ -368,7 +368,7 @@ test('OpenAI Responses API stream with tools', async () => {
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { 
-    useOpenAIResponsesApi: true,
+    useResponsesApi: true,
     usage: true
   })
 
@@ -492,7 +492,7 @@ test('OpenAI Responses API tool choice', async () => {
   await openai.stream(openai.buildModel('gpt-4'), [
     new Message('user', 'prompt'),
   ], { 
-    useOpenAIResponsesApi: true,
+    useResponsesApi: true,
     toolChoice: { type: 'tool', name: 'plugin2' }
   })
 
@@ -513,7 +513,7 @@ test('OpenAI Responses API multiple system messages', async () => {
     new Message('system', 'You are helpful'),
     new Message('system', 'Be concise'),
     new Message('user', 'prompt'),
-  ], { useOpenAIResponsesApi: true })
+  ], { useResponsesApi: true })
 
   expect(_openai.default.prototype.responses.create).toHaveBeenCalledWith({
     model: 'gpt-4',
