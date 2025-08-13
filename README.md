@@ -49,7 +49,7 @@ async execute(context: PluginExecutionContext , parameters: any): Promise<any>
 |**Azure AI**|`azure`|yes|yes|yes|yes|yes|yes|yes|
 |**Cerebras**|`cerebras`|yes|no|no|no|yes|yes|yes|
 |**DeepSeek**|`deepseek`|yes|no|yes|yes|yes|no|yes|
-|**Google**|`google`|yes|yes|yes|no|yes|yes<sup>4</sup>|yes|
+|**Google**|`google`|yes|yes|yes|yes|yes|yes<sup>4</sup>|yes|
 |**Groq**|`groq`|yes|yes|yes|no|yes|yes|yes|
 |**Meta/Llama**|`meta`|yes|yes|yes|no|yes|no|yes|
 |**MistralAI**|`mistralai`|yes|yes|yes|no|yes|yes<sup>4</sup>|yes|
