@@ -75,6 +75,10 @@ export type LlmAnthropicModelOpts = {
   reasoningBudget?: number
 }
 
+export type LlmGoogleModelOpts = {
+  thinkingBudget?: number
+}
+
 export type LlmModelOpts = {
   contextWindowSize?: number
   maxTokens?: number
@@ -82,7 +86,7 @@ export type LlmModelOpts = {
   top_k?: number
   top_p?: number
   customOpts?: LLmCustomModelOpts
-} & LlmOpenAIModelOpts & LlmAnthropicModelOpts
+} & LlmOpenAIModelOpts & LlmAnthropicModelOpts & LlmGoogleModelOpts
 
 export type LlmStructuredOutput = {
   name: string

@@ -213,10 +213,7 @@ export default class extends LlmEngine {
       type: 'text',
       content: response.text,
       toolCalls: toolCallInfo,
-      ...(opts?.usage && response.usageMetadata ? { usage: {
-        prompt_tokens: response.usageMetadata.promptTokenCount ?? 0,
-        completion_tokens: response.usageMetadata.candidatesTokenCount ?? 0,
-      } } : {}),
+      ...(opts?.usage && response.usageMetadata ? response.usageMetadata : {}),
     }
   }
 
@@ -282,7 +279,7 @@ export default class extends LlmEngine {
     return properties ? Type.OBJECT : Type.STRING
   }
 
-  private async getGenerationConfig(model: ChatModel, opts?: GoogleCompletionOpts): Promise<GenerateContentConfig|undefined> {
+  protected async getGenerationConfig(model: ChatModel, opts?: GoogleCompletionOpts): Promise<GenerateContentConfig|undefined> {
 
     const config: GenerateContentConfig = {
       ...(opts?.maxTokens ? { maxOutputTokens: opts?.maxTokens } : {} ),
@@ -294,6 +291,14 @@ export default class extends LlmEngine {
     // add instructions
     if (opts?.instruction) {
       config.systemInstruction = opts!.instruction
+    }
+
+    // add reasoning
+    if (model.capabilities.reasoning && typeof opts?.thinkingBudget !== 'undefined') {
+      config.thinkingConfig = {
+        includeThoughts: true,
+        thinkingBudget: opts.thinkingBudget
+      }
     }
 
     // add structured output
@@ -364,7 +369,7 @@ export default class extends LlmEngine {
     return Object.keys(config).length ? config : undefined
   }
 
-  threadToHistory(thread: Message[], model: ChatModel, opts?: LlmCompletionOpts): Content[] {
+  private threadToHistory(thread: Message[], model: ChatModel, opts?: LlmCompletionOpts): Content[] {
     const supportsInstructions = this.supportsInstructions(model)
     const payload = this.buildPayload(model, thread.filter((m) => supportsInstructions ? m.role !== 'system' : true), opts).map((p) => {
       if (p.role === 'system') p.role = 'user'
@@ -373,7 +378,7 @@ export default class extends LlmEngine {
     return payload.map((message) => this.messageToContent(message))
   }
 
-  messageToContent(payload: LLmCompletionPayload): Content {
+  private messageToContent(payload: LLmCompletionPayload): Content {
     const content: Content = {
       role: payload.role == 'assistant' ? 'model' : payload.role,
       parts: Array.isArray(payload.content) ? payload.content.map((c) => ({ text: (c as LLmContentPayloadText).text })) : [ { text: payload.content as string } ],
@@ -389,7 +394,7 @@ export default class extends LlmEngine {
     return content
   }
 
-  addAttachment(parts: Array<string|Part>, attachment: Attachment) {
+  private addAttachment(parts: Array<string|Part>, attachment: Attachment) {
 
     // load if no contents
     if (attachment.content === null || attachment.content === undefined) {
@@ -418,12 +423,13 @@ export default class extends LlmEngine {
   async *nativeChunkToLlmChunk(chunk: GenerateContentResponse, context: GoogleStreamingContext): AsyncGenerator<LlmChunk> {
 
     // debug
-    // logger.log('[google] chunk', JSON.stringify(chunk))
+    //logger.log('[google] chunk', JSON.stringify(chunk))
 
     // usage
     if (context.opts.usage && chunk.usageMetadata) {
       context.usage.prompt_tokens += chunk.usageMetadata.promptTokenCount ?? 0
       context.usage.completion_tokens += chunk.usageMetadata.candidatesTokenCount ?? 0
+      context.usage.completion_tokens_details!.reasoning_tokens! += chunk.usageMetadata.thoughtsTokenCount ?? 0
     }
 
     // tool calls
@@ -548,12 +554,16 @@ export default class extends LlmEngine {
 
     }
 
-    // text chunk
+    // iterate on candidates
     const done = !!chunk.candidates?.[0].finishReason
-    yield {
-      type: 'content',
-      text: chunk.text || '',
-      done: done
+    for (const candidate of chunk.candidates || []) {
+      for (const part of candidate.content?.parts || []) {
+        yield {
+          type: part.thought ? 'reasoning' : 'content',
+          text: part.text || '',
+          done: done
+        }
+      }
     }
 
     // usage

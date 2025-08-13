@@ -51,7 +51,7 @@ vi.mock('@google/genai', async () => {
           // now the text response
           const content = 'response'
           for (let i = 0; i < content.length; i++) {
-            yield { candidates: [{ finishReason: 'none' }], text: content[i], functionCalls: [] }
+            yield { candidates: [{ finishReason: 'none', content: { parts: [ { text: content[i] } ] }, functionCalls: [] }] }
           }
           yield { candidates: [{ finishReason: 'STOP' }], text: null, functionCalls: [] }
         }
@@ -149,7 +149,7 @@ test('Google nativeChunkToLlmChunk Text', async () => {
   }
   streamChunk.candidates![0].finishReason = 'STOP' as FinishReason
   // @ts-expect-error mock
-  streamChunk.text = ''
+  streamChunk.candidates[0].content.parts[0].text = ''
   for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
