@@ -331,7 +331,7 @@ export default class extends LlmEngine {
 
   getCompletionOpts(model: ChatModel, opts?: LlmCompletionOpts): Omit<MessageCreateParamsBase, 'model'|'messages'|'stream'|'tools'|'tool_choice'> {
 
-    const isThinkingEnabled = model.capabilities?.reasoning && opts?.reasoning;
+    const isThinkingEnabled = model.capabilities?.reasoning && opts?.reasoning !== false;
     
     return {
       max_tokens: opts?.maxTokens ?? this.getMaxTokens(model.id),
@@ -341,7 +341,7 @@ export default class extends LlmEngine {
       ...(isThinkingEnabled ? {
         thinking: {
           type: 'enabled',
-          budget_tokens: opts.reasoningBudget || (opts?.maxTokens || this.getMaxTokens(model.id)) / 2,
+          budget_tokens: opts?.reasoningBudget || 1024,
         }
       } : {}),
     }

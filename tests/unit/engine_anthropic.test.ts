@@ -425,7 +425,7 @@ test('Anthropic thinking', async () => {
   await anthropic.stream(anthropic.buildModel('claude-3-7-sonnet-thinking'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], { reasoning: true })
+  ])
   expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(2, {
     model: 'claude-3-7-sonnet-thinking',
     system: 'instruction',
@@ -433,9 +433,20 @@ test('Anthropic thinking', async () => {
     max_tokens: 64000,
     thinking: {
       type: 'enabled',
-      budget_tokens: 32000,
+      budget_tokens: 1024,
     },
     temperature: 1,
+    stream: true,
+  })
+  await anthropic.stream(anthropic.buildModel('claude-3-7-sonnet-thinking'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { reasoning: false })
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(3, {
+    model: 'claude-3-7-sonnet-thinking',
+    system: 'instruction',
+    messages: [ { role: 'user', content: [{ type: 'text', text: 'prompt' }] }, ],
+    max_tokens: 64000,
     stream: true,
   })
 })
