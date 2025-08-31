@@ -201,6 +201,8 @@ export default class extends LlmEngine {
       if (opts?.usage && response.usageMetadata && completion.usage) {
         completion.usage.prompt_tokens += response.usageMetadata.promptTokenCount ?? 0
         completion.usage.completion_tokens += response.usageMetadata.candidatesTokenCount ?? 0
+        completion.usage.completion_tokens += response.usageMetadata.toolUsePromptTokenCount ?? 0
+        completion.usage.completion_tokens_details!.reasoning_tokens! += response.usageMetadata.thoughtsTokenCount ?? 0
       }
 
       // done
@@ -429,6 +431,7 @@ export default class extends LlmEngine {
     if (context.opts.usage && chunk.usageMetadata) {
       context.usage.prompt_tokens += chunk.usageMetadata.promptTokenCount ?? 0
       context.usage.completion_tokens += chunk.usageMetadata.candidatesTokenCount ?? 0
+      context.usage.completion_tokens += chunk.usageMetadata.toolUsePromptTokenCount ?? 0
       context.usage.completion_tokens_details!.reasoning_tokens! += chunk.usageMetadata.thoughtsTokenCount ?? 0
     }
 
@@ -502,7 +505,7 @@ export default class extends LlmEngine {
         }
 
         // log
-      logger.log(`[google] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+        logger.log(`[google] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // send
         results.push({
