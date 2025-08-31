@@ -195,17 +195,19 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
 
   // deduplicate based on version field
   const uniques: ModelGoogle[] = []
-  const versions = new Set<string>()
+  const uniqueKeys = new Set<string>()
   for (const model of metas) {
 
     // if no version add it
-    if (!model.version) {
+    if (!model.displayName || !model.version) {
       uniques.push(model)
       continue
     }
 
+    const key = `${model.displayName}-${model.version}`
+
     // already added
-    if (versions.has(model.version)) {
+    if (uniqueKeys.has(key)) {
       continue
     }
 
@@ -213,7 +215,7 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
     uniques.push(model)
 
     // add version
-    versions.add(model.version)
+    uniqueKeys.add(key)
   }
 
   // xform
@@ -227,7 +229,8 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<
   const realtimeModels = models.filter(model => model.id.includes('dialog'))
   
   const imageModels = models.filter((m) => (
-    (m.meta as ModelGoogle).supportedActions?.includes('predict')
+    (m.meta as ModelGoogle).supportedActions?.includes('predict') ||
+    (m.id.includes('-image'))
   ))
   
   const videoModels = models.filter((m) => (
