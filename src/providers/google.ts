@@ -432,7 +432,6 @@ export default class extends LlmEngine {
 
     // usage
     if (chunk.usageMetadata) {
-      console.log('[google] usage chunk', JSON.stringify(chunk.usageMetadata))
       context.requestUsage.prompt_tokens = chunk.usageMetadata.promptTokenCount ?? 0
       context.requestUsage.completion_tokens = chunk.usageMetadata.candidatesTokenCount ?? 0
       context.requestUsage.completion_tokens += chunk.usageMetadata.toolUsePromptTokenCount ?? 0

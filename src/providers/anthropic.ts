@@ -1,10 +1,10 @@
 import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCapabilities } from '../types/index'
-import { LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload, LlmStreamingResponse, LlmToolCallInfo, LlmChunk } from '../types/llm'
+import { LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload, LlmStreamingResponse, LlmToolCallInfo, LlmChunk, LlmUsage } from '../types/llm'
 import { minimatch } from 'minimatch'
 import Message from '../models/message'
 import Attachment from '../models/attachment'
 import LlmEngine, { LlmStreamingContextBase } from '../engine'
-import { zeroUsage } from '../usage'
+import { addUsages, zeroUsage } from '../usage'
 import { Plugin } from '../plugin'
 import logger from '../logger'
 
@@ -27,11 +27,12 @@ export interface AnthropicComputerToolInfo {
 }
 
 export type AnthropicStreamingContext = LlmStreamingContextBase & {
-  system: string,
-  toolCall?: LlmToolCall,
-  thinkingBlock?: string,
-  thinkingSignature?: string,
-  firstTextBlockStart: boolean,
+  system: string
+  toolCall?: LlmToolCall
+  requestUsage: LlmUsage
+  thinkingBlock?: string
+  thinkingSignature?: string
+  firstTextBlockStart: boolean
 }
 
 export default class extends LlmEngine {
@@ -252,6 +253,7 @@ export default class extends LlmEngine {
       thread: this.buildPayload(model, thread, opts) as MessageParam[],
       opts: opts || {},
       usage: zeroUsage(),
+      requestUsage: zeroUsage(),
       firstTextBlockStart: true
     }
 
@@ -267,6 +269,7 @@ export default class extends LlmEngine {
 
     // reset
     context.toolCall = undefined
+    context.requestUsage = zeroUsage()
     context.thinkingBlock = undefined
     context.thinkingSignature = ''
 
@@ -447,18 +450,19 @@ export default class extends LlmEngine {
     const usage: Usage|MessageDeltaUsage = (chunk as RawMessageStartEvent).message?.usage ?? (chunk as RawMessageDeltaEvent).usage
     if (context.usage && usage) {
       if ('input_tokens' in usage) {
-        context.usage.prompt_tokens += (usage as Usage).input_tokens ?? 0
+        context.requestUsage.prompt_tokens = (usage as Usage).input_tokens ?? 0
       }
-      if ('cache_read_input_tokens' in usage && context.usage.prompt_tokens_details?.cached_tokens !== undefined) {
-        context.usage.prompt_tokens_details.cached_tokens += (usage as Usage).cache_read_input_tokens ?? 0
+      if ('cache_read_input_tokens' in usage && context.requestUsage.prompt_tokens_details?.cached_tokens !== undefined) {
+        context.requestUsage.prompt_tokens_details.cached_tokens = (usage as Usage).cache_read_input_tokens ?? 0
       }
-      context.usage.completion_tokens += usage.output_tokens ?? 0
+      context.requestUsage.completion_tokens = usage.output_tokens ?? 0
     }
 
     // done
     if (chunk.type == 'message_stop') {
       yield { type: 'content', text: '', done: true }
       if (context.opts.usage) {
+        context.usage = addUsages(context.usage, context.requestUsage)
         yield { type: 'usage', usage: context.usage }
       }
     }
@@ -641,6 +645,12 @@ export default class extends LlmEngine {
         // clear force tool call to avoid infinite loop
         if (context.opts.toolChoice?.type === 'tool') {
           delete context.opts.toolChoice
+        }
+
+        // add usage
+        if (context.opts.usage) {
+          context.usage = addUsages(context.usage, context.requestUsage)
+          context.requestUsage = zeroUsage()
         }
 
         // switch to new stream
