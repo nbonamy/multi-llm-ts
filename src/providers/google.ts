@@ -1,8 +1,8 @@
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGoogle } from '../types/index'
-import { LLmCompletionPayload, LLmContentPayloadText, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCallInfo } from '../types/llm'
+import { LLmCompletionPayload, LLmContentPayloadText, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import Attachment from '../models/attachment'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
-import { zeroUsage } from '../usage'
+import { addUsages, zeroUsage } from '../usage'
 import Message from '../models/message'
 import logger from '../logger'
 
@@ -20,6 +20,7 @@ type GoogleCompletionOpts = LlmCompletionOpts & {
 
 export type GoogleStreamingContext = Omit<LlmStreamingContextTools, 'thread'> & {
   opts: GoogleCompletionOpts
+  requestUsage: LlmUsage
   content: Content[]
 }
 
@@ -233,7 +234,8 @@ export default class extends LlmEngine {
         instruction: this.getInstructions(model, thread),
       },
       toolCalls: [],
-      usage: zeroUsage()
+      usage: zeroUsage(),
+      requestUsage: zeroUsage()
     }
 
     // do it
@@ -248,6 +250,7 @@ export default class extends LlmEngine {
 
     // reset
     context.toolCalls = []
+    context.requestUsage = zeroUsage()
 
     logger.log(`[google] prompting model ${context.model.id}`)
     const response = await this.client.models.generateContentStream({
@@ -428,11 +431,12 @@ export default class extends LlmEngine {
     //logger.log('[google] chunk', JSON.stringify(chunk))
 
     // usage
-    if (context.opts.usage && chunk.usageMetadata) {
-      context.usage.prompt_tokens += chunk.usageMetadata.promptTokenCount ?? 0
-      context.usage.completion_tokens += chunk.usageMetadata.candidatesTokenCount ?? 0
-      context.usage.completion_tokens += chunk.usageMetadata.toolUsePromptTokenCount ?? 0
-      context.usage.completion_tokens_details!.reasoning_tokens! += chunk.usageMetadata.thoughtsTokenCount ?? 0
+    if (chunk.usageMetadata) {
+      console.log('[google] usage chunk', JSON.stringify(chunk.usageMetadata))
+      context.requestUsage.prompt_tokens = chunk.usageMetadata.promptTokenCount ?? 0
+      context.requestUsage.completion_tokens = chunk.usageMetadata.candidatesTokenCount ?? 0
+      context.requestUsage.completion_tokens += chunk.usageMetadata.toolUsePromptTokenCount ?? 0
+      context.requestUsage.completion_tokens_details!.reasoning_tokens! = chunk.usageMetadata.thoughtsTokenCount ?? 0
     }
 
     // tool calls
@@ -546,6 +550,12 @@ export default class extends LlmEngine {
         delete context.opts.toolChoice
       }
 
+      // add usage
+      if (context.opts.usage) {
+        context.usage = addUsages(context.usage, context.requestUsage)
+        context.requestUsage = zeroUsage()
+      }
+
       // switch to new stream
       yield {
         type: 'stream',
@@ -571,10 +581,10 @@ export default class extends LlmEngine {
 
     // usage
     if (done && context.opts.usage) {
+      context.usage = addUsages(context.usage, context.requestUsage)
       yield { type: 'usage', usage: context.usage }
     }
   }
-
    
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   addImageToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
