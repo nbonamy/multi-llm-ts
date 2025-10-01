@@ -10,6 +10,7 @@ import { Plugin, CustomToolPlugin, MultiToolPlugin } from './plugin'
 import { addUsages } from './usage'
 
 import LlmEngine from './engine'
+import LlmModel from './model'
 
 import Azure from './providers/azure'
 import Anthropic from './providers/anthropic'
@@ -51,6 +52,7 @@ export {
   Message,
   Attachment,
   LlmEngine,
+  LlmModel,
   Azure,
   Anthropic,
   Cerebras,

@@ -1,18 +1,18 @@
 
-import { z } from 'zod'
-import { ChatModel, EngineCreateOpts, LlmEngine, Message, igniteEngine, loadModels } from '../src/index'
-import Answer from './answer'
 import dotenv from 'dotenv';
+import { z } from 'zod';
+import { EngineCreateOpts, LlmModel, Message, igniteModel, loadModels } from '../src/index';
+import Answer from './answer';
 dotenv.config();
 
-const completion = async (llm: LlmEngine, model: ChatModel, messages: Message[]) => {
-  console.log('\n** Chat completion' + (llm.plugins.length ? ' with plugins' : ''))
-  console.log(await llm.complete(model, messages, { usage: true }))
+const completion = async (model: LlmModel, messages: Message[]) => {
+  console.log('\n** Chat completion' + (model.plugins.length ? ' with plugins' : ''))
+  console.log(await model.complete(messages, { usage: true }))
 }
 
-const streaming = async (llm: LlmEngine, model: ChatModel, messages: Message[]) => {
-  console.log('\n** Chat streaming' + (llm.plugins.length ? ' with plugins' : ''))
-  const stream = llm.generate(model, messages, { usage: true, reasoning: true })
+const streaming = async (model: LlmModel, messages: Message[]) => {
+  console.log('\n** Chat streaming' + (model.plugins.length ? ' with plugins' : ''))
+  const stream = model.generate(messages, { usage: true, reasoning: true })
   let reasoning = ''
   let response = ''
   for await (const chunk of stream) {
@@ -28,10 +28,10 @@ const streaming = async (llm: LlmEngine, model: ChatModel, messages: Message[]) 
   console.log(response)
 }
 
-const conversation = async (llm: LlmEngine, model: ChatModel, messages: Message[]) => {
+const conversation = async (model: LlmModel, messages: Message[]) => {
   console.log('\n** Chat conversation')
   const AssistantMessage = new Message('assistant', '')
-  let stream = llm.generate(model, messages)
+  let stream = model.generate(messages)
   let response = ''
   for await (const chunk of stream) {
     if (chunk.type === 'content' || chunk.type === 'reasoning') {
@@ -42,7 +42,7 @@ const conversation = async (llm: LlmEngine, model: ChatModel, messages: Message[
   console.log(response)
   messages.push(AssistantMessage)
   messages.push(new Message('user', 'What is your last message?'))
-  stream = llm.generate(model, messages)
+  stream = model.generate(messages)
   response = ''
   for await (const chunk of stream) {
     if (chunk.type === 'content') {
@@ -53,9 +53,9 @@ const conversation = async (llm: LlmEngine, model: ChatModel, messages: Message[
   messages.splice(2,2)
 }
 
-const structured = async (llm: LlmEngine, model: ChatModel, messages: Message[]) => {
-  console.log('\n** Structured Output' + (llm.plugins.length ? ' with plugins' : ''))
-  console.log(await llm.complete(model, messages, {
+const structured = async (model: LlmModel, messages: Message[]) => {
+  console.log('\n** Structured Output' + (model.plugins.length ? ' with plugins' : ''))
+  console.log(await model.complete(messages, {
     structuredOutput: {
       name: 'items',
       structure: z.object({
@@ -91,7 +91,6 @@ const structured = async (llm: LlmEngine, model: ChatModel, messages: Message[])
     deployment: deployment,
     apiVersion: apiVersion,
   }
-  const llm = igniteEngine(engine, config)
   const messages = [
     new Message('system', 'You are a helpful assistant'),
     new Message('user', 'What is the capital of France?'),
@@ -113,24 +112,26 @@ const structured = async (llm: LlmEngine, model: ChatModel, messages: Message[])
   console.log(`${models!.stt?.length ?? 0} stt models found`)
 
   // get the model
-  const model = models!.chat.find(m => m.id === modelName)
-  if (!model) {
+  const chatModel = models!.chat.find(m => m.id === modelName)
+  if (!chatModel) {
     throw new Error(`Model ${modelName} not found`)
   }
 
+  const model = igniteModel(engine, chatModel, config)
+
   // no function calling
-  await completion(llm, model, messages)
-  await streaming(llm, model, messages)
-  await conversation(llm, model, messages)
+  await completion(model, messages)
+  await streaming(model, messages)
+  await conversation(model, messages)
 
   // with function calling
   messages[1].content = 'What is the answer to life, the universe and everything?'
-  llm.addPlugin(new Answer())
-  await completion(llm, model, messages)
-  await streaming(llm, model, messages)
+  model.addPlugin(new Answer())
+  await completion(model, messages)
+  await streaming(model, messages)
 
   // structured outputs
-  await structured(llm, model, [
+  await structured(model, [
     new Message('system', 'You are a helpful math tutor.'),
     new Message('user', 'create a JSON list of random items'),
   ])

@@ -1,6 +1,6 @@
 
-import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCerebras, ModelDeepseek, ModelGeneric, ModelGoogle, ModelGroq, ModelMeta, ModelMistralAI, ModelOllama, ModelOpenAI, ModelOpenRouter, ModelsList, ModelTogether, ModelxAI } from './types/index'
 import LlmEngine from './engine'
+import LlmModel from './model'
 import Anthropic, { AnthropicComputerToolInfo } from './providers/anthropic'
 import Azure from './providers/azure'
 import Cerebreas from './providers/cerebras'
@@ -14,6 +14,7 @@ import Ollama from './providers/ollama'
 import OpenAI from './providers/openai'
 import OpenRouter from './providers/openrouter'
 import XAI from './providers/xai'
+import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCerebras, ModelDeepseek, ModelGeneric, ModelGoogle, ModelGroq, ModelMeta, ModelMistralAI, ModelOllama, ModelOpenAI, ModelOpenRouter, ModelsList, ModelTogether, ModelxAI } from './types/index'
 
 export const staticModelsListEngines = [ ]
 
@@ -32,6 +33,10 @@ export const igniteEngine = (engine: string, config: EngineCreateOpts): LlmEngin
   if (engine === 'openrouter') return new OpenRouter(config)
   if (engine === 'xai') return new XAI(config)
   throw new Error('Unknown engine: ' + engine)
+}
+
+export const igniteModel = (engine: string, model: string|ChatModel, config: EngineCreateOpts): LlmModel => {
+  return new LlmModel(igniteEngine(engine, config), model)
 }
 
 export const loadModels = async (engine: string, config: EngineCreateOpts): Promise<ModelsList|null> => {

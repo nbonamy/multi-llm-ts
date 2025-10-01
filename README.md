@@ -14,6 +14,15 @@ Features include:
 - Structured output
 - Usage reporting (tokens count)
 
+## 4.5 Changes
+
+Version 4.5 introduces `LlmModel`, a more elegant abstraction that wraps an engine and a specific model together. This simplifies the API by eliminating the need to pass the model parameter to every `complete()` and `generate()` call.
+
+Use `igniteModel()` instead of `igniteEngine()` to create an `LlmModel` instance. See examples below.
+
+The `LlmEngine` class is still available for backwards compatibility.
+
+
 ## <span style="color: red">4.0 Breaking Changes</span>
 
 Version 4.0 has introduced some breaking changes. Please check section below for details before upgrading.
@@ -99,24 +108,26 @@ console.log(models.chat)
 ### Chat completion
 
 ```js
-const llm = igniteEngine('PROVIDER_ID', { apiKey: 'YOUR_API_KEY' })
+const config = { apiKey: 'YOUR_API_KEY' }
 const models = await loadModels('PROVIDER_ID', config)
+const model = igniteModel('PROVIDER_ID', models.chat[0], config)
 const messages = [
   new Message('system', 'You are a helpful assistant'),
   new Message('user', 'What is the capital of France?'),
 ]
-await llm.complete(models.chat[0], messages)
+await model.complete(messages)
 ```
 
 ### Chat streaming
 ```js
-const llm = igniteEngine('PROVIDER_ID', { apiKey: 'YOUR_API_KEY' })
+const config = { apiKey: 'YOUR_API_KEY' }
 const models = await loadModels('PROVIDER_ID', config)
+const model = igniteModel('PROVIDER_ID', models.chat[0], config)
 const messages = [
   new Message('system', 'You are a helpful assistant'),
   new Message('user', 'What is the capital of France?'),
 ]
-const stream = llm.generate(models.chat[0], messages)
+const stream = model.generate(messages)
 for await (const chunk of stream) {
   console.log(chunk)
 }
@@ -124,15 +135,18 @@ for await (const chunk of stream) {
 
 ### Function calling
 
+`multi-llm-ts` will handle call tooling for you. The `tool` chunks you received in the below example are just status update information. You can asnolutely skip them if you don't need them.
+
 ```js
-const llm = igniteEngine('PROVIDER_ID', { apiKey: 'YOUR_API_KEY' })
+const config = { apiKey: 'YOUR_API_KEY' }
 const models = await loadModels('PROVIDER_ID', config)
-llm.addPlugin(new MyPlugin())
+const model = igniteModel('PROVIDER_ID', models.chat[0], config)
+model.addPlugin(new MyPlugin())
 const messages = [
   new Message('system', 'You are a helpful assistant'),
   new Message('user', 'What is the capital of France?'),
 ]
-const stream = llm.generate(models.chat[0], messages)
+const stream = model.generate(messages)
 for await (const chunk of stream) {
   // use chunk.type to decide what to do
   // type == 'tool' => tool usage status information
@@ -261,13 +275,13 @@ export default class extends Plugin {
 
 If you prefer to use the OpenAI Responses API, you can do so by:
 
-- setting `EngineCreateOpts.useOpenAIResponsesApi` to true when creating your engine
+- setting `EngineCreateOpts.useOpenAIResponsesApi` to true when creating your model
 - settings `LlmCompletionOpts.useOpenAIResponsesApi` to true when sumbitting a prompt (completion or streaming)
 
 Not that some models are **not** compatible with the Completions API: the Responses API will automatically be activated for those.
 
 ```ts
-const llm = igniteEngine('openai', { apiKey: 'KEY', useOpenAIResponsesApi: true })
+const model = igniteModel('openai', chatModel, { apiKey: 'KEY', useOpenAIResponsesApi: true })
 ```
 
 ## Tests

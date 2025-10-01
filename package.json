@@ -1,6 +1,6 @@
 {
   "name": "multi-llm-ts",
-  "version": "4.4.4",
+  "version": "4.5.0",
   "description": "Library to query multiple LLM providers in a consistent way",
   "repository": {
     "type": "git",
@@ -19,11 +19,12 @@
     "typecheck": "tsc --noEmit",
     "build": "tsup",
     "lint": "eslint '**/*.ts'",
-    "test": "vitest",
     "ollama": "node ./tools/update_ollama_models.js",
     "dist": "npm run lint && npx vitest --run && npm run build",
-    "testui": "vitest --ui --coverage.enabled=true",
-    "testreal": "REAL_API=1 vitest tests/unit/engine_real_apis.test.ts",
+    "test": "vitest --run",
+    "test:watch": "vitest --watch",
+    "test:ui": "vitest --ui --coverage.enabled=true",
+    "test:real": "REAL_API=1 vitest tests/unit/engine_real_apis.test.ts",
     "example": "tsx ./example/index.ts"
   },
   "author": {
