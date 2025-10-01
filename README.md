@@ -14,6 +14,8 @@ Features include:
 - Structured output
 - Usage reporting (tokens count)
 
+Check the [demo project](https://github.com/nbonamy/mlts-demo) for a "real" implementation.
+
 ## 4.5 Changes
 
 Version 4.5 introduces `LlmModel`, a more elegant abstraction that wraps an engine and a specific model together. This simplifies the API by eliminating the need to pass the model parameter to every `complete()` and `generate()` call.
