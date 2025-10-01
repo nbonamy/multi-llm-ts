@@ -1,10 +1,12 @@
 
-import { vi, expect, test, beforeEach } from 'vitest'
-import LlmModel from '../../src/model'
+import { expect, Mock, test, vi } from 'vitest'
 import LlmEngine from '../../src/engine'
+import { defaultCapabilities } from '../../src/index'
+import LlmModel from '../../src/model'
 import Message from '../../src/models/message'
 import { Plugin } from '../../src/plugin'
-import { ChatModel, LlmChunk, LlmResponse } from '../../src/types'
+import { ChatModel } from '../../src/types'
+import { LlmChunk, LlmResponse } from '../../src/types/llm'
 
 // Mock LlmEngine
 const createMockEngine = () => {
@@ -41,7 +43,8 @@ test('Constructor with ChatModel object', () => {
   const chatModel: ChatModel = {
     id: 'gpt-4',
     name: 'GPT-4',
-    meta: {}
+    meta: undefined,
+    ...defaultCapabilities
   }
   const model = new LlmModel(mockEngine, chatModel)
 
@@ -87,7 +90,7 @@ test('complete calls engine.complete with model and parameters', async () => {
     type: 'text',
     content: 'response'
   }
-  mockEngine.complete.mockResolvedValue(mockResponse)
+  ;(mockEngine.complete as Mock).mockResolvedValue(mockResponse)
 
   const model = new LlmModel(mockEngine, 'gpt-4')
   const messages = [new Message('user', 'Hello')]
@@ -106,12 +109,13 @@ test('complete calls engine.complete with ChatModel object', async () => {
     type: 'text',
     content: 'response'
   }
-  mockEngine.complete.mockResolvedValue(mockResponse)
+  ;(mockEngine.complete as Mock).mockResolvedValue(mockResponse)
 
   const chatModel: ChatModel = {
     id: 'gpt-4',
     name: 'GPT-4',
-    meta: {}
+    meta: undefined,
+    ...defaultCapabilities
   }
   const model = new LlmModel(mockEngine, chatModel)
   const messages = [new Message('user', 'Hello')]
@@ -126,12 +130,12 @@ test('complete calls engine.complete with ChatModel object', async () => {
 test('generate yields chunks from engine.generate', async () => {
   const mockEngine = createMockEngine()
   const mockChunks: LlmChunk[] = [
-    { type: 'content', text: 'Hello' },
-    { type: 'content', text: ' world' },
+    { type: 'content', text: 'Hello', done: false },
+    { type: 'content', text: ' world', done: true },
   ]
 
   // Mock async generator
-  mockEngine.generate.mockReturnValue((async function* () {
+  ;(mockEngine.generate as Mock).mockReturnValue((async function* () {
     for (const chunk of mockChunks) {
       yield chunk
     }
@@ -154,10 +158,10 @@ test('generate yields chunks from engine.generate', async () => {
 test('generate without options', async () => {
   const mockEngine = createMockEngine()
   const mockChunks: LlmChunk[] = [
-    { type: 'content', text: 'Response' },
+    { type: 'content', text: 'Response', done: true },
   ]
 
-  mockEngine.generate.mockReturnValue((async function* () {
+  ;(mockEngine.generate as Mock).mockReturnValue((async function* () {
     for (const chunk of mockChunks) {
       yield chunk
     }
