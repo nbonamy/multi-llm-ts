@@ -11,7 +11,7 @@ export class Plugin implements IPlugin {
   }
 
   isEnabled(): boolean {
-    return false
+    return true
   }
 
   getName(): string {

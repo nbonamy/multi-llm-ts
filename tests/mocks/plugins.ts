@@ -13,10 +13,6 @@ export class NamedPlugin extends Plugin {
     this.description = description
   }
 
-  isEnabled(): boolean {
-    return true
-  }
-
   getName(): string {
     return this.name
   }
@@ -32,10 +28,6 @@ export class NamedPlugin extends Plugin {
 
 export class Plugin1 extends Plugin {
   
-  isEnabled(): boolean {
-    return true
-  }
-
   getName(): string {
     return 'plugin1'
   }
@@ -59,10 +51,6 @@ export class Plugin1 extends Plugin {
 }
 
 export class Plugin2 extends Plugin {
-
-  isEnabled(): boolean {
-    return true
-  }
 
   getName(): string {
     return 'plugin2'
@@ -158,6 +146,10 @@ export class Plugin2 extends Plugin {
 
 export class Plugin3 extends Plugin {
 
+  isEnabled(): boolean {
+    return false
+  }
+
   getName(): string {
     return 'plugin3'
   }
@@ -173,10 +165,6 @@ export class Plugin3 extends Plugin {
 
 export class CustomPlugin extends CustomToolPlugin {
 
-  isEnabled(): boolean {
-    return true
-  }
-  
   getName(): string {
     return 'custom'
   }
@@ -202,10 +190,6 @@ export class CustomPlugin extends CustomToolPlugin {
 }
 
 export class MultiPlugin extends MultiToolPlugin {
-
-  isEnabled(): boolean {
-    return true
-  }
 
   getName(): string {
     return 'multi'
@@ -256,10 +240,6 @@ export class MultiPlugin extends MultiToolPlugin {
 
 export class PluginUpdate extends Plugin {
   
-  isEnabled(): boolean {
-    return true
-  }
-
   getName(): string {
     return 'pluginUpdate'
   }

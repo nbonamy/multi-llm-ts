@@ -22,6 +22,8 @@ Use `igniteModel()` instead of `igniteEngine()` to create an `LlmModel` instance
 
 The `LlmEngine` class is still available for backwards compatibility.
 
+<span style="color: red">Breaking Change:</span>
+`Plugin::isEnabled` is now true.
 
 ## <span style="color: red">4.0 Breaking Changes</span>
 
@@ -155,120 +157,62 @@ for await (const chunk of stream) {
 }
 ```
 
-You can easily implement Image generation using DALL-E with a Plugin class such as:
+You can easily implement a file reader plugin with a Plugin class such as:
 
 ```js
-export default class extends Plugin {
 
-  constructor(config: PluginConfig) {
-    super(config)
-  }
+import * as llm from 'multi-llm-ts'
+
+export default class ReadFilePlugin extends llm.Plugin {
 
   isEnabled(): boolean {
-    return config?.apiKey != null
+    return true
   }
 
   getName(): string {
-    return 'dalle_image_generation'
+    return "ReadFilePlugin"
   }
-
+  
   getDescription(): string {
-    return 'Generate an image based on a prompt. Returns the path of the image saved on disk and a description of the image.'
+    return "A plugin that reads the content of a file given its path."
   }
-
-  getPreparationDescription(): string {
-    return this.getRunningDescription()
+  
+  getPreparationDescription(tool: string): string {
+    return `Preparing to read the file at the specified path.`
   }
-      
-  getRunningDescription(): string {
-    return 'Painting pixels…'
+  
+  getRunningDescription(tool: string, args: any): string {
+    return `Reading the file located at: ${args.path}`
   }
-
-  getParameters(): PluginParameter[] {
-
-    const parameters: PluginParameter[] = [
+  
+  getCompletedDescription(tool: string, args: any, results: any): string | undefined {
+    return `Successfully read the file at: ${args.path}`
+  }
+  
+  getParameters(): llm.PluginParameter[] {
+    return [
       {
-        name: 'prompt',
-        type: 'string',
-        description: 'The description of the image',
+        name: "path",
+        type: "string",
+        description: "The path to the file to be read.",
         required: true
       }
     ]
-
-    // rest depends on model
-    if (store.config.engines.openai.model.image === 'dall-e-2') {
-
-      parameters.push({
-        name: 'size',
-        type: 'string',
-        enum: [ '256x256', '512x512', '1024x1024' ],
-        description: 'The size of the image',
-        required: false
-      })
-
-    } else if (store.config.engines.openai.model.image === 'dall-e-3') {
-
-      parameters.push({
-        name: 'quality',
-        type: 'string',
-        enum: [ 'standard', 'hd' ],
-        description: 'The quality of the image',
-        required: false
-      })
-
-      parameters.push({
-        name: 'size',
-        type: 'string',
-        enum: [ '1024x1024', '1792x1024', '1024x1792' ],
-        description: 'The size of the image',
-        required: false
-      })
-
-      parameters.push({
-        name: 'style',
-        type: 'string',
-        enum: ['vivid', 'natural'],
-        description: 'The style of the image',
-        required: false
-      })
-
+  }
+  async execute(context: llm.PluginExecutionContext, parameters: any): Promise<any> {
+    const fs = await import('fs/promises')
+    const path = parameters.path
+    try {
+      const content = await fs.readFile(path, 'utf-8')
+      return { content }
+    } catch (error) {
+      console.error(`Error reading file at ${path}:`, error)
+      throw new Error(`Failed to read file at ${path}`)
     }
-
-    // done
-    return parameters
-  
   }
 
-   
-  async execute(parameters: any): Promise<any> {
-
-    // init
-    const client = new OpenAI({
-      apiKey: config.apiKey,
-      dangerouslyAllowBrowser: true
-    })
-
-    // call
-    console.log(`[openai] prompting model ${model}`)
-    const response = await client.images.generate({
-      model: 'dall-e-2',
-      prompt: parameters?.prompt,
-      response_format: 'b64_json',
-      size: parameters?.size,
-      style: parameters?.style,
-      quality: parameters?.quality,
-      n: parameters?.n || 1,
-    })
-
-    // return an object
-    return {
-      path: fileUrl,
-      description: parameters?.prompt
-    }
-
-  }  
-
 }
+
 ```
 
 ## OpenAI Responses API
