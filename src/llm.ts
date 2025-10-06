@@ -558,6 +558,7 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
 
     // assign models
     const imageModels = models.filter(model => model.id.startsWith('dall-e-') || model.id.includes('image-'))
+    const videoModels = models.filter(model => model.id.includes('sora'))
     const embeddingModels = models.filter(model => model.id.startsWith('text-embedding-'))
     const realtimeModels = models.filter(model => model.id.includes('realtime'))
     const computerModels = models.filter(model => model.id.includes('computer-use'))
@@ -574,6 +575,7 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
     // chat models are the rest
     const chatModels = models.filter(model => 
       !imageModels.includes(model) &&
+      !videoModels.includes(model) &&
       !embeddingModels.includes(model) &&
       !realtimeModels.includes(model) &&
       !computerModels.includes(model) &&
@@ -584,6 +586,7 @@ export const loadOpenAIModels = async (engineConfig: EngineCreateOpts): Promise<
     return {
       chat: chatModels,
       image: imageModels,
+      video: videoModels,
       embedding: embeddingModels,
       realtime: realtimeModels,
       computer: computerModels,

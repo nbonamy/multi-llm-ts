@@ -1,17 +1,15 @@
-import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpenAI } from '../types/index'
-
-import { LLmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
-import Message from '../models/message'
-import LlmEngine, { LlmStreamingContextTools } from '../engine'
-import { zeroUsage } from '../usage'
-import logger from '../logger'
-
+import { minimatch } from 'minimatch'
 import OpenAI, { ClientOptions } from 'openai'
+import { zodResponseFormat } from 'openai/helpers/zod'
 import { CompletionUsage } from 'openai/resources'
 import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
 import { Response, ResponseCreateParams, ResponseFunctionToolCall, ResponseInputItem, ResponseOutputMessage, ResponseStreamEvent, ResponseUsage, Tool, ToolChoiceFunction, ToolChoiceOptions } from 'openai/resources/responses/responses'
-import { zodResponseFormat } from 'openai/helpers/zod'
-import { minimatch } from 'minimatch'
+import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import logger from '../logger'
+import Message from '../models/message'
+import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpenAI } from '../types/index'
+import { LLmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
+import { zeroUsage } from '../usage'
 
 type OpenAIToolOpts = Omit<ChatCompletionCreateParamsBase, 'model' | 'messages' | 'stream'>
 
@@ -222,38 +220,39 @@ export default class extends LlmEngine {
       for (const tool_call of choice.message.tool_calls) {
 
         // log
-        logger.log(`[openai] tool call ${tool_call.function.name} with ${tool_call.function.arguments}`)
+        const functionToolCall = tool_call
+        logger.log(`[openai] tool call ${functionToolCall.function.name} with ${functionToolCall.function.arguments}`)
 
         // this can error
         let args = null
         try {
-          args = JSON.parse(tool_call.function.arguments)
+          args = JSON.parse(functionToolCall.function.arguments)
         } catch (err) {
-          throw new Error(`[openai] tool call ${tool_call.function.name} with invalid JSON args: "${tool_call.function.arguments}"`, { cause: err })
+          throw new Error(`[openai] tool call ${functionToolCall.function.name} with invalid JSON args: "${functionToolCall.function.arguments}"`, { cause: err })
         }
 
         // now execute
         let content: any = undefined
-        for await (const update of this.callTool({ model: model.id }, tool_call.function.name, args)) {
+        for await (const update of this.callTool({ model: model.id }, functionToolCall.function.name, args)) {
           if (update.type === 'result') {
             content = update.result
           }
         }
 
         // log
-        logger.log(`[openai] tool call ${tool_call.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
+        logger.log(`[openai] tool call ${functionToolCall.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
 
         // add tool response message
         thread.push({
           role: 'tool',
           tool_call_id: tool_call.id,
-          name: tool_call.function.name,
+          name: functionToolCall.function.name,
           content: JSON.stringify(content)
         })
 
         // save tool call info
         toolCallInfo.push({
-          name: tool_call.function.name,
+          name: functionToolCall.function.name,
           params: args,
           result: content
         })

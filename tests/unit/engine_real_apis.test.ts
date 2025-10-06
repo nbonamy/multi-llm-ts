@@ -64,7 +64,7 @@ const realApiTest = async (engine: string, apiKey: string|undefined, modelName: 
   // iterate
   let lastChunk: LlmChunk|null = null
   for await (const chunk of stream) {
-    expect(['reasoning', 'content', 'tool']).toContain(chunk.type)
+    expect(['reasoning', 'content', 'tool', 'openai_message_id']).toContain(chunk.type)
     lastChunk = chunk
   }
 
@@ -106,11 +106,11 @@ test.concurrent('MistralAI real test', { timeout: 1000 * 60 }, async () => {
 })
 
 test.concurrent('OpenRouter real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('openrouter', process.env.OPENROUTER_API_KEY, 'qwen/qwen-2-72b-instruct')
+  await realApiTest('openrouter', process.env.OPENROUTER_API_KEY, 'qwen/qwen-2.5-7b-instruct')
 })
 
 test.concurrent('Groq real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('groq', process.env.GROQ_API_KEY, 'llama3-8b-8192')
+  await realApiTest('groq', process.env.GROQ_API_KEY, 'openai/gpt-oss-20b')
 })
 
 test.concurrent('Cerebras real test', { timeout: 1000 * 60 }, async () => {

@@ -49,6 +49,7 @@ vi.mock('openai', async () => {
           { id: 'dall-e-model1', created: 13 },
           { id: 'text-embedding-1', created: 15 },
           { id: 'text-embedding-2', created: 16 },
+          { id: 'sora-2', created: 17 },
         ]
       }
     })
@@ -119,6 +120,9 @@ test('OpenAI Load Models', async () => {
     { id: 'gpt-image-1', name: 'GPT Image', meta: expect.any(Object), capabilities: expect.any(Object) },
     { id: 'dall-e-model2', name: 'dall-e-model2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false }  },
     { id: 'dall-e-model1', name: 'dall-e-model1', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false }  },
+  ])
+  expect(models!.video).toStrictEqual([
+    { id: 'sora-2', name: 'sora-2', meta: expect.any(Object), capabilities: expect.any(Object) },
   ])
   expect(models!.embedding).toStrictEqual([
     { id: 'text-embedding-2', name: 'text-embedding-2', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false }  },
