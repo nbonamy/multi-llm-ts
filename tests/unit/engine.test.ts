@@ -229,9 +229,9 @@ test('Generate content', async () => {
   }
   expect(response).toBe('response')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, ['arg'])
-  expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', status: 'prep2', done: false })
-  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
-  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'preparing', status: 'prep2', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'running', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'completed', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
 })
 
 test('Switch to vision when model provided', async () => {
@@ -283,4 +283,105 @@ test('Does not add the same plugin twice', async () => {
   openai.addPlugin(new Plugin2())
   openai.addPlugin(new Plugin2())
   expect(openai.plugins.length).toBe(2)
+})
+
+test('Tool execution validation - allow', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({ decision: 'allow' })
+
+  const chunks: any[] = []
+  // @ts-expect-error protected
+  for await (const update of openai.callTool({ model: 'model' }, 'plugin2', { param: 'value' }, validator)) {
+    chunks.push(update)
+  }
+
+  expect(validator).toHaveBeenCalledWith(
+    { model: 'model' },
+    'plugin2',
+    { param: 'value' }
+  )
+  expect(Plugin2.prototype.execute).toHaveBeenCalled()
+  expect(chunks).toHaveLength(1)
+  expect(chunks[0].type).toBe('result')
+  expect(chunks[0].result).toBe('result2') // Plugin2 mock returns 'result2'
+  expect(chunks[0].validation).toMatchObject({ decision: 'allow' })
+})
+
+test('Tool execution validation - deny', async () => {
+  vi.clearAllMocks()
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'deny',
+    extra: { reason: 'Not allowed' }
+  })
+
+  const chunks: any[] = []
+  // @ts-expect-error protected
+  for await (const update of openai.callTool({ model: 'model' }, 'plugin2', { param: 'value' }, validator)) {
+    chunks.push(update)
+  }
+
+  expect(validator).toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+  expect(chunks).toHaveLength(1)
+  expect(chunks[0]).toMatchObject({
+    type: 'result',
+    result: { error: 'Tool plugin2 execution denied by validation function.' },
+    canceled: true,
+    validation: {
+      decision: 'deny',
+      extra: { reason: 'Not allowed' }
+    }
+  })
+})
+
+test('Tool execution validation - abort', async () => {
+  vi.clearAllMocks()
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'abort',
+    extra: { reason: 'Forbidden content' }
+  })
+
+  const chunks: any[] = []
+  // @ts-expect-error protected
+  for await (const update of openai.callTool({ model: 'model' }, 'plugin2', { param: 'value' }, validator)) {
+    chunks.push(update)
+  }
+
+  expect(validator).toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+  expect(chunks).toHaveLength(1)
+  expect(chunks[0]).toMatchObject({
+    type: 'result',
+    result: { error: 'Tool plugin2 execution aborted by validation function.' },
+    canceled: true,
+    validation: {
+      decision: 'abort',
+      extra: { reason: 'Forbidden content' }
+    }
+  })
+})
+
+test('Tool execution validation - no validator', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin2())
+
+  const chunks: any[] = []
+  // @ts-expect-error protected
+  for await (const update of openai.callTool({ model: 'model' }, 'plugin2', { param: 'value' }, undefined)) {
+    chunks.push(update)
+  }
+
+  expect(Plugin2.prototype.execute).toHaveBeenCalled()
+  expect(chunks).toHaveLength(1)
+  expect(chunks[0].type).toBe('result')
+  expect(chunks[0].result).toBe('result2') // Plugin2 mock returns 'result2'
+  expect(chunks[0].validation).toBeUndefined()
 })

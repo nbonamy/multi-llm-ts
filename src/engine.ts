@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage, LlmStream } from './types/llm'
+import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse } from './types/llm'
 import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 import Attachment from './models/attachment'
@@ -142,21 +142,15 @@ export default abstract class LlmEngine {
         // we may have several llm chunks for one native chunk
         const llmChunkStream = this.nativeChunkToLlmChunk(chunk, response.context)
         for await (const msg of llmChunkStream) {
-          
-          // Check again before yielding each message
-          if (opts?.abortSignal?.aborted) {
-            await this.stop(currentStream)
-            return
-          }
-          
+
           // check message type
           if (msg.type === 'stream') {
 
             // stream switch!
             nextStream = msg.stream
-          
+
           } else {
-            
+
             // if we are switching to a new stream make sure we don't send a done message
             // (anthropic sends a 'message_stop' message when finishing current stream for example)
             if (nextStream !== null && msg.type === 'content' && msg.done) {
@@ -165,8 +159,15 @@ export default abstract class LlmEngine {
 
             // just forward the message
             yield msg
-          
+
           }
+
+          // Check abort AFTER yielding (so canceled tool chunks go through)
+          if (opts?.abortSignal?.aborted) {
+            await this.stop(currentStream)
+            return
+          }
+
         }
       }
 
@@ -294,7 +295,7 @@ export default abstract class LlmEngine {
           tools.push(pluginAsTool)
         }
       } else {
-        tools.push(this.getPluginAsTool(plugin))
+        tools.push(this.getPluginAsTool(plugin as Plugin))
       }
     }
     return tools
@@ -355,10 +356,10 @@ export default abstract class LlmEngine {
   }
 
   protected getPluginForTool(tool: string): Plugin|null {
-    
+
     const plugin = this.plugins.find((plugin) => plugin.getName() === tool)
     if (plugin) {
-      return plugin
+      return plugin as Plugin
     }
 
     // try multi-tools
@@ -391,7 +392,12 @@ export default abstract class LlmEngine {
     return plugin?.getCompletedDescription(tool, args, results)
   }
 
-  protected async *callTool(context: PluginExecutionContext, tool: string, args: any): AsyncGenerator<PluginExecutionUpdate> {
+  protected getToolCanceledDescription(tool: string, args: any): string|undefined {
+    const plugin = this.getPluginForTool(tool)
+    return plugin?.getCanceledDescription(tool, args)
+  }
+
+  protected async *callTool(context: PluginExecutionContext, tool: string, args: any, toolExecutionValidation: LlmToolExecutionValidationCallback|undefined): AsyncGenerator<PluginExecutionUpdate> {
 
     // get the plugin
     let payload = args
@@ -409,7 +415,7 @@ export default abstract class LlmEngine {
           }
         }
       }
-    
+
     }
 
     // check
@@ -421,22 +427,79 @@ export default abstract class LlmEngine {
       return
     }
 
+    // Check abort before calling tool
+    if (context.abortSignal?.aborted) {
+      yield {
+        type: 'result',
+        result: { error: 'Operation cancelled' },
+        canceled: true
+      }
+      return
+    }
+
+    // if we have validator, call it
+    let validation: LlmToolExecutionValidationResponse | undefined = undefined
+    if (toolExecutionValidation) {
+      validation = await toolExecutionValidation(context, tool, args)
+      if (validation.decision === 'deny') {
+        yield {
+          type: 'result',
+          result: { error: `Tool ${tool} execution denied by validation function.` },
+          canceled: true,
+          validation
+        }
+        return
+      } else if (validation.decision === 'abort') {
+        yield {
+          type: 'result',
+          result: { error: `Tool ${tool} execution aborted by validation function.` },
+          canceled: true,
+          validation
+        }
+        return
+      }
+    }
+
     // now we can run depending on plugin implementation
     if ('executeWithUpdates' in toolOwner) {
 
-      for await (const update of toolOwner.executeWithUpdates!(args, payload)) {
+      for await (const update of toolOwner.executeWithUpdates!(context, payload)) {
+        if (context.abortSignal?.aborted) {
+          yield {
+            type: 'result',
+            result: { error: 'Operation cancelled' },
+            canceled: true,
+          ...(validation !== undefined ? { validation } : {}),
+          }
+          return
+        }
         yield update
       }
-    
+
     } else {
 
       // now we can run
-      const result = await toolOwner.execute(context, payload)
-      yield {
-        type: 'result',
-        result: result
+      try {
+        const result = await toolOwner.execute(context, payload)
+        yield {
+          type: 'result',
+          result: result,
+          ...(validation !== undefined ? { validation } : {}),
+        }
+      } catch (error) {
+        // Check if this was a cancellation
+        if (context.abortSignal?.aborted || (error instanceof Error && error.message === 'Operation cancelled')) {
+          yield {
+            type: 'result',
+            result: { error: 'Operation cancelled' },
+            canceled: true,
+          ...(validation !== undefined ? { validation } : {}),
+          }
+        } else {
+          throw error
+        }
       }
-    
+
     }
 
   }

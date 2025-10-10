@@ -157,7 +157,11 @@ export default class extends LlmEngine {
 
         // now execute
         let content: any = undefined
-        for await (const update of this.callTool({ model: model.id }, toolCall.name, toolCall.input)) {
+        for await (const update of this.callTool(
+          { model: model.id, abortSignal: opts?.abortSignal },
+          toolCall.name, toolCall.input,
+          opts?.toolExecutionValidation
+        )) {
           if (update.type === 'result') {
             content = update.result
           }
@@ -496,6 +500,7 @@ export default class extends LlmEngine {
           type: 'tool',
           id: context.toolCall.id,
           name: context.toolCall.function,
+          state: 'preparing',
           status: this.getToolPreparationDescription(context.toolCall.function),
           done: false
         }
@@ -546,100 +551,145 @@ export default class extends LlmEngine {
         logger.log(`[anthropic] tool call ${context.toolCall!.function} with ${context.toolCall!.args}`)
         const args = context.toolCall!.args?.length ? JSON.parse(context.toolCall!.args) : {}
 
-        // first notify
-        yield {
-          type: 'tool',
-          id: context.toolCall.id,
-          name: context.toolCall.function,
-          status: this.getToolRunningDescription(context.toolCall!.function, args),
-          call: {
-            params: args,
-            result: undefined
-          },
-          done: false
-        }
+        try {
+          // first notify
+          yield {
+            type: 'tool',
+            id: context.toolCall.id,
+            name: context.toolCall.function,
+            state: 'running',
+            status: this.getToolRunningDescription(context.toolCall!.function, args),
+            call: {
+              params: args,
+              result: undefined
+            },
+            done: false
+          }
 
-        // now execute
-        let content: any = undefined
-        for await (const update of this.callTool({ model: context.model.id }, context.toolCall.function, args)) {
+          // now execute
+          let content: any = undefined
+          for await (const update of this.callTool(
+            { model: context.model.id, abortSignal: context.opts?.abortSignal },
+            context.toolCall.function, args,
+            context.opts?.toolExecutionValidation
+          )) {
 
-          if (update.type === 'status') {
+            if (update.type === 'status') {
+              yield {
+                type: 'tool',
+                id: context.toolCall.id,
+                name: context.toolCall.function,
+                state: 'running',
+                status: update.status,
+                call: {
+                  params: args,
+                  result: undefined
+                },
+                done: false
+              }
+
+            } else if (update.type === 'result') {
+              content = update.result
+            }
+
+          }
+
+          // Check if canceled
+          if (context.opts?.abortSignal?.aborted) {
             yield {
               type: 'tool',
               id: context.toolCall.id,
               name: context.toolCall.function,
-              status: update.status,
+              state: 'canceled',
+              status: this.getToolCanceledDescription(context.toolCall.function, args),
+              done: true,
               call: {
                 params: args,
                 result: undefined
-              },
-              done: false
+              }
             }
-
-          } else if (update.type === 'result') {
-            content = update.result
+            return  // Stop processing
           }
 
-        }
+          // log
+          logger.log(`[anthropic] tool call ${context.toolCall!.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
-        // log
-        logger.log(`[anthropic] tool call ${context.toolCall!.function} => ${JSON.stringify(content).substring(0, 128)}`)
+          // add thinking block
+          if (context.thinkingBlock) {
+            context.thread.push({
+              role: 'assistant',
+              content: [{
+                type: 'thinking',
+                thinking: context.thinkingBlock,
+                signature: context.thinkingSignature
+              }]
+            })
+          }
 
-        // add thinking block
-        if (context.thinkingBlock) {
+          // add tool call message
           context.thread.push({
             role: 'assistant',
             content: [{
-              type: 'thinking',
-              thinking: context.thinkingBlock,
-              signature: context.thinkingSignature
+              type: 'tool_use',
+              id: context.toolCall!.id,
+              name: context.toolCall!.function,
+              input: args,
             }]
           })
-        }
 
-        // add tool call message
-        context.thread.push({
-          role: 'assistant',
-          content: [{
-            type: 'tool_use',
-            id: context.toolCall!.id,
-            name: context.toolCall!.function,
-            input: args,
-          }]
-        })
+          // add tool response message
+          if (context.toolCall!.function === 'computer') {
+            context.thread.push({
+              role: 'user',
+              content: [{
+                type: 'tool_result',
+                tool_use_id: context.toolCall!.id,
+                ...content,
+              }]
+            })
+          } else {
+            context.thread.push({
+              role: 'user',
+              content: [{
+                type: 'tool_result',
+                tool_use_id: context.toolCall!.id,
+                content: JSON.stringify(content)
+              }]
+            })
+          }
 
-        // add tool response message
-        if (context.toolCall!.function === 'computer') {
-          context.thread.push({
-            role: 'user',
-            content: [{
-              type: 'tool_result',
-              tool_use_id: context.toolCall!.id,
-              ...content,
-            }]
-          })
-        } else {
-          context.thread.push({
-            role: 'user',
-            content: [{
-              type: 'tool_result',
-              tool_use_id: context.toolCall!.id,
-              content: JSON.stringify(content)
-            }]
-          })
-        }
+          // clear
+          yield {
+            type: 'tool',
+            id: context.toolCall.id,
+            name: context.toolCall.function,
+            state: 'completed',
+            status: this.getToolCompletedDescription(context.toolCall!.function, args, content),
+            done: true,
+            call: {
+              params: args,
+              result: content
+            },
+          }
 
-        // clear
-        yield {
-          type: 'tool',
-          id: context.toolCall.id,
-          name: context.toolCall.function,
-          status: this.getToolCompletedDescription(context.toolCall!.function, args, content),
-          done: true,
-          call: {
-            params: args,
-            result: content
-          },
+        } catch (error) {
+          // Check if this was an abort
+          if (context.opts?.abortSignal?.aborted) {
+            yield {
+              type: 'tool',
+              id: context.toolCall.id,
+              name: context.toolCall.function,
+              state: 'canceled',
+              status: this.getToolCanceledDescription(context.toolCall.function, args),
+              done: true,
+              call: {
+                params: args,
+                result: undefined
+              }
+            }
+            return  // Stop processing
+          }
+          throw error  // Re-throw non-abort errors
         }
 
         // clear force tool call to avoid infinite loop

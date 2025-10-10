@@ -233,7 +233,11 @@ export default class extends LlmEngine {
 
         // now execute
         let content: any = undefined
-        for await (const update of this.callTool({ model: model.id }, functionToolCall.function.name, args)) {
+        for await (const update of this.callTool(
+          { model: model.id, abortSignal: opts?.abortSignal },
+          functionToolCall.function.name, args,
+          opts?.toolExecutionValidation,
+        )) {
           if (update.type === 'result') {
             content = update.result
           }
@@ -443,6 +447,7 @@ export default class extends LlmEngine {
               type: 'tool',
               id: toolCall.id,
               name: toolCall.function,
+              state: 'preparing',
               status: this.getToolPreparationDescription(toolCall.function),
               done: false
             }
@@ -489,71 +494,118 @@ export default class extends LlmEngine {
           throw new Error(`[openai] tool call ${toolCall.function} with invalid JSON args: "${toolCall.args}"`, { cause: err })
         }
 
-        // first notify
-        yield {
-          type: 'tool',
-          id: toolCall.id,
-          name: toolCall.function,
-          status: this.getToolRunningDescription(toolCall.function, args),
-          call: {
-            params: args,
-            result: undefined
-          },
-          done: false
-        }
+        try {
+          // first notify
+          yield {
+            type: 'tool',
+            id: toolCall.id,
+            name: toolCall.function,
+            state: 'running',
+            status: this.getToolRunningDescription(toolCall.function, args),
+            call: {
+              params: args,
+              result: undefined
+            },
+            done: false
+          }
 
-        // now execute
-        let content: any = undefined
-        for await (const update of this.callTool({ model: context.model.id }, toolCall.function, args)) {
+          // now execute
+          let content: any = undefined
+          let wasCanceled = false
+          for await (const update of this.callTool(
+            { model: context.model.id, abortSignal: context.opts?.abortSignal },
+            toolCall.function, args,
+            context.opts?.toolExecutionValidation,
+        )) {
 
-          if (update.type === 'status') {
+            if (update.type === 'status') {
+              yield {
+                type: 'tool',
+                id: toolCall.id,
+                name: toolCall.function,
+                state: 'running',
+                status: update.status,
+                call: {
+                  params: args,
+                  result: undefined
+                },
+                done: false
+              }
+
+            } else if (update.type === 'result') {
+              content = update.result
+              wasCanceled = update.canceled || false
+            }
+
+          }
+
+          // Check if canceled
+          if (wasCanceled) {
             yield {
               type: 'tool',
               id: toolCall.id,
               name: toolCall.function,
-              status: update.status,
+              state: 'canceled',
+              status: this.getToolCanceledDescription(toolCall.function, args),
+              done: true,
               call: {
                 params: args,
                 result: undefined
-              },
-              done: false
+              }
             }
-
-          } else if (update.type === 'result') {
-            content = update.result
+            return  // Stop processing remaining tools
           }
 
-        }
+          // log
+          logger.log(`[openai] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
 
-        // log
-        logger.log(`[openai] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+          // add tool call message
+          context.thread.push({
+            role: 'assistant',
+            content: '',
+            tool_calls: toolCall.message
+          })
 
-        // add tool call message
-        context.thread.push({
-          role: 'assistant',
-          content: '',
-          tool_calls: toolCall.message
-        })
+          // add tool response message
+          context.thread.push({
+            role: 'tool',
+            tool_call_id: toolCall.id,
+            name: toolCall.function,
+            content: JSON.stringify(content)
+          })
 
-        // add tool response message
-        context.thread.push({
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          name: toolCall.function,
-          content: JSON.stringify(content)
-        })
+          // clear
+          yield {
+            type: 'tool',
+            id: toolCall.id,
+            name: toolCall.function,
+            state: 'completed',
+            status: this.getToolCompletedDescription(toolCall.function, args, content),
+            done: true,
+            call: {
+              params: args,
+              result: content
+            },
+          }
 
-        // clear
-        yield {
-          type: 'tool',
-          id: toolCall.id,
-          name: toolCall.function,
-          status: this.getToolCompletedDescription(toolCall.function, args, content),
-          done: true,
-          call: {
-            params: args,
-            result: content
-          },
+        } catch (error) {
+          // Check if this was an abort
+          if (context.opts?.abortSignal?.aborted) {
+            yield {
+              type: 'tool',
+              id: toolCall.id,
+              name: toolCall.function,
+              state: 'canceled',
+              status: this.getToolCanceledDescription(toolCall.function, args),
+              done: true,
+              call: {
+                params: args,
+                result: undefined
+              }
+            }
+            return  // Stop processing remaining tools
+          }
+          throw error  // Re-throw non-abort errors
         }
 
       }
@@ -700,7 +752,11 @@ export default class extends LlmEngine {
 
           // now execute
           let content: any = undefined
-          for await (const update of this.callTool({ model: model.id }, toolCall.name, args)) {
+          for await (const update of this.callTool(
+            { model: model.id, abortSignal: opts?.abortSignal },
+            toolCall.name, args,
+            opts?.toolExecutionValidation
+          )) {
             if (update.type === 'result') {
               content = update.result
             }
@@ -822,6 +878,7 @@ export default class extends LlmEngine {
                     type: 'tool',
                     id: ev.item.id,
                     name: ev.item.name,
+                    state: 'preparing',
                     status: this.getToolPreparationDescription(ev.item.name),
                     done: false
                   }
@@ -889,29 +946,14 @@ export default class extends LlmEngine {
             throw new Error(`[openai] tool call ${toolCall.name} with invalid JSON args: "${args}"`, { cause: err })
           }
 
-          // first notify
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.name,
-            status: this.getToolRunningDescription(toolCall.name, args),
-            call: {
-              params: args,
-              result: undefined
-            },
-            done: false
-          }
-
-        // now execute
-        let content: any = undefined
-        for await (const update of this.callTool({ model: model.id }, toolCall.name, args)) {
-
-          if (update.type === 'status') {
+          try {
+            // first notify
             yield {
               type: 'tool',
               id: toolCall.id,
               name: toolCall.name,
-              status: update.status,
+              state: 'running',
+              status: this.getToolRunningDescription(toolCall.name, args),
               call: {
                 params: args,
                 result: undefined
@@ -919,36 +961,94 @@ export default class extends LlmEngine {
               done: false
             }
 
-          } else if (update.type === 'result') {
-            content = update.result
-          }
+            // now execute
+            let content: any = undefined
+            let wasCanceled = false
+            for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.name, args)) {
 
-        }
+              if (update.type === 'status') {
+                yield {
+                  type: 'tool',
+                  id: toolCall.id,
+                  name: toolCall.name,
+                  state: 'running',
+                  status: update.status,
+                  call: {
+                    params: args,
+                    result: undefined
+                  },
+                  done: false
+                }
 
-        // log
-        logger.log(`[openai] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
+              } else if (update.type === 'result') {
+                content = update.result
+                wasCanceled = update.canceled || false
+              }
 
-          // add
-          // followReqInput.push(toolCall)
-          
-          // store
-          followReqInput.push({
-            type: 'function_call_output',
-            call_id: toolCall.call_id,
-            output: typeof content === 'string' ? content : JSON.stringify(content),
-          })
+            }
 
-          // clear
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.name,
-            status: this.getToolCompletedDescription(toolCall.name, args, content),
-            done: true,
-            call: {
-              params: args,
-              result: content
-            },
+            // Check if canceled
+            if (wasCanceled) {
+              yield {
+                type: 'tool',
+                id: toolCall.id,
+                name: toolCall.name,
+                state: 'canceled',
+                status: this.getToolCanceledDescription(toolCall.name, args),
+                done: true,
+                call: {
+                  params: args,
+                  result: undefined
+                }
+              }
+              return  // Stop processing remaining tools
+            }
+
+            // log
+            logger.log(`[openai] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
+
+            // add
+            // followReqInput.push(toolCall)
+
+            // store
+            followReqInput.push({
+              type: 'function_call_output',
+              call_id: toolCall.call_id,
+              output: typeof content === 'string' ? content : JSON.stringify(content),
+            })
+
+            // clear
+            yield {
+              type: 'tool',
+              id: toolCall.id,
+              name: toolCall.name,
+              state: 'completed',
+              status: this.getToolCompletedDescription(toolCall.name, args, content),
+              done: true,
+              call: {
+                params: args,
+                result: content
+              },
+            }
+
+          } catch (error) {
+            // Check if this was an abort
+            if (opts?.abortSignal?.aborted) {
+              yield {
+                type: 'tool',
+                id: toolCall.id,
+                name: toolCall.name,
+                state: 'canceled',
+                status: this.getToolCanceledDescription(toolCall.name, args),
+                done: true,
+                call: {
+                  params: args,
+                  result: undefined
+                }
+              }
+              return  // Stop processing remaining tools
+            }
+            throw error  // Re-throw non-abort errors
           }
 
         }

@@ -429,6 +429,7 @@ test('OpenAI Responses API stream with tools', async () => {
     type: 'tool',
     id: 'func_call_123',
     name: 'plugin2',
+    state: 'preparing',
     status: 'prep2',
     done: false
   })
@@ -436,6 +437,7 @@ test('OpenAI Responses API stream with tools', async () => {
     type: 'tool',
     id: 'func_call_123',
     name: 'plugin2',
+    state: 'running',
     status: 'run2',
     call: { params: ['arg'], result: undefined },
     done: false
@@ -444,6 +446,7 @@ test('OpenAI Responses API stream with tools', async () => {
     type: 'tool',
     id: 'func_call_123',
     name: 'plugin2',
+    state: 'completed',
     status: undefined,
     call: { params: ['arg'], result: 'result2' },
     done: true

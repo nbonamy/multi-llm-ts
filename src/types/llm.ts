@@ -1,6 +1,7 @@
 
 import { ZodType } from 'zod'
 import { ChatModel } from './index'
+import { PluginExecutionContext } from './plugin'
 
 export type LlmRole = 'system'|'developer'|'user'|'assistant'|'tool'
 
@@ -93,9 +94,19 @@ export type LlmStructuredOutput = {
   structure: ZodType
 }
 
+export type LlmToolExecutionValidationDecision = 'allow'|'deny'|'abort'
+
+export type LlmToolExecutionValidationResponse = {
+  decision: LlmToolExecutionValidationDecision
+  extra?: any
+}
+
+export type LlmToolExecutionValidationCallback = (context: PluginExecutionContext, tool: string, args: any) => Promise<LlmToolExecutionValidationResponse>
+
 export type LlmCompletionOpts = {
   tools?: boolean
   toolChoice?: LlmToolChoice
+  toolExecutionValidation?: LlmToolExecutionValidationCallback
   caching?: boolean
   visionFallbackModel?: ChatModel
   usage?: boolean
@@ -178,10 +189,13 @@ export type LlmChunkStream ={
   stream: LlmStream
 }
 
+export type ToolExecutionState = 'preparing' | 'running' | 'completed' | 'canceled' | 'error'
+
 export type LlmChunkTool = {
   type: 'tool'
   id: string
   name: string
+  state: ToolExecutionState
   status?: string
   call?: {
     params: any

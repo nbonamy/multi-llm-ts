@@ -1,5 +1,5 @@
 
-import { LlmToolParameterOpenAI } from './llm'
+import { LlmToolExecutionValidationResponse, LlmToolParameterOpenAI } from './llm'
 
 export interface IPlugin {
 
@@ -19,6 +19,7 @@ export type PluginParameter = LlmToolParameterOpenAI
 
 export type PluginExecutionContext = {
   model: string
+  abortSignal?: AbortSignal
 }
 
 export type PluginExecutionStatusUpdate = {
@@ -29,6 +30,8 @@ export type PluginExecutionStatusUpdate = {
 export type PluginExecutionResult = {
   type: 'result'
   result: any
+  canceled?: boolean
+  validation?: LlmToolExecutionValidationResponse
 }
 
 export type PluginExecutionUpdate = PluginExecutionStatusUpdate | PluginExecutionResult

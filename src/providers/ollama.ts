@@ -198,7 +198,7 @@ export default class extends LlmEngine {
 
         // now execute
         let content: any = undefined
-        for await (const update of this.callTool({ model: model.id }, toolCall.function.name, toolCall.function.arguments)) {
+        for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.function.name, toolCall.function.arguments, opts?.toolExecutionValidation)) {
           if (update.type === 'result') {
             content = update.result
           }
@@ -387,6 +387,7 @@ export default class extends LlmEngine {
           type: 'tool',
           id: toolCall.id,
           name: toolCall.function,
+          state: 'preparing',
           status: this.getToolPreparationDescription(toolCall.function),
           done: false
         }
@@ -395,66 +396,107 @@ export default class extends LlmEngine {
         logger.log(`[ollama] tool call ${toolCall.function} with ${tool}`)
         const args = JSON.parse(toolCall.args)
 
-        // now notify running
-        yield {
-          type: 'tool',
-          id: toolCall.id,
-          name: toolCall.function,
-          status: this.getToolRunningDescription(toolCall.function, args),
-          call: {
-            params: args,
-            result: undefined
-          },
-          done: false
-        }
+        try {
+          // now notify running
+          yield {
+            type: 'tool',
+            id: toolCall.id,
+            name: toolCall.function,
+            state: 'running',
+            status: this.getToolRunningDescription(toolCall.function, args),
+            call: {
+              params: args,
+              result: undefined
+            },
+            done: false
+          }
 
-        // now execute
-        let content: any = undefined
-        for await (const update of this.callTool({ model: context.model.id }, toolCall.function, args)) {
+          // now execute
+          let content: any = undefined
+          for await (const update of this.callTool({ model: context.model.id, abortSignal: context.opts?.abortSignal }, toolCall.function, args, context.opts?.toolExecutionValidation)) {
 
-          if (update.type === 'status') {
+            if (update.type === 'status') {
+              yield {
+                type: 'tool',
+                id: toolCall.id,
+                name: toolCall.function,
+                state: 'running',
+                status: update.status,
+                call: {
+                  params: args,
+                  result: undefined
+                },
+                done: false
+              }
+
+            } else if (update.type === 'result') {
+              content = update.result
+            }
+
+          }
+
+          // Check if canceled
+          if (context.opts?.abortSignal?.aborted) {
             yield {
               type: 'tool',
               id: toolCall.id,
               name: toolCall.function,
-              status: update.status,
+              state: 'canceled',
+              status: this.getToolCanceledDescription(toolCall.function, args),
+              done: true,
               call: {
                 params: args,
                 result: undefined
-              },
-              done: false
+              }
             }
-
-          } else if (update.type === 'result') {
-            content = update.result
+            return  // Stop processing
           }
 
+          // log
+          logger.log(`[ollama] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+
+          // add tool call message
+          context.thread.push(chunk.message)
+
+          // add tool response message
+          context.thread.push({
+            role: 'tool',
+            content: JSON.stringify(content)
+          })
+
+          // clear
+          yield {
+            type: 'tool',
+            id: toolCall.id,
+            name: toolCall.function,
+            state: 'completed',
+            status: this.getToolCompletedDescription(toolCall.function, args, content),
+            done: true,
+            call: {
+              params: args,
+              result: content
+            },
+          }
+
+        } catch (error) {
+          // Check if this was an abort
+          if (context.opts?.abortSignal?.aborted) {
+            yield {
+              type: 'tool',
+              id: toolCall.id,
+              name: toolCall.function,
+              state: 'canceled',
+              status: this.getToolCanceledDescription(toolCall.function, args),
+              done: true,
+              call: {
+                params: args,
+                result: undefined
+              }
+            }
+            return  // Stop processing
+          }
+          throw error  // Re-throw non-abort errors
         }
-
-        // log
-        logger.log(`[ollama] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
-
-        // add tool call message
-        context.thread.push(chunk.message)
-        
-        // add tool response message
-        context.thread.push({
-          role: 'tool',
-          content: JSON.stringify(content)
-        })
-
-        // clear
-        yield {
-          type: 'tool',
-          id: toolCall.id,
-          name: toolCall.function,
-          status: this.getToolCompletedDescription(toolCall.function, args, content),
-          done: true,
-          call: {
-            params: args,
-            result: content
-          },
-        }        
 
       }
 

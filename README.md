@@ -217,6 +217,162 @@ export default class ReadFilePlugin extends llm.Plugin {
 
 ```
 
+## Aborting Operations
+
+All `complete()` and `generate()` operations support cancellation via `AbortSignal`:
+
+```js
+const abortController = new AbortController()
+
+// Start generation
+const stream = model.generate(messages, {
+  abortSignal: abortController.signal
+})
+
+// Cancel from elsewhere (e.g., user clicks stop button)
+setTimeout(() => {
+  abortController.abort()
+}, 5000)
+
+// Stream will stop and throw AbortError
+try {
+  for await (const chunk of stream) {
+    console.log(chunk)
+  }
+} catch (error) {
+  if (error.name === 'AbortError') {
+    console.log('Generation was canceled')
+  }
+}
+```
+
+### Plugin Abort Support
+
+Plugins automatically receive the abort signal via `PluginExecutionContext.abortSignal`:
+
+```js
+export default class MyPlugin extends llm.Plugin {
+
+  async execute(context: llm.PluginExecutionContext, parameters: any): Promise<any> {
+
+    // Option 1: Use the built-in runWithAbort helper
+    const data = await this.runWithAbort(
+      fetch('https://api.example.com/data', {
+        signal: context.abortSignal
+      }),
+      context.abortSignal
+    )
+
+    // Option 2: Manual checking
+    if (context.abortSignal?.aborted) {
+      throw new Error('Operation cancelled')
+    }
+
+    return processData(data)
+  }
+
+}
+```
+
+The `runWithAbort()` helper races a promise against the abort signal and provides optional cleanup:
+
+```js
+await this.runWithAbort(
+  someAsyncOperation(),
+  context.abortSignal,
+  () => cleanup()  // Optional cleanup callback
+)
+```
+
+### Tool Execution States
+
+When tools are executed, they emit state information through `LlmChunkTool.state`:
+
+- `'preparing'` - Tool is about to execute
+- `'running'` - Tool is currently executing
+- `'completed'` - Tool finished successfully
+- `'canceled'` - Tool was aborted
+- `'error'` - Tool failed with an error
+
+You can customize the status messages for each state:
+
+```js
+export default class MyPlugin extends llm.Plugin {
+
+  getPreparationDescription(tool: string): string {
+    return 'Initializing search...'
+  }
+
+  getRunningDescription(tool: string, args: any): string {
+    return `Searching for: ${args.query}`
+  }
+
+  getCompletedDescription(tool: string, args: any, results: any): string {
+    return `Found ${results.length} results`
+  }
+
+  getCanceledDescription(tool: string, args: any): string {
+    return 'Search was canceled'
+  }
+
+}
+```
+
+### Tool Execution Validation
+
+You can control which tools are executed by providing a validation callback:
+
+```js
+const model = igniteModel('PROVIDER_ID', chatModel, config)
+model.addPlugin(new MyPlugin())
+
+const messages = [
+  new Message('system', 'You are a helpful assistant'),
+  new Message('user', 'Search for sensitive information'),
+]
+
+// Validation callback to approve/deny/abort tool execution
+const validateToolExecution = async (context, tool, args) => {
+  // Check if tool should be allowed
+  if (tool === 'dangerous_tool') {
+    return {
+      decision: 'deny',  // Deny execution, continue with error
+      extra: { reason: 'Tool not allowed for this user' }
+    }
+  }
+
+  // Check if we should abort the entire generation
+  if (args.query?.includes('forbidden')) {
+    return {
+      decision: 'abort',  // Abort execution, stop processing remaining tools
+      extra: { reason: 'Forbidden query detected' }
+    }
+  }
+
+  // Allow execution
+  return { decision: 'allow' }
+}
+
+const stream = model.generate(messages, {
+  toolExecutionValidation: validateToolExecution
+})
+
+for await (const chunk of stream) {
+  if (chunk.type === 'tool' && chunk.state === 'canceled') {
+    // Tool was denied or aborted
+    // chunk.call?.result.validation contains the validation response
+    console.log('Tool canceled:', chunk.call?.result.validation)
+  }
+}
+```
+
+**Validation Decisions:**
+- `'allow'` - Execute the tool normally
+- `'deny'` - Skip this tool with error, continue to next tool
+- `'abort'` - Stop processing all remaining tools
+
+The validation response (including `extra` data) is included in the tool result for denied/aborted tools.
+
 ## OpenAI Responses API
 
 If you prefer to use the OpenAI Responses API, you can do so by:

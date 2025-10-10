@@ -232,3 +232,125 @@ test('Multi Tools Plugin', async () => {
   ])
 
 })
+
+test('Plugin.runWithAbort() with no signal', async () => {
+  const plugin = new Plugin1()
+  const result = await plugin.runWithAbort(Promise.resolve('success'))
+  expect(result).toBe('success')
+})
+
+test('Plugin.runWithAbort() with non-aborted signal', async () => {
+  const plugin = new Plugin1()
+  const abortController = new AbortController()
+  const result = await plugin.runWithAbort(
+    Promise.resolve('success'),
+    abortController.signal
+  )
+  expect(result).toBe('success')
+})
+
+test('Plugin.runWithAbort() with already aborted signal', async () => {
+  const plugin = new Plugin1()
+  const abortController = new AbortController()
+  abortController.abort()
+
+  await expect(
+    plugin.runWithAbort(Promise.resolve('success'), abortController.signal)
+  ).rejects.toThrow('Operation cancelled')
+})
+
+test('Plugin.runWithAbort() abort during execution', async () => {
+  const plugin = new Plugin1()
+  const abortController = new AbortController()
+
+  // Create a promise that resolves after abort
+  const promise = new Promise((resolve) => {
+    setTimeout(() => resolve('success'), 100)
+  })
+
+  // Abort after 10ms
+  setTimeout(() => abortController.abort(), 10)
+
+  await expect(
+    plugin.runWithAbort(promise, abortController.signal)
+  ).rejects.toThrow('Operation cancelled')
+})
+
+test('Plugin.runWithAbort() with cleanup callback', async () => {
+  const plugin = new Plugin1()
+  const abortController = new AbortController()
+  const cleanup = vi.fn()
+
+  abortController.abort()
+
+  await expect(
+    plugin.runWithAbort(Promise.resolve('success'), abortController.signal, cleanup)
+  ).rejects.toThrow('Operation cancelled')
+
+  expect(cleanup).toHaveBeenCalled()
+})
+
+test('Plugin receives abortSignal in context', async () => {
+  const llm = new OpenAI(config)
+  const plugin = new Plugin2()
+  const executeSpy = vi.spyOn(plugin, 'execute')
+  llm.addPlugin(plugin)
+
+  const abortController = new AbortController()
+
+  // @ts-expect-error protected
+  for await (const update of llm.callTool({ model: 'model', abortSignal: abortController.signal }, 'plugin2', {})) {
+    if (update.type === 'result') {
+      // Plugin2 should have received the context with abortSignal
+      expect(executeSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'model',
+          abortSignal: abortController.signal
+        }),
+        {}
+      )
+    }
+  }
+})
+
+test('Tool state transitions', async () => {
+  const llm = new OpenAI(config)
+  llm.addPlugin(new Plugin2())
+
+  const chunks: any[] = []
+
+  // @ts-expect-error protected
+  for await (const update of llm.callTool({ model: 'model' }, 'plugin2', {})) {
+    chunks.push(update)
+  }
+
+  // Should only have result chunk (no status updates for this plugin)
+  expect(chunks).toHaveLength(1)
+  expect(chunks[0]).toStrictEqual({
+    type: 'result',
+    result: {}
+  })
+})
+
+test('Tool canceled state on abort', async () => {
+  const llm = new OpenAI(config)
+  llm.addPlugin(new Plugin2())
+
+  const abortController = new AbortController()
+  abortController.abort()
+
+  const chunks: any[] = []
+
+  // @ts-expect-error protected
+  for await (const update of llm.callTool({ model: 'model', abortSignal: abortController.signal }, 'plugin2', {})) {
+    chunks.push(update)
+  }
+
+  // Should return canceled result
+  expect(chunks).toHaveLength(1)
+  expect(chunks[0]).toStrictEqual({
+    type: 'result',
+    result: { error: 'Operation cancelled' },
+    canceled: true
+  })
+})
