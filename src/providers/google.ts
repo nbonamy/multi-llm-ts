@@ -1,14 +1,14 @@
+import { Content, FunctionCallingConfigMode, FunctionDeclaration, FunctionResponse, GenerateContentConfig, GenerateContentResponse, GoogleGenAI, Part, Schema, Type } from '@google/genai'
+import { minimatch } from 'minimatch'
+import { zodToJsonSchema } from 'zod-to-json-schema'
+import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import logger from '../logger'
+import Attachment from '../models/attachment'
+import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGoogle } from '../types/index'
 import { LLmCompletionPayload, LLmContentPayloadText, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
-import Attachment from '../models/attachment'
-import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import { PluginExecutionResult } from '../types/plugin'
 import { addUsages, zeroUsage } from '../usage'
-import Message from '../models/message'
-import logger from '../logger'
-
-import { Content, FunctionCallingConfigMode, FunctionDeclaration, FunctionResponse, GenerateContentConfig, GenerateContentResponse, GoogleGenAI, Part, Schema, Type } from '@google/genai'
-import { zodToJsonSchema } from 'zod-to-json-schema'
-import { minimatch } from 'minimatch'
 
 //
 // https://ai.google.dev/gemini-api/docs
@@ -153,15 +153,20 @@ export default class extends LlmEngine {
         logger.log(`[google] tool call ${toolCall.name} with ${JSON.stringify(toolCall.args)}`)
 
         // now execute
-        let content: any = undefined
+        let lastUpdate: PluginExecutionResult|undefined = undefined
         for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.name!, toolCall.args, opts?.toolExecutionValidation)) {
           if (update.type === 'result') {
-            content = update.result
+            lastUpdate = update
           }
         }
 
-        // log
-        logger.log(`[google] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
+        // process result using helper method
+        const { content, canceled } = this.processToolExecutionResult('google', toolCall.name!, toolCall.args, lastUpdate)
+
+        // if canceled/denied, stop processing
+        if (canceled) {
+          throw new Error('Tool execution was canceled')
+        }
 
         results.push({
           name: toolCall.name!,
@@ -488,7 +493,7 @@ export default class extends LlmEngine {
           }
 
           // now execute
-          let content: any = undefined
+          let lastUpdate: PluginExecutionResult|undefined = undefined
           for await (const update of this.callTool({ model: context.model.id, abortSignal: context.opts?.abortSignal }, toolCall.function, args, context.opts?.toolExecutionValidation)) {
 
             if (update.type === 'status') {
@@ -506,30 +511,29 @@ export default class extends LlmEngine {
               }
 
             } else if (update.type === 'result') {
-              content = update.result
+              lastUpdate = update
             }
 
           }
 
-          // Check if canceled
-          if (context.opts?.abortSignal?.aborted) {
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: 'canceled',
-              status: this.getToolCanceledDescription(toolCall.function, args),
-              done: true,
-              call: {
-                params: args,
-                result: undefined
-              }
-            }
-            return  // Stop processing
-          }
+          // process result using helper method
+          const { content, canceled: toolCallCanceled } = this.processToolExecutionResult('google', toolCall.function, args, lastUpdate)
 
-          // log
-          logger.log(`[google] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+          // done
+          yield {
+            type: 'tool',
+            id: toolCall.id,
+            name: toolCall.function,
+            state: toolCallCanceled ? 'canceled' : 'completed',
+            status: toolCallCanceled
+              ? this.getToolCanceledDescription(toolCall.function, args) || content.error || 'Tool execution was canceled'
+              : this.getToolCompletedDescription(toolCall.function, args, content),
+            done: true,
+            call: {
+              params: args,
+              result: content
+            }
+          }
 
           // send
           results.push({
@@ -538,18 +542,9 @@ export default class extends LlmEngine {
             response: content
           })
 
-          // clear
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.function,
-            state: 'completed',
-            status: this.getToolCompletedDescription(toolCall.function, args, content),
-            done: true,
-            call: {
-              params: args,
-              result: content
-            },
+          // Check if canceled
+          if (context.opts?.abortSignal?.aborted) {
+            return  // Stop processing
           }
 
         } catch (error) {

@@ -428,3 +428,179 @@ test('Google Image Attachments', async () => {
     ]
   })
 })
+
+test('Google streaming validation deny - yields canceled chunk', async () => {
+  const google = new Google(config)
+  google.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'deny',
+    extra: { reason: 'Policy violation' }
+  })
+
+  const chunks: LlmChunk[] = []
+  const context: GoogleStreamingContext = {
+    model: google.buildModel('model'),
+    content: [],
+    opts: { toolExecutionValidation: validator },
+    toolCalls: [{ id: 'plugin2', function: 'plugin2', args: '{}', message: [] }],
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+  }
+
+  // Simulate function call finish_reason
+  const toolCallChunk: GenerateContentResponse = {
+    candidates: [{
+      index: 0,
+      content: { role: 'model', parts: [] },
+      finishReason: 'STOP' as FinishReason,
+    }],
+    functionCalls: [{ name: 'plugin2', args: {} }],
+  } as unknown as GenerateContentResponse
+
+  for await (const chunk of google.nativeChunkToLlmChunk(toolCallChunk, context)) {
+    chunks.push(chunk)
+  }
+
+  expect(validator).toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+
+  const toolChunks = chunks.filter(c => c.type === 'tool')
+  const canceledChunk = toolChunks.find(c => c.state === 'canceled')
+  expect(canceledChunk).toBeDefined()
+  expect(canceledChunk).toMatchObject({
+    type: 'tool',
+    state: 'canceled',
+    done: true
+  })
+})
+
+test('Google streaming validation abort - yields tool_abort chunk', async () => {
+  const google = new Google(config)
+  google.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'abort',
+    extra: { reason: 'Security violation' }
+  })
+
+  const chunks: LlmChunk[] = []
+  const context: GoogleStreamingContext = {
+    model: google.buildModel('model'),
+    content: [],
+    opts: { toolExecutionValidation: validator },
+    toolCalls: [{ id: 'plugin2', function: 'plugin2', args: '{}', message: [] }],
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+  }
+
+  // Simulate function call finish_reason - abort throws, so we need to catch it
+  const toolCallChunk: GenerateContentResponse = {
+    candidates: [{
+      index: 0,
+      content: { role: 'model', parts: [] },
+      finishReason: 'STOP' as FinishReason,
+    }],
+    functionCalls: [{ name: 'plugin2', args: {} }],
+  } as unknown as GenerateContentResponse
+
+  try {
+    for await (const chunk of google.nativeChunkToLlmChunk(toolCallChunk, context)) {
+      chunks.push(chunk)
+    }
+  } catch (error: any) {
+    // The error IS the tool_abort chunk
+    chunks.push(error)
+  }
+
+  expect(validator).toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+
+  const abortChunks = chunks.filter(c => c.type === 'tool_abort')
+  expect(abortChunks.length).toBe(1)
+  expect(abortChunks[0]).toMatchObject({
+    type: 'tool_abort',
+    name: 'plugin2',
+    reason: {
+      decision: 'abort',
+      extra: { reason: 'Security violation' }
+    }
+  })
+})
+
+test('Google chat validation deny - throws error', async () => {
+  const google = new Google(config)
+  google.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'deny',
+    extra: { reason: 'Not allowed' }
+  })
+
+  // Mock to return tool calls
+  _Google.GoogleGenAI.prototype.models.generateContent = vi.fn().mockResolvedValue({
+    candidates: [{
+      content: {
+        role: 'model',
+        parts: [{
+          functionCall: { name: 'plugin2', args: {} }
+        }]
+      },
+      finishReason: 'STOP'
+    }],
+    functionCalls: [{ name: 'plugin2', args: {} }],
+    text: null
+  })
+
+  await expect(
+    google.complete(google.buildModel('model'), [
+      new Message('system', 'instruction'),
+      new Message('user', 'prompt'),
+    ], { toolExecutionValidation: validator })
+  ).rejects.toThrow('Tool execution was canceled')
+
+  expect(validator).toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+})
+
+test('Google chat validation abort - throws LlmChunkToolAbort', async () => {
+  const google = new Google(config)
+  google.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'abort',
+    extra: { reason: 'Security violation' }
+  })
+
+  // Mock to return tool calls
+  _Google.GoogleGenAI.prototype.models.generateContent = vi.fn().mockResolvedValue({
+    candidates: [{
+      content: {
+        role: 'model',
+        parts: [{
+          functionCall: { name: 'plugin2', args: {} }
+        }]
+      },
+      finishReason: 'STOP'
+    }],
+    functionCalls: [{ name: 'plugin2', args: {} }],
+    text: null
+  })
+
+  try {
+    await google.complete(google.buildModel('model'), [
+      new Message('system', 'instruction'),
+      new Message('user', 'prompt'),
+    ], { toolExecutionValidation: validator })
+    expect.fail('Should have thrown')
+  } catch (error: any) {
+    expect(validator).toHaveBeenCalled()
+    expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+    expect(error).toMatchObject({
+      type: 'tool_abort',
+      name: 'plugin2',
+      reason: {
+        decision: 'abort',
+        extra: { reason: 'Security violation' }
+      }
+    })
+  }
+})

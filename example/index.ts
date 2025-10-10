@@ -1,7 +1,6 @@
-
 import dotenv from 'dotenv';
 import { z } from 'zod';
-import { EngineCreateOpts, LlmModel, Message, igniteModel, loadModels } from '../src/index';
+import { EngineCreateOpts, LlmCompletionOpts, LlmModel, LlmToolExecutionValidationResponse, Message, PluginExecutionContext, igniteModel, loadModels } from '../src/index';
 import Answer from './answer';
 dotenv.config();
 
@@ -10,9 +9,9 @@ const completion = async (model: LlmModel, messages: Message[]) => {
   console.log(await model.complete(messages, { usage: true }))
 }
 
-const streaming = async (model: LlmModel, messages: Message[]) => {
+const streaming = async (model: LlmModel, messages: Message[], opts?: LlmCompletionOpts) => {
   console.log('\n** Chat streaming' + (model.plugins.length ? ' with plugins' : ''))
-  const stream = model.generate(messages, { usage: true, reasoning: true })
+  const stream = model.generate(messages, { ...opts, usage: true, reasoning: true })
   let reasoning = ''
   let response = ''
   for await (const chunk of stream) {
@@ -22,6 +21,9 @@ const streaming = async (model: LlmModel, messages: Message[]) => {
     }
     if (chunk.type === 'content') {
       response += chunk.text
+    }
+    if (chunk.type === 'tool_abort') {
+      console.log(`Stream aborted: ${JSON.stringify(chunk.reason)}`)
     }
   }
   console.log(reasoning)
@@ -129,6 +131,18 @@ const structured = async (model: LlmModel, messages: Message[]) => {
   model.addPlugin(new Answer())
   await completion(model, messages)
   await streaming(model, messages)
+
+  // with tool execution validation (aborts the tool calls)
+  messages[1].content = 'What is the answer to life, the universe and everything?'
+  model.addPlugin(new Answer())
+  await streaming(model, messages, {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    toolExecutionValidation: async (context: PluginExecutionContext, toolName: string, params: any): Promise<LlmToolExecutionValidationResponse> => {
+      return { decision: 'abort', extra: {
+        deniedAt: new Date().toISOString(),
+      } }
+    },
+  })
 
   // structured outputs
   await structured(model, [

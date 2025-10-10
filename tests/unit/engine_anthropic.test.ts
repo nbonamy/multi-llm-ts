@@ -450,3 +450,150 @@ test('Anthropic thinking', async () => {
     stream: true,
   })
 })
+
+test('Anthropic streaming validation deny - yields canceled chunk', async () => {
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'deny',
+    extra: { reason: 'Policy violation' }
+  })
+
+  const chunks: LlmChunk[] = []
+  const context: AnthropicStreamingContext = {
+    model: anthropic.buildModel('model'),
+    system: 'instruction',
+    thread: [],
+    opts: { toolExecutionValidation: validator },
+    toolCall: { id: '1', function: 'plugin2', args: '{}', message: '' },
+    firstTextBlockStart: true,
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+    requestUsage: { prompt_tokens: 0, completion_tokens: 0 }
+  }
+
+  // Simulate tool_use stop
+  const toolCallChunk = { type: 'message_delta', delta: { stop_reason: 'tool_use' } }
+  for await (const chunk of anthropic.nativeChunkToLlmChunk(toolCallChunk, context)) {
+    chunks.push(chunk)
+  }
+
+  expect(validator).toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+
+  const toolChunks = chunks.filter(c => c.type === 'tool')
+  const canceledChunk = toolChunks.find(c => c.state === 'canceled')
+  expect(canceledChunk).toBeDefined()
+  expect(canceledChunk).toMatchObject({
+    type: 'tool',
+    state: 'canceled',
+    done: true
+  })
+})
+
+test('Anthropic streaming validation abort - yields tool_abort chunk', async () => {
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'abort',
+    extra: { reason: 'Security violation' }
+  })
+
+  const chunks: LlmChunk[] = []
+  const context: AnthropicStreamingContext = {
+    model: anthropic.buildModel('model'),
+    system: 'instruction',
+    thread: [],
+    opts: { toolExecutionValidation: validator },
+    toolCall: { id: '1', function: 'plugin2', args: '{}', message: '' },
+    firstTextBlockStart: true,
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+    requestUsage: { prompt_tokens: 0, completion_tokens: 0 }
+  }
+
+  // Simulate tool_use stop - abort throws, so we need to catch it
+  const toolCallChunk = { type: 'message_delta', delta: { stop_reason: 'tool_use' } }
+  try {
+    for await (const chunk of anthropic.nativeChunkToLlmChunk(toolCallChunk, context)) {
+      chunks.push(chunk)
+    }
+  } catch (error: any) {
+    chunks.push(error)
+  }
+
+  expect(validator).toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+
+  const abortChunks = chunks.filter(c => c.type === 'tool_abort')
+  expect(abortChunks.length).toBe(1)
+  expect(abortChunks[0]).toMatchObject({
+    type: 'tool_abort',
+    name: 'plugin2',
+    reason: {
+      decision: 'abort',
+      extra: { reason: 'Security violation' }
+    }
+  })
+})
+
+test('Anthropic chat validation deny - throws error', async () => {
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'deny',
+    extra: { reason: 'Not allowed' }
+  })
+
+  // Mock to return tool calls
+  _Anthropic.default.prototype.messages.create = vi.fn().mockResolvedValue({
+    stop_reason: 'tool_use',
+    content: [{ type: 'tool_use', id: '1', name: 'plugin2', input: {} }]
+  })
+
+  await expect(
+    anthropic.complete(anthropic.buildModel('model'), [
+      new Message('system', 'instruction'),
+      new Message('user', 'prompt'),
+    ], { toolExecutionValidation: validator })
+  ).rejects.toThrow('Tool execution was canceled')
+
+  expect(validator).toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+})
+
+test('Anthropic chat validation abort - throws LlmChunkToolAbort', async () => {
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'abort',
+    extra: { reason: 'Security violation' }
+  })
+
+  // Mock to return tool calls
+  _Anthropic.default.prototype.messages.create = vi.fn().mockResolvedValue({
+    stop_reason: 'tool_use',
+    content: [{ type: 'tool_use', id: '1', name: 'plugin2', input: {} }]
+  })
+
+  try {
+    await anthropic.complete(anthropic.buildModel('model'), [
+      new Message('system', 'instruction'),
+      new Message('user', 'prompt'),
+    ], { toolExecutionValidation: validator })
+    expect.fail('Should have thrown')
+  } catch (error: any) {
+    expect(validator).toHaveBeenCalled()
+    expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+    expect(error).toMatchObject({
+      type: 'tool_abort',
+      name: 'plugin2',
+      reason: {
+        decision: 'abort',
+        extra: { reason: 'Security violation' }
+      }
+    })
+  }
+})

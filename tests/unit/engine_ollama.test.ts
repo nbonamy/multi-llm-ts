@@ -321,3 +321,157 @@ test('Ollama delete model', async () => {
   await ollama.deleteModel('model')
   expect(_ollama.Ollama.prototype.delete).toHaveBeenCalledWith({ model: 'model' })
 })
+
+test('Ollama streaming validation deny - yields canceled chunk', async () => {
+  const ollama = new Ollama(config)
+  ollama.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'deny',
+    extra: { reason: 'Policy violation' }
+  })
+
+  const chunks: any[] = []
+  const context: OllamaStreamingContext = {
+    model: ollama.buildModel('model'),
+    thread: [],
+    opts: { toolExecutionValidation: validator },
+    toolCalls: [],
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+    thinking: false,
+  }
+
+  // Simulate tool_calls - need to pass chunk with tool_calls
+  const toolCallChunk = { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'plugin2', arguments: {} } }], done: false } }
+  for await (const chunk of ollama.nativeChunkToLlmChunk(toolCallChunk, context)) {
+    chunks.push(chunk)
+  }
+
+  expect(validator).toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+
+  const toolChunks = chunks.filter(c => c.type === 'tool')
+  const canceledChunk = toolChunks.find(c => c.state === 'canceled')
+  expect(canceledChunk).toBeDefined()
+  expect(canceledChunk).toMatchObject({
+    type: 'tool',
+    state: 'canceled',
+    done: true
+  })
+})
+
+test('Ollama streaming validation abort - yields tool_abort chunk', async () => {
+  const ollama = new Ollama(config)
+  ollama.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'abort',
+    extra: { reason: 'Security violation' }
+  })
+
+  const chunks: any[] = []
+  const context: OllamaStreamingContext = {
+    model: ollama.buildModel('model'),
+    thread: [],
+    opts: { toolExecutionValidation: validator },
+    toolCalls: [],
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+    thinking: false,
+  }
+
+  // Simulate tool_calls - abort throws, so we need to catch it
+  const toolCallChunk = { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'plugin2', arguments: {} } }], done: false } }
+  try {
+    for await (const chunk of ollama.nativeChunkToLlmChunk(toolCallChunk, context)) {
+      chunks.push(chunk)
+    }
+  } catch (error: any) {
+    // The error IS the tool_abort chunk
+    chunks.push(error)
+  }
+
+  expect(validator).toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+
+  const abortChunks = chunks.filter(c => c.type === 'tool_abort')
+  expect(abortChunks.length).toBe(1)
+  expect(abortChunks[0]).toMatchObject({
+    type: 'tool_abort',
+    name: 'plugin2',
+    reason: {
+      decision: 'abort',
+      extra: { reason: 'Security violation' }
+    }
+  })
+})
+
+test('Ollama chat validation deny - throws error', async () => {
+  const ollama = new Ollama(config)
+  ollama.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'deny',
+    extra: { reason: 'Not allowed' }
+  })
+
+  // Mock to return tool calls
+  _ollama.Ollama.prototype.chat = vi.fn().mockResolvedValue({
+    message: {
+      role: 'assistant',
+      content: null,
+      tool_calls: [{
+        function: { name: 'plugin2', arguments: {} }
+      }]
+    }
+  })
+
+  await expect(
+    ollama.complete(ollama.buildModel('model'), [
+      new Message('system', 'instruction'),
+      new Message('user', 'prompt'),
+    ], { toolExecutionValidation: validator })
+  ).rejects.toThrow('Tool execution was canceled')
+
+  expect(validator).toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+})
+
+test('Ollama chat validation abort - throws LlmChunkToolAbort', async () => {
+  const ollama = new Ollama(config)
+  ollama.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'abort',
+    extra: { reason: 'Security violation' }
+  })
+
+  // Mock to return tool calls
+  _ollama.Ollama.prototype.chat = vi.fn().mockResolvedValue({
+    message: {
+      role: 'assistant',
+      content: null,
+      tool_calls: [{
+        function: { name: 'plugin2', arguments: {} }
+      }]
+    }
+  })
+
+  try {
+    await ollama.complete(ollama.buildModel('model'), [
+      new Message('system', 'instruction'),
+      new Message('user', 'prompt'),
+    ], { toolExecutionValidation: validator })
+    expect.fail('Should have thrown')
+  } catch (error: any) {
+    expect(validator).toHaveBeenCalled()
+    expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+    expect(error).toMatchObject({
+      type: 'tool_abort',
+      name: 'plugin2',
+      reason: {
+        decision: 'abort',
+        extra: { reason: 'Security violation' }
+      }
+    })
+  }
+})

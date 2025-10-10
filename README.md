@@ -320,7 +320,7 @@ export default class MyPlugin extends llm.Plugin {
 
 ### Tool Execution Validation
 
-You can control which tools are executed by providing a validation callback:
+You can control which tools are executed by providing a validation callback. This enables security checks, user confirmations, or policy enforcement before tools run.
 
 ```js
 const model = igniteModel('PROVIDER_ID', chatModel, config)
@@ -344,7 +344,7 @@ const validateToolExecution = async (context, tool, args) => {
   // Check if we should abort the entire generation
   if (args.query?.includes('forbidden')) {
     return {
-      decision: 'abort',  // Abort execution, stop processing remaining tools
+      decision: 'abort',  // Abort entire conversation
       extra: { reason: 'Forbidden query detected' }
     }
   }
@@ -359,19 +359,29 @@ const stream = model.generate(messages, {
 
 for await (const chunk of stream) {
   if (chunk.type === 'tool' && chunk.state === 'canceled') {
-    // Tool was denied or aborted
-    // chunk.call?.result.validation contains the validation response
-    console.log('Tool canceled:', chunk.call?.result.validation)
+    // Tool was denied - execution continued with error result
+    console.log('Tool canceled:', chunk.name)
+  } else if (chunk.type === 'tool_abort') {
+    // Abort was triggered - conversation stopped
+    console.log('Conversation aborted:', chunk.reason)
+    break  // No more chunks will be emitted
   }
 }
 ```
 
 **Validation Decisions:**
-- `'allow'` - Execute the tool normally
-- `'deny'` - Skip this tool with error, continue to next tool
-- `'abort'` - Stop processing all remaining tools
 
-The validation response (including `extra` data) is included in the tool result for denied/aborted tools.
+| Decision | Streaming Behavior | Non-Streaming Behavior |
+|----------|-------------------|------------------------|
+| `'allow'` | Execute tool normally | Execute tool normally |
+| `'deny'` | Skip tool, yield `canceled` chunk, continue stream | Skip tool, throw error, stop recursion |
+| `'abort'` | Skip tool, yield `tool_abort` chunk, **stop stream** | Skip tool, throw `LlmChunkToolAbort`, stop recursion |
+
+**Chunk Types:**
+- `LlmChunkTool` with `state: 'canceled'` - Tool was denied, stream continues
+- `LlmChunkToolAbort` - Abort triggered, stream stops immediately
+
+The validation response (including `extra` data) is included in the tool result for denied tools and in the `reason` field for aborted tools.
 
 ## OpenAI Responses API
 

@@ -9,6 +9,7 @@ import logger from '../logger'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpenAI } from '../types/index'
 import { LLmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
+import { PluginExecutionResult } from '../types/plugin'
 import { zeroUsage } from '../usage'
 
 type OpenAIToolOpts = Omit<ChatCompletionCreateParamsBase, 'model' | 'messages' | 'stream'>
@@ -232,19 +233,29 @@ export default class extends LlmEngine {
         }
 
         // now execute
-        let content: any = undefined
+        let lastUpdate: PluginExecutionResult|undefined = undefined
         for await (const update of this.callTool(
           { model: model.id, abortSignal: opts?.abortSignal },
           functionToolCall.function.name, args,
           opts?.toolExecutionValidation,
         )) {
           if (update.type === 'result') {
-            content = update.result
+            lastUpdate = update
           }
         }
 
-        // log
-        logger.log(`[openai] tool call ${functionToolCall.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
+        // process result
+        const { content, canceled } = this.processToolExecutionResult(
+          'openai',
+          functionToolCall.function.name,
+          args,
+          lastUpdate
+        )
+
+        // For non-streaming, throw immediately on cancel
+        if (canceled) {
+          throw new Error('Tool execution was canceled')
+        }
 
         // add tool response message
         thread.push({
@@ -510,13 +521,12 @@ export default class extends LlmEngine {
           }
 
           // now execute
-          let content: any = undefined
-          let wasCanceled = false
+          let lastUpdate: PluginExecutionResult|undefined = undefined
           for await (const update of this.callTool(
             { model: context.model.id, abortSignal: context.opts?.abortSignal },
             toolCall.function, args,
             context.opts?.toolExecutionValidation,
-        )) {
+          )) {
 
             if (update.type === 'status') {
               yield {
@@ -533,31 +543,34 @@ export default class extends LlmEngine {
               }
 
             } else if (update.type === 'result') {
-              content = update.result
-              wasCanceled = update.canceled || false
+              lastUpdate = update
             }
 
           }
 
-          // Check if canceled
-          if (wasCanceled) {
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: 'canceled',
-              status: this.getToolCanceledDescription(toolCall.function, args),
-              done: true,
-              call: {
-                params: args,
-                result: undefined
-              }
-            }
-            return  // Stop processing remaining tools
-          }
+          // process result
+          const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
+            'openai',
+            toolCall.function,
+            args,
+            lastUpdate
+          )
 
-          // log
-          logger.log(`[openai] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+          // done
+          yield {
+            type: 'tool',
+            id: toolCall.id,
+            name: toolCall.function,
+            state: toolCallCanceled ? 'canceled' : 'completed',
+            status: toolCallCanceled
+              ? this.getToolCanceledDescription(toolCall.function, args) || content.error || 'Tool execution was canceled'
+              : this.getToolCompletedDescription(toolCall.function, args, content),
+            done: true,
+            call: {
+              params: args,
+              result: content
+            }
+          }
 
           // add tool call message
           context.thread.push({
@@ -574,18 +587,9 @@ export default class extends LlmEngine {
             content: JSON.stringify(content)
           })
 
-          // clear
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.function,
-            state: 'completed',
-            status: this.getToolCompletedDescription(toolCall.function, args, content),
-            done: true,
-            call: {
-              params: args,
-              result: content
-            },
+          // Check if canceled
+          if (context.opts?.abortSignal?.aborted) {
+            return  // Stop processing
           }
 
         } catch (error) {
@@ -751,19 +755,42 @@ export default class extends LlmEngine {
           }
 
           // now execute
-          let content: any = undefined
+          let lastUpdate: PluginExecutionResult|undefined = undefined
           for await (const update of this.callTool(
             { model: model.id, abortSignal: opts?.abortSignal },
             toolCall.name, args,
             opts?.toolExecutionValidation
           )) {
             if (update.type === 'result') {
-              content = update.result
+              lastUpdate = update
             }
           }
 
-          // log
-          logger.log(`[openai] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
+          // process result
+          const { content, canceled } = this.processToolExecutionResult(
+            'openai',
+            toolCall.name,
+            args,
+            lastUpdate
+          )
+
+          // canceled - if validation denied, we should not continue the loop
+          if (canceled) {
+            // For responses API, we need to send the error back as the output
+            followReqInput.push({
+              type: 'function_call_output',
+              call_id: toolCall.call_id,
+              output: JSON.stringify({ error: 'Tool execution was canceled' }),
+            })
+            // save tool call info with canceled status
+            toolCallInfo.push({
+              name: toolCall.name,
+              params: args,
+              result: { error: 'Tool execution was canceled' }
+            })
+            // stop processing more tools
+            break
+          }
 
           // store
           followReqInput.push({
@@ -962,9 +989,8 @@ export default class extends LlmEngine {
             }
 
             // now execute
-            let content: any = undefined
-            let wasCanceled = false
-            for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.name, args)) {
+            let lastUpdate: PluginExecutionResult|undefined = undefined
+            for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.name, args, opts?.toolExecutionValidation)) {
 
               if (update.type === 'status') {
                 yield {
@@ -981,34 +1007,39 @@ export default class extends LlmEngine {
                 }
 
               } else if (update.type === 'result') {
-                content = update.result
-                wasCanceled = update.canceled || false
+                lastUpdate = update
               }
 
             }
 
-            // Check if canceled
-            if (wasCanceled) {
-              yield {
-                type: 'tool',
-                id: toolCall.id,
-                name: toolCall.name,
-                state: 'canceled',
-                status: this.getToolCanceledDescription(toolCall.name, args),
-                done: true,
-                call: {
-                  params: args,
-                  result: undefined
-                }
+            // process result
+            const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
+              'openai',
+              toolCall.name,
+              args,
+              lastUpdate
+            )
+
+            // done
+            yield {
+              type: 'tool',
+              id: toolCall.id,
+              name: toolCall.name,
+              state: toolCallCanceled ? 'canceled' : 'completed',
+              status: toolCallCanceled
+                ? this.getToolCanceledDescription(toolCall.name, args) || content.error || 'Tool execution was canceled'
+                : this.getToolCompletedDescription(toolCall.name, args, content),
+              done: true,
+              call: {
+                params: args,
+                result: content
               }
+            }
+
+            // if canceled, stop processing
+            if (toolCallCanceled) {
               return  // Stop processing remaining tools
             }
-
-            // log
-            logger.log(`[openai] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
-
-            // add
-            // followReqInput.push(toolCall)
 
             // store
             followReqInput.push({
@@ -1016,20 +1047,6 @@ export default class extends LlmEngine {
               call_id: toolCall.call_id,
               output: typeof content === 'string' ? content : JSON.stringify(content),
             })
-
-            // clear
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.name,
-              state: 'completed',
-              status: this.getToolCompletedDescription(toolCall.name, args, content),
-              done: true,
-              call: {
-                params: args,
-                result: content
-              },
-            }
 
           } catch (error) {
             // Check if this was an abort

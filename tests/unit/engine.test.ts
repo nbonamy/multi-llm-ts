@@ -330,8 +330,7 @@ test('Tool execution validation - deny', async () => {
   expect(chunks).toHaveLength(1)
   expect(chunks[0]).toMatchObject({
     type: 'result',
-    result: { error: 'Tool plugin2 execution denied by validation function.' },
-    canceled: true,
+    result: { error: expect.stringContaining('denied by validation function') },
     validation: {
       decision: 'deny',
       extra: { reason: 'Not allowed' }
@@ -360,8 +359,7 @@ test('Tool execution validation - abort', async () => {
   expect(chunks).toHaveLength(1)
   expect(chunks[0]).toMatchObject({
     type: 'result',
-    result: { error: 'Tool plugin2 execution aborted by validation function.' },
-    canceled: true,
+    result: { error: expect.stringContaining('denied by validation function') },
     validation: {
       decision: 'abort',
       extra: { reason: 'Forbidden content' }

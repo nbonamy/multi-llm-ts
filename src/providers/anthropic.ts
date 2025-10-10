@@ -1,16 +1,16 @@
-import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCapabilities } from '../types/index'
-import { LlmCompletionOpts, LlmResponse, LlmStream, LlmToolCall, LLmCompletionPayload, LlmStreamingResponse, LlmToolCallInfo, LlmChunk, LlmUsage } from '../types/llm'
-import { minimatch } from 'minimatch'
-import Message from '../models/message'
-import Attachment from '../models/attachment'
-import LlmEngine, { LlmStreamingContextBase } from '../engine'
-import { addUsages, zeroUsage } from '../usage'
-import { Plugin } from '../plugin'
-import logger from '../logger'
-
 import Anthropic from '@anthropic-ai/sdk'
-import { Tool, MessageParam, TextBlock, InputJSONDelta, Usage, RawMessageStartEvent, RawMessageDeltaEvent, MessageDeltaUsage, ToolUseBlock, ContentBlockParam, MessageStreamEvent, MessageCreateParams, ToolChoice } from '@anthropic-ai/sdk/resources'
+import { ContentBlockParam, InputJSONDelta, MessageCreateParams, MessageDeltaUsage, MessageParam, MessageStreamEvent, RawMessageDeltaEvent, RawMessageStartEvent, TextBlock, Tool, ToolChoice, ToolUseBlock, Usage } from '@anthropic-ai/sdk/resources'
 import { BetaToolUnion, MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/beta/messages/messages'
+import { minimatch } from 'minimatch'
+import LlmEngine, { LlmStreamingContextBase } from '../engine'
+import logger from '../logger'
+import Attachment from '../models/attachment'
+import Message from '../models/message'
+import { Plugin } from '../plugin'
+import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCapabilities } from '../types/index'
+import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
+import { PluginExecutionResult } from '../types/plugin'
+import { addUsages, zeroUsage } from '../usage'
 
 //
 // https://docs.anthropic.com/en/api/getting-started
@@ -156,19 +156,29 @@ export default class extends LlmEngine {
       logger.log(`[anthropic] tool call ${toolCall.name} with ${JSON.stringify(toolCall.input)}`)
 
         // now execute
-        let content: any = undefined
+        let lastUpdate: PluginExecutionResult|undefined = undefined
         for await (const update of this.callTool(
           { model: model.id, abortSignal: opts?.abortSignal },
           toolCall.name, toolCall.input,
           opts?.toolExecutionValidation
         )) {
           if (update.type === 'result') {
-            content = update.result
+            lastUpdate = update
           }
         }
 
-        // log
-        logger.log(`[anthropic] tool call ${toolCall.name} => ${JSON.stringify(content).substring(0, 128)}`)
+        // process result
+        const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
+          'anthropic',
+          toolCall.name,
+          toolCall.input,
+          lastUpdate
+        )
+
+        // For non-streaming, throw immediately on cancel
+        if (toolCallCanceled) {
+          throw new Error('Tool execution was canceled')
+        }
 
       // add all response blocks
       thread.push(...response.content.map((c) => ({
@@ -567,7 +577,7 @@ export default class extends LlmEngine {
           }
 
           // now execute
-          let content: any = undefined
+          let lastUpdate: PluginExecutionResult|undefined = undefined
           for await (const update of this.callTool(
             { model: context.model.id, abortSignal: context.opts?.abortSignal },
             context.toolCall.function, args,
@@ -589,30 +599,34 @@ export default class extends LlmEngine {
               }
 
             } else if (update.type === 'result') {
-              content = update.result
+              lastUpdate = update
             }
 
           }
 
-          // Check if canceled
-          if (context.opts?.abortSignal?.aborted) {
-            yield {
-              type: 'tool',
-              id: context.toolCall.id,
-              name: context.toolCall.function,
-              state: 'canceled',
-              status: this.getToolCanceledDescription(context.toolCall.function, args),
-              done: true,
-              call: {
-                params: args,
-                result: undefined
-              }
-            }
-            return  // Stop processing
-          }
+          // process result
+          const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
+            'anthropic',
+            context.toolCall.function,
+            args,
+            lastUpdate
+          )
 
-          // log
-          logger.log(`[anthropic] tool call ${context.toolCall!.function} => ${JSON.stringify(content).substring(0, 128)}`)
+          // done
+          yield {
+            type: 'tool',
+            id: context.toolCall.id,
+            name: context.toolCall.function,
+            state: toolCallCanceled ? 'canceled' : 'completed',
+            status: toolCallCanceled
+              ? this.getToolCanceledDescription(context.toolCall.function, args) || content.error || 'Tool execution was canceled'
+              : this.getToolCompletedDescription(context.toolCall.function, args, content),
+            done: true,
+            call: {
+              params: args,
+              result: content
+            },
+          }
 
           // add thinking block
           if (context.thinkingBlock) {
@@ -658,21 +672,13 @@ export default class extends LlmEngine {
             })
           }
 
-          // clear
-          yield {
-            type: 'tool',
-            id: context.toolCall.id,
-            name: context.toolCall.function,
-            state: 'completed',
-            status: this.getToolCompletedDescription(context.toolCall!.function, args, content),
-            done: true,
-            call: {
-              params: args,
-              result: content
-            },
+          // Check if canceled
+          if (context.opts?.abortSignal?.aborted) {
+            return  // Stop processing
           }
 
         } catch (error) {
+          
           // Check if this was an abort
           if (context.opts?.abortSignal?.aborted) {
             yield {

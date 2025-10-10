@@ -178,6 +178,13 @@ export type LlmContentPayload =
   LLmContentPayloadImageAnthropic |
   LlmContextPayloadMistralai
 
+export type LlmChunkToolAbort = {
+  type: 'tool_abort'
+  name: string
+  params: any
+  reason: LlmToolExecutionValidationResponse
+}
+
 export type LlmChunkContent = {
   type: 'content'|'reasoning'
   text: string
@@ -214,7 +221,7 @@ export type LlmOpenAIMessageId = {
   id: string
 }
 
-export type LlmChunk = LlmChunkContent | LlmChunkStream | LlmChunkTool | LlmChunkUsage | LlmOpenAIMessageId
+export type LlmChunk = LlmChunkToolAbort | LlmChunkContent | LlmChunkStream | LlmChunkTool | LlmChunkUsage | LlmOpenAIMessageId
 
 export type LlmToolArrayItem = {
   name: string

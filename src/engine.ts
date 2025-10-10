@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse } from './types/llm'
-import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter } from './types/plugin'
+import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort } from './types/llm'
+import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter, PluginExecutionResult } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 import Attachment from './models/attachment'
 import Message from './models/message'
+import logger from './logger'
 
 export type LlmStreamingContextBase = {
   model: ChatModel
@@ -141,34 +142,42 @@ export default abstract class LlmEngine {
         // now we convert the native chunk to LlmChunks
         // we may have several llm chunks for one native chunk
         const llmChunkStream = this.nativeChunkToLlmChunk(chunk, response.context)
-        for await (const msg of llmChunkStream) {
 
-          // check message type
-          if (msg.type === 'stream') {
+        try {
+          for await (const msg of llmChunkStream) {
 
-            // stream switch!
-            nextStream = msg.stream
+            // check message type
+            if (msg.type === 'stream') {
 
-          } else {
+              // stream switch!
+              nextStream = msg.stream
 
-            // if we are switching to a new stream make sure we don't send a done message
-            // (anthropic sends a 'message_stop' message when finishing current stream for example)
-            if (nextStream !== null && msg.type === 'content' && msg.done) {
-              msg.done = false
+            } else {
+
+              // if we are switching to a new stream make sure we don't send a done message
+              // (anthropic sends a 'message_stop' message when finishing current stream for example)
+              if (nextStream !== null && msg.type === 'content' && msg.done) {
+                msg.done = false
+              }
+
+              // just forward the message
+              yield msg
+
             }
 
-            // just forward the message
-            yield msg
+            // Check abort AFTER yielding (so canceled tool chunks go through)
+            if (opts?.abortSignal?.aborted) {
+              await this.stop(currentStream)
+              return
+            }
 
           }
-
-          // Check abort AFTER yielding (so canceled tool chunks go through)
-          if (opts?.abortSignal?.aborted) {
-            await this.stop(currentStream)
-            return
+        } catch (error: any) {
+          if (error.type === 'tool_abort') {
+            yield error as LlmChunkToolAbort
           }
-
         }
+
       }
 
       // if no new stream we are done
@@ -177,7 +186,7 @@ export default abstract class LlmEngine {
       currentStream = nextStream
     
     }
-  
+
   }
 
   protected requiresVisionModelSwitch(thread: Message[], currentModel: ChatModel): boolean {
@@ -397,6 +406,39 @@ export default abstract class LlmEngine {
     return plugin?.getCanceledDescription(tool, args)
   }
 
+  protected processToolExecutionResult(
+    providerId: string,
+    toolName: string,
+    params: any,
+    lastUpdate: PluginExecutionResult|undefined
+  ): { content: any, canceled: boolean } {
+
+    // Validate we got a result
+    if (!lastUpdate) {
+      throw new Error(`[${providerId}] tool call ${toolName} did not return any result`)
+    }
+
+    // Extract content with fallback
+    const content = lastUpdate.result || { error: 'No result from tool' }
+    logger.log(`[${providerId}] tool call ${toolName} => ${JSON.stringify(content).substring(0, 128)}`)
+
+    // Handle abort decision - throw immediately
+    if (lastUpdate.validation?.decision === 'abort') {
+      const toolAbort: LlmChunkToolAbort = {
+        type: 'tool_abort',
+        name: toolName,
+        params: params,
+        reason: lastUpdate.validation,
+      }
+      throw toolAbort
+    }
+
+    // Detect cancellation (deny or explicit cancel)
+    const canceled = lastUpdate.canceled === true || lastUpdate.validation?.decision === 'deny'
+
+    return { content, canceled }
+  }
+
   protected async *callTool(context: PluginExecutionContext, tool: string, args: any, toolExecutionValidation: LlmToolExecutionValidationCallback|undefined): AsyncGenerator<PluginExecutionUpdate> {
 
     // get the plugin
@@ -432,6 +474,7 @@ export default abstract class LlmEngine {
       yield {
         type: 'result',
         result: { error: 'Operation cancelled' },
+
         canceled: true
       }
       return
@@ -441,19 +484,10 @@ export default abstract class LlmEngine {
     let validation: LlmToolExecutionValidationResponse | undefined = undefined
     if (toolExecutionValidation) {
       validation = await toolExecutionValidation(context, tool, args)
-      if (validation.decision === 'deny') {
+      if (validation.decision !== 'allow') {
         yield {
           type: 'result',
           result: { error: `Tool ${tool} execution denied by validation function.` },
-          canceled: true,
-          validation
-        }
-        return
-      } else if (validation.decision === 'abort') {
-        yield {
-          type: 'result',
-          result: { error: `Tool ${tool} execution aborted by validation function.` },
-          canceled: true,
           validation
         }
         return

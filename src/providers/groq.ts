@@ -1,14 +1,14 @@
-import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGroq } from '../types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
-import LlmEngine, { LlmStreamingContextTools } from '../engine'
-import Message from '../models/message'
-import { zeroUsage } from '../usage'
-import logger from '../logger'
-
 import Groq from 'groq-sdk'
-import { ChatCompletionMessageParam, ChatCompletionChunk } from 'groq-sdk/resources/chat'
+import { ChatCompletionChunk, ChatCompletionMessageParam } from 'groq-sdk/resources/chat'
 import { ChatCompletionCreateParamsBase } from 'groq-sdk/resources/chat/completions'
 import { minimatch } from 'minimatch'
+import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import logger from '../logger'
+import Message from '../models/message'
+import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGroq } from '../types/index'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
+import { PluginExecutionResult } from '../types/plugin'
+import { zeroUsage } from '../usage'
 
 //
 // https://console.groq.com/docs/api-reference#chat-create
@@ -101,15 +101,28 @@ export default class extends LlmEngine {
         }
         
         // now execute
-        let content: any = undefined
+        let lastUpdate: PluginExecutionResult|undefined = undefined
         for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.function.name, args, opts?.toolExecutionValidation)) {
           if (update.type === 'result') {
-            content = update.result
+            lastUpdate = update
           }
         }
 
+        // process result
+        const { content, canceled } = this.processToolExecutionResult(
+          'groq',
+          toolCall.function.name,
+          args,
+          lastUpdate
+        )
+
         // log
         logger.log(`[groq] tool call ${toolCall.function.name} => ${JSON.stringify(content).substring(0, 128)}`)
+
+        // For non-streaming, throw immediately on cancel
+        if (canceled) {
+          throw new Error('Tool execution was canceled')
+        }
 
         // add tool call message
         thread.push(choice.message)
@@ -327,7 +340,7 @@ export default class extends LlmEngine {
           }
 
           // now execute
-          let content: any = undefined
+          let lastUpdate: PluginExecutionResult|undefined = undefined
           for await (const update of this.callTool({ model: context.model.id, abortSignal: context.opts?.abortSignal }, toolCall.function, args, context.opts?.toolExecutionValidation)) {
 
             if (update.type === 'status') {
@@ -345,30 +358,38 @@ export default class extends LlmEngine {
               }
 
             } else if (update.type === 'result') {
-              content = update.result
+              lastUpdate = update
             }
 
           }
 
-          // Check if canceled
-          if (context.opts?.abortSignal?.aborted) {
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: 'canceled',
-              status: this.getToolCanceledDescription(toolCall.function, args),
-              done: true,
-              call: {
-                params: args,
-                result: undefined
-              }
-            }
-            return  // Stop processing
-          }
+          // process result
+          const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
+            'groq',
+            toolCall.function,
+            args,
+            lastUpdate
+          )
 
           // log
           logger.log(`[groq] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+
+
+          // done
+          yield {
+            type: 'tool',
+            id: toolCall.id,
+            name: toolCall.function,
+            state: toolCallCanceled ? 'canceled' : 'completed',
+            status: toolCallCanceled
+              ? this.getToolCanceledDescription(toolCall.function, args) || content.error || 'Tool execution was canceled'
+              : this.getToolCompletedDescription(toolCall.function, args, content),
+            done: true,
+            call: {
+              params: args,
+              result: content
+            }
+          }
 
           // add tool call message
           context.thread.push({
@@ -385,18 +406,9 @@ export default class extends LlmEngine {
             content: JSON.stringify(content)
           })
 
-          // clear
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.function,
-            state: 'completed',
-            status: this.getToolCompletedDescription(toolCall.function, args, content),
-            done: true,
-            call: {
-              params: args,
-              result: content
-            },
+          // Check if canceled
+          if (context.opts?.abortSignal?.aborted) {
+            return  // Stop processing
           }
 
         } catch (error) {

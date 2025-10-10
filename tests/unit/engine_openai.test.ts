@@ -489,3 +489,171 @@ test('OpenAI custom options', async () => {
   // @ts-expect-error mock
   expect(_openai.default.prototype.chat.completions.create.mock.calls[0][0].mirostat).toBe(true)
 })
+
+test('OpenAI streaming validation deny - yields canceled chunk', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'deny',
+    extra: { reason: 'Policy violation' }
+  })
+
+  const chunks: LlmChunk[] = []
+  // @ts-expect-error protected
+  const context = {
+    model: openai.buildModel('model'),
+    thread: [],
+    opts: { toolExecutionValidation: validator },
+    toolCalls: [{ id: 1, function: 'plugin2', args: '{}', message: [] }],
+    responsesApi: false,
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+    thinking: false,
+  }
+
+  // Simulate tool_calls finish_reason
+  const toolCallChunk = { choices: [{ finish_reason: 'tool_calls' }] }
+  for await (const chunk of openai.nativeChunkToLlmChunk(toolCallChunk, context)) {
+    chunks.push(chunk)
+  }
+
+  expect(validator).toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+
+  const toolChunks = chunks.filter(c => c.type === 'tool')
+  const canceledChunk = toolChunks.find(c => c.state === 'canceled')
+  expect(canceledChunk).toBeDefined()
+  expect(canceledChunk).toMatchObject({
+    type: 'tool',
+    state: 'canceled',
+    done: true
+  })
+})
+
+test('OpenAI streaming validation abort - yields tool_abort chunk', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'abort',
+    extra: { reason: 'Security violation' }
+  })
+
+  const chunks: LlmChunk[] = []
+  // @ts-expect-error protected
+  const context = {
+    model: openai.buildModel('model'),
+    thread: [],
+    opts: { toolExecutionValidation: validator },
+    toolCalls: [{ id: 1, function: 'plugin2', args: '{}', message: [] }],
+    responsesApi: false,
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+    thinking: false,
+  }
+
+  // Simulate tool_calls finish_reason - abort throws, so we need to catch it
+  const toolCallChunk = { choices: [{ finish_reason: 'tool_calls' }] }
+  try {
+    for await (const chunk of openai.nativeChunkToLlmChunk(toolCallChunk, context)) {
+      chunks.push(chunk)
+    }
+  } catch (error: any) {
+    // The error IS the tool_abort chunk
+    chunks.push(error)
+  }
+
+  expect(validator).toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+
+  const abortChunks = chunks.filter(c => c.type === 'tool_abort')
+  expect(abortChunks.length).toBe(1)
+  expect(abortChunks[0]).toMatchObject({
+    type: 'tool_abort',
+    name: 'plugin2',
+    reason: {
+      decision: 'abort',
+      extra: { reason: 'Security violation' }
+    }
+  })
+})
+
+test('OpenAI chat validation deny - throws error', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'deny',
+    extra: { reason: 'Not allowed' }
+  })
+
+  // Mock to return tool calls
+  _openai.default.prototype.chat.completions.create = vi.fn().mockResolvedValue({
+    choices: [{
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [{
+          id: 'tool_1',
+          type: 'function',
+          function: { name: 'plugin2', arguments: '{}' }
+        }]
+      },
+      finish_reason: 'tool_calls'
+    }]
+  })
+
+  await expect(
+    openai.complete(openai.buildModel('model'), [
+      new Message('system', 'instruction'),
+      new Message('user', 'prompt'),
+    ], { toolExecutionValidation: validator })
+  ).rejects.toThrow('Tool execution was canceled')
+
+  expect(validator).toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+})
+
+test('OpenAI chat validation abort - throws LlmChunkToolAbort', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin2())
+
+  const validator = vi.fn().mockResolvedValue({
+    decision: 'abort',
+    extra: { reason: 'Security violation' }
+  })
+
+  // Mock to return tool calls
+  _openai.default.prototype.chat.completions.create = vi.fn().mockResolvedValue({
+    choices: [{
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [{
+          id: 'tool_1',
+          type: 'function',
+          function: { name: 'plugin2', arguments: '{}' }
+        }]
+      },
+      finish_reason: 'tool_calls'
+    }]
+  })
+
+  try {
+    await openai.complete(openai.buildModel('model'), [
+      new Message('system', 'instruction'),
+      new Message('user', 'prompt'),
+    ], { toolExecutionValidation: validator })
+    expect.fail('Should have thrown')
+  } catch (error: any) {
+    expect(validator).toHaveBeenCalled()
+    expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
+    expect(error).toMatchObject({
+      type: 'tool_abort',
+      name: 'plugin2',
+      reason: {
+        decision: 'abort',
+        extra: { reason: 'Security violation' }
+      }
+    })
+  }
+})

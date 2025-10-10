@@ -1,16 +1,15 @@
-import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelOllama, ModelsList } from '../types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import logger from '../logger'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
-import logger from '../logger'
+import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelOllama, ModelsList } from '../types/index'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
+import { PluginExecutionResult } from '../types/plugin'
 
-// we do this for so that this can be imported in a browser
-// importing from 'ollama' directly imports 'fs' which fails in browser
-import { Ollama, ChatRequest, ChatResponse, ProgressResponse, ShowResponse } from 'ollama/dist/browser.cjs'
+import { minimatch } from 'minimatch'
+import { ChatRequest, ChatResponse, Ollama, ProgressResponse, ShowResponse } from 'ollama/dist/browser.cjs'
 import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.e009de91.cjs'
 import { zodToJsonSchema } from 'zod-to-json-schema'
-import { minimatch } from 'minimatch'
 
 export type OllamaStreamingContext = LlmStreamingContextTools & {
   usage: LlmUsage
@@ -197,15 +196,20 @@ export default class extends LlmEngine {
         logger.log(`[ollama] tool call ${toolCall.function.name} with ${JSON.stringify(toolCall.function.arguments)}`)
 
         // now execute
-        let content: any = undefined
+        let lastUpdate: PluginExecutionResult|undefined = undefined
         for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.function.name, toolCall.function.arguments, opts?.toolExecutionValidation)) {
           if (update.type === 'result') {
-            content = update.result
+            lastUpdate = update
           }
         }
 
-        // log
-        logger.log(`[ollama] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+        // process result
+        const { content, canceled } = this.processToolExecutionResult('ollama', toolCall.function.name, toolCall.function.arguments, lastUpdate)
+
+        // if canceled/denied, stop processing
+        if (canceled) {
+          throw new Error('Tool execution was canceled')
+        }
 
         // add tool call message
         thread.push(response.message)
@@ -412,7 +416,7 @@ export default class extends LlmEngine {
           }
 
           // now execute
-          let content: any = undefined
+          let lastUpdate: PluginExecutionResult|undefined = undefined
           for await (const update of this.callTool({ model: context.model.id, abortSignal: context.opts?.abortSignal }, toolCall.function, args, context.opts?.toolExecutionValidation)) {
 
             if (update.type === 'status') {
@@ -430,30 +434,29 @@ export default class extends LlmEngine {
               }
 
             } else if (update.type === 'result') {
-              content = update.result
+              lastUpdate = update
             }
 
           }
 
-          // Check if canceled
-          if (context.opts?.abortSignal?.aborted) {
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: 'canceled',
-              status: this.getToolCanceledDescription(toolCall.function, args),
-              done: true,
-              call: {
-                params: args,
-                result: undefined
-              }
-            }
-            return  // Stop processing
-          }
+          // process result
+          const { content, canceled: toolCallCanceled } = this.processToolExecutionResult('ollama', toolCall.function, args, lastUpdate)
 
-          // log
-          logger.log(`[ollama] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
+          // done
+          yield {
+            type: 'tool',
+            id: toolCall.id,
+            name: toolCall.function,
+            state: toolCallCanceled ? 'canceled' : 'completed',
+            status: toolCallCanceled
+              ? this.getToolCanceledDescription(toolCall.function, args) || content.error || 'Tool execution was canceled'
+              : this.getToolCompletedDescription(toolCall.function, args, content),
+            done: true,
+            call: {
+              params: args,
+              result: content
+            }
+          }
 
           // add tool call message
           context.thread.push(chunk.message)
@@ -464,18 +467,9 @@ export default class extends LlmEngine {
             content: JSON.stringify(content)
           })
 
-          // clear
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.function,
-            state: 'completed',
-            status: this.getToolCompletedDescription(toolCall.function, args, content),
-            done: true,
-            call: {
-              params: args,
-              result: content
-            },
+          // Check if canceled
+          if (context.opts?.abortSignal?.aborted) {
+            return  // Stop processing
           }
 
         } catch (error) {
