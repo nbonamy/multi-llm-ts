@@ -117,74 +117,85 @@ export default abstract class LlmEngine {
   }
 
   async *generate(model: ChatModel|string, thread: Message[], opts?: LlmCompletionOpts): AsyncIterable<LlmChunk> {
-    
-    // init the streaming
-    const chatModel = this.toModel(model)
-    const response: LlmStreamingResponse = await this.stream(chatModel, thread, opts)
-    let currentStream: LlmStream = response.stream
 
-    // now we iterate as when the model emits tool call tokens
-    // we execute the tools and start a new stream with the results
-    while (true) {
+    // eslint-disable-next-line no-useless-catch
+    try {
+      
+      // init the streaming
+      const chatModel = this.toModel(model)
+      const response: LlmStreamingResponse = await this.stream(chatModel, thread, opts)
+      let currentStream: LlmStream = response.stream
 
-      // out next stream
-      let nextStream: LlmStream | null = null
+      // now we iterate as when the model emits tool call tokens
+      // we execute the tools and start a new stream with the results
+      while (true) {
 
-      // iterate the native stream (getting native = user-specific chunks)
-      for await (const chunk of currentStream) {
-        
-        // Check if abort signal has been triggered
-        if (opts?.abortSignal?.aborted) {
-          await currentStream.controller?.abort(opts?.abortSignal?.reason)
-          return
-        }
-        
-        // now we convert the native chunk to LlmChunks
-        // we may have several llm chunks for one native chunk
-        const llmChunkStream = this.nativeChunkToLlmChunk(chunk, response.context)
+        // out next stream
+        let nextStream: LlmStream | null = null
 
-        try {
-          for await (const msg of llmChunkStream) {
+        // iterate the native stream (getting native = user-specific chunks)
+        for await (const chunk of currentStream) {
 
-            // check message type
-            if (msg.type === 'stream') {
+          // Check if abort signal has been triggered
+          if (opts?.abortSignal?.aborted) {
+            currentStream.controller?.abort(opts?.abortSignal?.reason)
+            return
+          }
 
-              // stream switch!
-              nextStream = msg.stream
+          // now we convert the native chunk to LlmChunks
+          // we may have several llm chunks for one native chunk
+          const llmChunkStream = this.nativeChunkToLlmChunk(chunk, response.context)
 
-            } else {
+          try {
+            for await (const msg of llmChunkStream) {
 
-              // if we are switching to a new stream make sure we don't send a done message
-              // (anthropic sends a 'message_stop' message when finishing current stream for example)
-              if (nextStream !== null && msg.type === 'content' && msg.done) {
-                msg.done = false
+              // check message type
+              if (msg.type === 'stream') {
+
+                // stream switch!
+                nextStream = msg.stream
+
+              } else {
+
+                // if we are switching to a new stream make sure we don't send a done message
+                // (anthropic sends a 'message_stop' message when finishing current stream for example)
+                if (nextStream !== null && msg.type === 'content' && msg.done) {
+                  msg.done = false
+                }
+
+                // just forward the message
+                yield msg
+
               }
 
-              // just forward the message
-              yield msg
+              // Check abort AFTER yielding (so canceled tool chunks go through)
+              if (opts?.abortSignal?.aborted) {
+                currentStream.controller?.abort(opts?.abortSignal?.reason)
+                return
+              }
 
             }
-
-            // Check abort AFTER yielding (so canceled tool chunks go through)
-            if (opts?.abortSignal?.aborted) {
-              await this.stop(currentStream)
-              return
+          } catch (error: any) {
+            if (error.type === 'tool_abort') {
+              yield error as LlmChunkToolAbort
+            } else {
+              throw error  // Re-throw non-tool-abort errors
             }
+          }
 
-          }
-        } catch (error: any) {
-          if (error.type === 'tool_abort') {
-            yield error as LlmChunkToolAbort
-          }
         }
+
+        // if no new stream we are done
+        // else make the next stream the current one
+        if (!nextStream) break
+        currentStream = nextStream
 
       }
 
-      // if no new stream we are done
-      // else make the next stream the current one
-      if (!nextStream) break
-      currentStream = nextStream
-    
+    } catch (error) {
+      // Re-throw the error to ensure it propagates to the caller
+      // This is critical for async generators - errors need explicit handling
+      throw error
     }
 
   }
