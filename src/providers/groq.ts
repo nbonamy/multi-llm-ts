@@ -449,6 +449,25 @@ export default class extends LlmEngine {
 
     }
 
+    // reasoning
+    if (chunk.choices[0].delta.reasoning) {
+      
+      yield {
+        type: 'reasoning',
+        text: chunk.choices[0].delta.reasoning,
+        done: false
+      }
+    
+    } else if (chunk.choices[0].delta.content) {
+
+      yield {
+        type: 'content',
+        text: chunk.choices[0].delta.content,
+        done: false
+      }
+
+    }
+
     // normal content
     if (['stop', 'length'].includes(chunk.choices[0].finish_reason || '')) {
 
@@ -459,14 +478,9 @@ export default class extends LlmEngine {
       if (context.opts?.usage) {
         yield { type: 'usage', usage: context.usage }
       }
-    
-    } else {
-      yield {
-        type: 'content',
-        text: chunk.choices[0].delta.content || '',
-        done: false
-      }
+
     }
+
   }
 
   buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {
