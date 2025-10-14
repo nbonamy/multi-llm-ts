@@ -24,7 +24,35 @@ vi.mock('openai', async () => {
   }
   OpenAI.prototype.chat = {
     completions: {
-      create: vi.fn()
+      create: vi.fn((opts) => {
+        if (opts.stream) {
+          return {
+            async * [Symbol.asyncIterator]() {
+
+              // yield some reasoning
+              const reasoning = 'reasoning'
+              yield { choices: [{ delta: { content: '<think>' }, finish_reason: null }] }
+              for (let i = 0; i < reasoning.length; i++) {
+                yield { choices: [{ delta: { content: reasoning[i] }, finish_reason: null }] }
+              }
+              yield { choices: [{ delta: { content: '</think>' }, finish_reason: null }] }
+
+              // now the text response
+              const content = 'response'
+              for (let i = 0; i < content.length; i++) {
+                yield { choices: [{ delta: { content: content[i] }, finish_reason: null }] }
+              }
+              yield { choices: [{ delta: { content: '' }, finish_reason: 'stop' }] }
+            },
+            controller: {
+              abort: vi.fn()
+            }
+          }
+        }
+        else {
+          return { choices: [{ message: { content: 'response' } }] }
+        }
+      })
     }
   }
   return { default : OpenAI }
@@ -56,7 +84,7 @@ test('Cerebras Basic', async () => {
 
 test('Cerebras stream', async () => {
   const cerebras = new Cerebras(config)
-  /*const response = */await cerebras.stream(cerebras.buildModel('model'), [
+  const { stream, context } = await cerebras.stream(cerebras.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { top_p: 4, top_k: 4})
@@ -72,6 +100,17 @@ test('Cerebras stream', async () => {
       include_usage: false
     }
   })
+
+  let response = ''
+  let reasoning = ''
+  for await (const chunk of stream) {
+    for await (const msg of cerebras.nativeChunkToLlmChunk(chunk, context)) {
+      if (msg.type === 'content') response += msg.text || ''
+      if (msg.type === 'reasoning') reasoning += msg.text || ''
+    }
+  }
+  expect(response).toBe('response')
+  expect(reasoning).toBe('reasoning')
 })
 
 test('Cerebras structured output', async () => {

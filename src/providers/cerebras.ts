@@ -1,7 +1,8 @@
+import { ChatCompletionChunk } from 'openai/resources'
 import Message from '../models/message'
 import { EngineCreateOpts, Model, ModelCerebras } from '../types/index'
-import { LlmRole } from '../types/llm'
-import OpenAI from './openai'
+import { LlmChunk, LlmRole } from '../types/llm'
+import OpenAI, { OpenAIStreamingContext } from './openai'
 
 //
 // https://inference-docs.cerebras.ai/introduction
@@ -64,5 +65,24 @@ export default class extends OpenAI {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   requiresFlatTextPayload(msg: Message): boolean {
     return true
+  }
+
+  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk> {
+
+    // <think/> toggles thinking
+    if (Array.isArray(chunk.choices) && chunk.choices.length > 0 && chunk.choices[0].delta) {
+      if (chunk.choices[0].delta.content === '<think>') {
+        context.thinking = true
+        return
+      } else if (chunk.choices[0].delta.content === '</think>') {
+        context.thinking = false
+        return
+      }
+    }
+    
+    // parent call
+    for await (const c of super.nativeChunkToLlmChunk(chunk, context)) {
+      yield c
+    }
   }
 }

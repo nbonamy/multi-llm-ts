@@ -33,11 +33,19 @@ vi.mock('openai', async () => {
         if (opts.stream) {
           return {
             async * [Symbol.asyncIterator]() {
-              
+
               // first we yield tool call chunks
               yield { choices: [{ delta: { tool_calls: [ { id: 0, function: { name: 'plugin2', arguments: '[ "ar' }} ] }, finish_reason: 'none' } ] }
               yield { choices: [{ delta: { tool_calls: [ { function: { arguments: [ 'g" ]' ] } }] }, finish_reason: 'tool_calls' } ] }
-              
+
+              // yield some reasoning
+              const reasoning = 'reasoning'
+              yield { choices: [{ delta: { content: '<think>', finish_reason: 'none' } }] }
+              for (let i = 0; i < reasoning.length; i++) {
+                yield { choices: [{ delta: { content: reasoning[i], finish_reason: 'none' } }] }
+              }
+              yield { choices: [{ delta: { content: '</think>', finish_reason: 'none' } }] }
+
               // now the text response
               const content = 'response'
               for (let i = 0; i < content.length; i++) {
@@ -109,14 +117,17 @@ test('LMStudio stream', async () => {
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
+  let reasoning = ''
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
     for await (const msg of lmstudio.nativeChunkToLlmChunk(chunk, context)) {
       if (msg.type === 'content') response += msg.text
+      if (msg.type === 'reasoning') reasoning += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
   expect(response).toBe('response')
+  expect(reasoning).toBe('reasoning')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'llama-3.2' }, ['arg'])
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 0, name: 'plugin2', state: 'preparing', status: 'prep2', done: false })
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 0, name: 'plugin2', state: 'running', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
