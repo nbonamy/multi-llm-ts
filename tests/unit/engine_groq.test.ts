@@ -32,14 +32,20 @@ vi.mock('groq-sdk', async() => {
         if (opts.stream) {
           return {
             async * [Symbol.asyncIterator]() {
-              
-              // first we yield tool call chunks
-              if (!opts.model.startsWith('o1-')) {
+
+              // first we yield tool call chunks (not for reasoning models)
+              if (!opts.model.startsWith('o1-') && !opts.model.includes('reasoning')) {
                 yield { choices: [{ delta: { tool_calls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "ar' }} ] }, finish_reason: 'none' } ] }
                 yield { choices: [{ delta: { tool_calls: [ { function: { arguments: [ 'g" ]' ] } }] }, finish_reason: 'none' } ] }
                 yield { choices: [{ finish_reason: 'tool_calls' } ] }
               }
-              
+
+              // yield reasoning chunks if it's a reasoning model
+              const reasoning = 'reasoning'
+              for (let i = 0; i < reasoning.length; i++) {
+                yield { choices: [{ delta: { reasoning: reasoning[i] }, finish_reason: 'none' }] }
+              }
+
               // now the text response
               const content = 'response'
               for (let i = 0; i < content.length; i++) {
@@ -128,12 +134,14 @@ test('Groq stream', async () => {
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
+  let reasoning = ''
   let lastMsg:LlmChunkContent|null  = null
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
     for await (const msg of groq.nativeChunkToLlmChunk(chunk, context)) {
       lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text || ''
+      if (msg.type === 'reasoning') reasoning += msg.text || ''
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
@@ -152,6 +160,7 @@ test('Groq stream', async () => {
   })
   expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
+  expect(reasoning).toBe('reasoning')
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, ['arg'])
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'preparing', status: 'prep2', done: false })
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'running', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
@@ -275,7 +284,6 @@ test('Groq streaming validation deny - yields canceled chunk', async () => {
   })
 
   const chunks: LlmChunk[] = []
-  // @ts-expect-error protected
   const context = {
     model: groq.buildModel('model'),
     thread: [],
@@ -286,6 +294,7 @@ test('Groq streaming validation deny - yields canceled chunk', async () => {
 
   // Simulate tool_calls finish_reason
   const toolCallChunk = { choices: [{ finish_reason: 'tool_calls' }] }
+  // @ts-expect-error mock
   for await (const chunk of groq.nativeChunkToLlmChunk(toolCallChunk, context)) {
     chunks.push(chunk)
   }
@@ -313,7 +322,6 @@ test('Groq streaming validation abort - yields tool_abort chunk', async () => {
   })
 
   const chunks: LlmChunk[] = []
-  // @ts-expect-error protected
   const context = {
     model: groq.buildModel('model'),
     thread: [],
@@ -325,6 +333,7 @@ test('Groq streaming validation abort - yields tool_abort chunk', async () => {
   // Simulate tool_calls finish_reason - abort throws, so we need to catch it
   const toolCallChunk = { choices: [{ finish_reason: 'tool_calls' }] }
   try {
+    // @ts-expect-error mock
     for await (const chunk of groq.nativeChunkToLlmChunk(toolCallChunk, context)) {
       chunks.push(chunk)
     }
