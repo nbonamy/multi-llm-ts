@@ -83,6 +83,12 @@ test('Anthropic Load Models', async () => {
     { id: 'claude-3-model-date', name: 'Claude Model 3', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false, caching: false } },
     { id: 'claude-2.0', name: 'Claude 2.0', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
   ])
+  expect(models!.image).toStrictEqual([])
+  expect(models!.video).toStrictEqual([])
+  expect(models!.embedding).toStrictEqual([])
+  expect(models!.computer).toStrictEqual([
+    { id: 'computer-use', name: 'Computer Use', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false, caching: false } },
+  ])
   expect(await loadModels('anthropic', config)).toStrictEqual(models)
 })
 

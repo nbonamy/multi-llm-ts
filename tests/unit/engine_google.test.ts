@@ -32,6 +32,7 @@ vi.mock('@google/genai', async () => {
           { name: 'models/image-model', displayName: 'Image Model', description: '', supportedActions: ['predict'] },
           { name: 'models/video-model', displayName: 'Video Model', description: '', supportedActions: ['predictLongRunning'] },
           { name: 'models/native-audio-dialog-model', displayName: 'Dialog Model', description: '', supportedActions: ['bidiGenerateContent'] },
+          { name: 'gemini-2.5-computer-use-preview-10-2025', displayName: 'Computer Use', description: '', supportedActions: ['generateContent'] },
         ]
         for (const model of models) {
           yield model
@@ -87,6 +88,9 @@ test('Google Load Models', async () => {
   ])
   expect(models!.embedding).toStrictEqual([
     { id: 'embed-content', name: 'Non Generate Content', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
+  ])
+  expect(models!.computer).toStrictEqual([
+    { id: 'gemini-2.5-computer-use-preview-10-2025', name: 'Computer Use', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: false, caching: false } },
   ])
   expect(models!.realtime).toStrictEqual([
     { id: 'native-audio-dialog-model', name: 'Dialog Model', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false, caching: false } },

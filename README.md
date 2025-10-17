@@ -56,21 +56,21 @@ async execute(context: PluginExecutionContext , parameters: any): Promise<any>
 
 ## Providers supported
 
-|Provider|id|Completion<br>&&nbsp;Streaming|Vision|Function calling|Reasoning|Parametrization<sup>1</sup>|Structured Output|Usage reporting|
-|---|---|---|---|---|--|--|--|--|
-|**Anthropic**|`anthropic`|yes|yes|yes|yes|yes|no|yes|
-|**Azure AI**|`azure`|yes|yes|yes|yes|yes|yes|yes|
-|**Cerebras**|`cerebras`|yes|no|no|yes|yes|yes|yes|
-|**DeepSeek**|`deepseek`|yes|no|yes|yes|yes|no|yes|
-|**Google**|`google`|yes|yes|yes|yes|yes|yes<sup>4</sup>|yes|
-|**Groq**|`groq`|yes|yes|yes|yes|yes|yes|yes|
-|**Meta/Llama**|`meta`|yes|yes|yes|no|yes|no|yes|
-|**MistralAI**|`mistralai`|yes|yes|yes|no|yes|yes<sup>4</sup>|yes|
-|**Ollama**|`ollama`|yes|yes|yes|yes|yes|yes|yes|
-|**OpenAI**|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|yes|yes|yes|yes|
-|**OpenRouter**|`openrouter`|yes|yes|yes|no|yes|yes|yes|
-|**TogetherAI**<sup>3</sup>|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|no|yes|yes|yes|
-|**xAI**|`xai`|yes|yes|yes|no|yes|yes|yes|
+|Provider|id|Completion<br>&&nbsp;Streaming|Vision|Function calling|Reasoning|Parametrization<sup>1</sup>|Structured Output|Usage reporting|Computer Use
+|---|---|---|---|---|--|--|--|--|--|
+|**Anthropic**|`anthropic`|yes|yes|yes|yes|yes|no|yes|yes|
+|**Azure AI**|`azure`|yes|yes|yes|yes|yes|yes|yes|no|
+|**Cerebras**|`cerebras`|yes|no|no|yes|yes|yes|yes|no|
+|**DeepSeek**|`deepseek`|yes|no|yes|yes|yes|no|yes|no|
+|**Google**|`google`|yes|yes|yes|yes|yes|yes<sup>4</sup>|yes|yes|
+|**Groq**|`groq`|yes|yes|yes|yes|yes|yes|yes|no|
+|**Meta/Llama**|`meta`|yes|yes|yes|no|yes|no|yes|no|
+|**MistralAI**|`mistralai`|yes|yes|yes|no|yes|yes<sup>4</sup>|yes|no|
+|**Ollama**|`ollama`|yes|yes|yes|yes|yes|yes|yes|no|
+|**OpenAI**|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|yes|yes|yes|yes|no|
+|**OpenRouter**|`openrouter`|yes|yes|yes|no|yes|yes|yes|no|
+|**TogetherAI**<sup>3</sup>|`openai`|yes|yes<sup>2</sup>|yes<sup>2</sup>|no|yes|yes|yes|no|
+|**xAI**|`xai`|yes|yes|yes|no|yes|yes|yes|no|
 
 <div><sup>1</sup> Max tokens, Temperature... Support varies across providers and models
 <div><sup>2</sup> Not supported for o1 family</div>

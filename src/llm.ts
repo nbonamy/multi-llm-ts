@@ -78,11 +78,26 @@ export const loadAnthropicModels = async (engineConfig: EngineCreateOpts, comput
     meta: m,
   })).sort((a, b) => b.meta.created_at.localeCompare(a.meta.created_at))
 
+  const imageModels: ChatModel[] = []
+  const videoModels: ChatModel[] = []
+  const embeddingModels: ChatModel[] = []
+  const computerModels = models.filter(model => anthropic.isComputerUseModel(model.id))
+
+    // chat models are the rest
+    const chatModels = models.filter(model => 
+      !imageModels.includes(model) &&
+      !videoModels.includes(model) &&
+      !embeddingModels.includes(model) &&
+      !computerModels.includes(model)
+    )
+
   // done
   return {
-    chat: models,//.sort((a, b) => a.name.localeCompare(b.name)),
-    image: [],
-    embedding: []
+    chat: chatModels,
+    image: imageModels,
+    video: videoModels,
+    embedding: embeddingModels,
+    computer: computerModels
   }
 
 }
@@ -242,7 +257,9 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts, computerI
     (m.meta as ModelGoogle).supportedActions?.includes('predictLongRunning')
   ))
   const embeddingModels = models.filter((m) => (m.meta as ModelGoogle).supportedActions?.includes('embedContent'))
-  
+
+  const computerModels = models.filter(model => google.isComputerUseModel(model.id))
+
   const ttsModels = models.filter(model => model.id.endsWith('tts'))
 
   const chatModels = models
@@ -251,6 +268,7 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts, computerI
     .filter(model => 
         !imageModels.includes(model) &&
         !videoModels.includes(model) &&
+        !computerModels.includes(model) &&
         !embeddingModels.includes(model) &&
         !realtimeModels.includes(model) &&
         !ttsModels.includes(model)
@@ -268,6 +286,7 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts, computerI
     image: imageModels,
     video: videoModels,
     embedding: embeddingModels,
+    computer: computerModels,
     realtime: realtimeModels,
     tts: ttsModels
   }

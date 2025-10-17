@@ -93,8 +93,8 @@ export default class extends LlmEngine {
     
   }
 
-  getComputerUseRealModel(): string {
-    return 'gemini-2.5-computer-use-preview-10-2025'
+  isComputerUseModel(model: string): boolean {
+    return ['gemini-2.5-computer-use-preview-10-2025'].includes(model)
   }
 
   async getModels(): Promise<ModelGoogle[]> {
@@ -120,15 +120,6 @@ export default class extends LlmEngine {
       models.push(model as ModelGoogle)
     }
 
-    // add computer use model if computer info available
-    if (this.computerInfo) {
-      models.push({
-        name: 'google-computer-use',
-        displayName: 'Computer Use',
-        description: 'Google Gemini computer use model for browser automation'
-      })
-    }
-
     // debugging
     //console.log(actions)
 
@@ -150,11 +141,6 @@ export default class extends LlmEngine {
   }
 
   async chat(model: ChatModel, thread: Content[], opts?: GoogleCompletionOpts): Promise<LlmResponse> {
-
-    // handle computer use model
-    if (model.id === 'google-computer-use') {
-      model = this.toModel(this.getComputerUseRealModel())
-    }
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
@@ -258,7 +244,7 @@ export default class extends LlmEngine {
     model = this.selectModel(model, thread, opts)
 
     // add computer plugin if computer use model
-    if (this.computerInfo && model.id === 'google-computer-use') {
+    if (this.computerInfo && this.isComputerUseModel(model.id)) {
       const computerPlugin = this.plugins.find((p) => p.getName() === this.computerInfo!.plugin.getName())
       if (!computerPlugin) {
         this.plugins.push(this.computerInfo.plugin)
@@ -292,15 +278,9 @@ export default class extends LlmEngine {
     context.toolCalls = []
     context.requestUsage = zeroUsage()
 
-    // handle computer use model
-    let modelId = context.model.id
-    if (modelId === 'google-computer-use') {
-      modelId = this.getComputerUseRealModel()
-    }
-
-    logger.log(`[google] prompting model ${modelId}`)
+    logger.log(`[google] prompting model ${context.model.id}`)
     const response = await this.client.models.generateContentStream({
-      model: modelId,
+      model: context.model.id,
       contents: context.content,
       config: await this.getGenerationConfig(context.model, context.opts),
     })
@@ -359,7 +339,7 @@ export default class extends LlmEngine {
     }
 
     // add computer use tool
-    if (this.computerInfo && model.id === 'google-computer-use') {
+    if (this.computerInfo && this.isComputerUseModel(model.id)) {
       config.tools = [{
         computerUse: {
           environment: Environment.ENVIRONMENT_BROWSER

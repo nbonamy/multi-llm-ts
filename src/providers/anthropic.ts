@@ -91,6 +91,10 @@ export default class extends LlmEngine {
     return 'claude-3-5-sonnet-20241022'
   }
 
+  isComputerUseModel(model: string): boolean {
+    return ['computer-use'].includes(model)
+  }
+
   getMaxTokens(model: string): number {
     if (model === 'computer-use') return this.getMaxTokens(this.getComputerUseRealModel())
     if (model.includes('claude-opus-4')) return 32000
@@ -112,10 +116,9 @@ export default class extends LlmEngine {
 
     // transform
     return [
-      ...models.data,
-      ...(this.computerInfo ? [{
+      ...models.data, {
         'type': 'model',  id: 'computer-use', display_name: 'Computer Use', created_at: '1970-01-01T00:00:00Z'
-      }] : [])
+      }
     ]
 
   }
