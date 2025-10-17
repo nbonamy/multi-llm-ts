@@ -1,10 +1,11 @@
-import { Content, FunctionCallingConfigMode, FunctionDeclaration, FunctionResponse, GenerateContentConfig, GenerateContentResponse, GoogleGenAI, Part, Schema, Type } from '@google/genai'
+import { Content, Environment, FunctionCallingConfigMode, FunctionDeclaration, FunctionResponse, GenerateContentConfig, GenerateContentResponse, GoogleGenAI, Part, Schema, Type } from '@google/genai'
 import { minimatch } from 'minimatch'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
+import { Plugin } from '../plugin'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGoogle } from '../types/index'
 import { LLmCompletionPayload, LLmContentPayloadText, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
@@ -18,6 +19,12 @@ type GoogleCompletionOpts = LlmCompletionOpts & {
   instruction?: string
 }
 
+export interface GoogleComputerToolInfo {
+  plugin: Plugin
+  screenSize(): { width: number, height: number }
+  screenNumber(): number
+}
+
 export type GoogleStreamingContext = Omit<LlmStreamingContextTools, 'thread'> & {
   opts: GoogleCompletionOpts
   requestUsage: LlmUsage
@@ -27,12 +34,14 @@ export type GoogleStreamingContext = Omit<LlmStreamingContextTools, 'thread'> & 
 export default class extends LlmEngine {
 
   client: GoogleGenAI
+  computerInfo: GoogleComputerToolInfo|null = null
 
-  constructor(config: EngineCreateOpts) {
+  constructor(config: EngineCreateOpts, computerInfo: GoogleComputerToolInfo|null = null) {
     super(config)
     this.client = new GoogleGenAI({
       apiKey: config.apiKey!,
     })
+    this.computerInfo = computerInfo
   }
 
   getId(): string {
@@ -84,6 +93,10 @@ export default class extends LlmEngine {
     
   }
 
+  getComputerUseRealModel(): string {
+    return 'gemini-2.5-computer-use-preview-10-2025'
+  }
+
   async getModels(): Promise<ModelGoogle[]> {
 
     // need an api key
@@ -107,6 +120,15 @@ export default class extends LlmEngine {
       models.push(model as ModelGoogle)
     }
 
+    // add computer use model if computer info available
+    if (this.computerInfo) {
+      models.push({
+        name: 'google-computer-use',
+        displayName: 'Computer Use',
+        description: 'Google Gemini computer use model for browser automation'
+      })
+    }
+
     // debugging
     //console.log(actions)
 
@@ -115,7 +137,7 @@ export default class extends LlmEngine {
 
     // done
     return models
-    
+
   }
 
   async complete(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
@@ -129,9 +151,14 @@ export default class extends LlmEngine {
 
   async chat(model: ChatModel, thread: Content[], opts?: GoogleCompletionOpts): Promise<LlmResponse> {
 
+    // handle computer use model
+    if (model.id === 'google-computer-use') {
+      model = this.toModel(this.getComputerUseRealModel())
+    }
+
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
-    
+
     // call
     logger.log(`[google] prompting model ${model.id}`)
     const response = await this.client.models.generateContent({
@@ -230,6 +257,14 @@ export default class extends LlmEngine {
     // model: switch to vision if needed
     model = this.selectModel(model, thread, opts)
 
+    // add computer plugin if computer use model
+    if (this.computerInfo && model.id === 'google-computer-use') {
+      const computerPlugin = this.plugins.find((p) => p.getName() === this.computerInfo!.plugin.getName())
+      if (!computerPlugin) {
+        this.plugins.push(this.computerInfo.plugin)
+      }
+    }
+
     // context
     const context: GoogleStreamingContext = {
       model: model,
@@ -257,9 +292,15 @@ export default class extends LlmEngine {
     context.toolCalls = []
     context.requestUsage = zeroUsage()
 
-    logger.log(`[google] prompting model ${context.model.id}`)
+    // handle computer use model
+    let modelId = context.model.id
+    if (modelId === 'google-computer-use') {
+      modelId = this.getComputerUseRealModel()
+    }
+
+    logger.log(`[google] prompting model ${modelId}`)
     const response = await this.client.models.generateContentStream({
-      model: context.model.id,
+      model: modelId,
       contents: context.content,
       config: await this.getGenerationConfig(context.model, context.opts),
     })
@@ -317,12 +358,21 @@ export default class extends LlmEngine {
       config.responseJsonSchema = zodToJsonSchema(opts.structuredOutput.structure)
     }
 
+    // add computer use tool
+    if (this.computerInfo && model.id === 'google-computer-use') {
+      config.tools = [{
+        computerUse: {
+          environment: Environment.ENVIRONMENT_BROWSER
+        }
+      }]
+    }
+
     // add tools
-    if (opts?.tools !== false && model.capabilities.tools) {
+    else if (opts?.tools !== false && model.capabilities.tools) {
 
       const tools = await this.getAvailableTools();
       if (tools.length) {
-      
+
         const functionDeclarations: FunctionDeclaration[] = [];
 
         for (const tool of tools) {
