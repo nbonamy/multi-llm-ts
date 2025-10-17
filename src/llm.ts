@@ -5,7 +5,7 @@ import Anthropic, { AnthropicComputerToolInfo } from './providers/anthropic'
 import Azure from './providers/azure'
 import Cerebreas from './providers/cerebras'
 import DeepSeek from './providers/deepseek'
-import Google from './providers/google'
+import Google, { GoogleComputerToolInfo } from './providers/google'
 import Groq from './providers/groq'
 import LMStudio from './providers/lmstudio'
 import Meta from './providers/meta'
@@ -184,9 +184,9 @@ export const loadDeepSeekModels = async (engineConfig: EngineCreateOpts): Promis
 
 }
 
-export const loadGoogleModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
-  
-  const google = new Google(engineConfig)
+export const loadGoogleModels = async (engineConfig: EngineCreateOpts, computerInfo: GoogleComputerToolInfo|null = null): Promise<ModelsList|null> => {
+
+  const google = new Google(engineConfig, computerInfo)
   let metas: ModelGoogle[] = []
 
   try {
