@@ -2,7 +2,7 @@ import { minimatch } from 'minimatch'
 import OpenAI, { ClientOptions } from 'openai'
 import { zodResponseFormat } from 'openai/helpers/zod'
 import { CompletionUsage } from 'openai/resources'
-import { ChatCompletionCreateParamsBase } from 'openai/resources/chat/completions'
+import { ChatCompletionCreateParamsBase, ChatCompletionMessageFunctionToolCall } from 'openai/resources/chat/completions'
 import { Response, ResponseCreateParams, ResponseFunctionToolCall, ResponseInputItem, ResponseOutputMessage, ResponseStreamEvent, ResponseUsage, Tool, ToolChoiceFunction, ToolChoiceOptions } from 'openai/resources/responses/responses'
 import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
@@ -220,8 +220,12 @@ export default class extends LlmEngine {
 
       for (const tool_call of choice.message.tool_calls) {
 
+        if (!('function' in tool_call)) {
+          continue
+        }
+
         // log
-        const functionToolCall = tool_call
+        const functionToolCall: ChatCompletionMessageFunctionToolCall = tool_call
         logger.log(`[openai] tool call ${functionToolCall.function.name} with ${functionToolCall.function.arguments}`)
 
         // this can error
@@ -369,7 +373,10 @@ export default class extends LlmEngine {
       ...(this.modelSupportsTopP(model) && opts?.top_p ? { top_p: opts?.top_p } : {}),
       ...(this.modelSupportsReasoningEffort(model) && opts?.reasoningEffort ? { reasoning_effort: opts?.reasoningEffort } : {}),
       ...(this.modelSupportsVerbosity(model) && opts?.verbosity ? { verbosity: opts.verbosity } : {}),
-      ...(this.modelSupportsStructuredOutput(model) && opts?.structuredOutput ? { response_format: zodResponseFormat(opts.structuredOutput.structure, opts.structuredOutput.name) } : {}),
+      ...(this.modelSupportsStructuredOutput(model) && opts?.structuredOutput ? {
+          // @ts-expect-error structured output
+          response_format: zodResponseFormat(opts.structuredOutput.structure, opts.structuredOutput.name)
+        } : {}),
       ...(opts?.customOpts ? opts.customOpts : {}),
     }
   }

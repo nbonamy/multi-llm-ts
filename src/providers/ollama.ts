@@ -8,7 +8,7 @@ import { PluginExecutionResult } from '../types/plugin'
 
 import { minimatch } from 'minimatch'
 import { ChatRequest, ChatResponse, Ollama, ProgressResponse, ShowResponse } from 'ollama/dist/browser.cjs'
-import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.e009de91.cjs'
+import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.27169772.cjs'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 
 export type OllamaStreamingContext = LlmStreamingContextTools & {

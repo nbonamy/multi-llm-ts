@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { ContentBlockParam, InputJSONDelta, MessageCreateParams, MessageDeltaUsage, MessageParam, MessageStreamEvent, RawMessageDeltaEvent, RawMessageStartEvent, TextBlock, Tool, ToolChoice, ToolUseBlock, Usage } from '@anthropic-ai/sdk/resources'
+import { ContentBlockParam, InputJSONDelta, MessageCreateParams, MessageDeltaUsage, MessageParam, RawMessageStreamEvent, RawMessageDeltaEvent, RawMessageStartEvent, TextBlock, Tool, ToolChoice, ToolUseBlock, Usage } from '@anthropic-ai/sdk/resources'
 import { BetaToolUnion, MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 import { minimatch } from 'minimatch'
 import LlmEngine, { LlmStreamingContextBase } from '../engine'
@@ -458,7 +458,7 @@ export default class extends LlmEngine {
     stream.controller?.abort()
   }
    
-  async *nativeChunkToLlmChunk(chunk: MessageStreamEvent, context: AnthropicStreamingContext): AsyncGenerator<LlmChunk> {
+  async *nativeChunkToLlmChunk(chunk: RawMessageStreamEvent, context: AnthropicStreamingContext): AsyncGenerator<LlmChunk> {
     
     // log
     //console.dir(chunk, { depth: null })

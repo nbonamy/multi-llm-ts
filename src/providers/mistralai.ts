@@ -138,8 +138,8 @@ export default class extends LlmEngine {
 
       // cumulate usage
       if (opts?.usage && response.usage && completion.usage) {
-        completion.usage.prompt_tokens += response.usage.promptTokens
-        completion.usage.completion_tokens += response.usage.completionTokens
+        completion.usage.prompt_tokens += response.usage.promptTokens ?? 0
+        completion.usage.completion_tokens += response.usage.completionTokens ?? 0
       }
 
       // done
@@ -153,8 +153,8 @@ export default class extends LlmEngine {
       content: response.choices?.[0].message.content as string || '',
       toolCalls: toolCallInfo,
       ...(opts?.usage ? { usage: {
-        prompt_tokens: response.usage.promptTokens,
-        completion_tokens: response.usage.completionTokens,
+        prompt_tokens: response.usage.promptTokens ?? 0,
+        completion_tokens: response.usage.completionTokens ?? 0,
       } } : {}),
     }
   }
