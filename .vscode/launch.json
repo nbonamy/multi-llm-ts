@@ -12,8 +12,8 @@
         "example"
       ],
       "env": {
-        "ENGINE": "google",
-        "MODEL": "claude-3-5-haiku-20241022"
+        "ENGINE": "openai",
+        "MODEL": "gpt-4.1"
       },
       "runtimeExecutable": "npm",
       "skipFiles": [
