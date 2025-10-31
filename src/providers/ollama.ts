@@ -63,6 +63,7 @@ export default class extends LlmEngine {
       'devstral',
       'firefunction-v2',
       'gpt-oss',
+      'gpt-oss-safeguard',
       'granite3-dense',
       'granite3-moe',
       'granite3.1-dense',
@@ -70,6 +71,7 @@ export default class extends LlmEngine {
       'granite3.2',
       'granite3.2-vision',
       'granite3.3',
+      'granite4',
       'hermes3',
       'llama3-groq-tool-use',
       'llama3.1',
@@ -109,16 +111,20 @@ export default class extends LlmEngine {
       'mistral-small3.2',
       'moondream',
       'qwen2.5vl',
+      'qwen3-vl',
     ]
 
     const reasoningModels = [
       'cogito:*',
-      'deepseek-r1:*',
+      'deepseek-r1',
+      'deepseek-v3.1',
+      'gpt-oss',
+      'gpt-oss-safeguard',
+      'magistral',
       'openthinker:*',
       'phi:*',
       'qwq:*',
-      '*thinking*',
-      '*reasoning*'
+      'qwen3',
     ]
 
     return {
@@ -518,12 +524,23 @@ export default class extends LlmEngine {
       context.thinking = false
       return
     }
+
+    // thinking can be in chunk too
+    if (chunk.message.thinking?.length) {
+      yield {
+        type: 'reasoning',
+        text: chunk.message.thinking,
+        done: chunk.done
+      }
+    }
     
     // content
-    yield {
-      type: context.thinking ? 'reasoning' : 'content',
-      text: chunk.message.content || '',
-      done: chunk.done
+    if (chunk.message.content?.length || chunk.done) {
+      yield {
+        type: context.thinking ? 'reasoning' : 'content',
+        text: chunk.message.content || '',
+        done: chunk.done
+      }
     }
 
     // usage

@@ -51,13 +51,19 @@ vi.mock('ollama/dist/browser.cjs', async() => {
             }
           }
           
-          // yield some reasoning
+          // yield some reasoning (legacy)
           const reasoning = 'reasoning'
           yield { message: { role: 'assistant', content: '<think>' }, done: false }
           for (let i = 0; i < reasoning.length; i++) {
             yield { message: { role: 'assistant', content: reasoning[i] }, done: false }
           }
           yield { message: { role: 'assistant', content: '</think>' }, done: false }
+
+          // yield some thinking (new)
+          const thinking = '+thinking'
+          for (let i = 0; i < thinking.length; i++) {
+            yield { message: { role: 'assistant', content: '', thinking: thinking[i] }, done: false }
+          }
 
           // now the text response
           const content = 'response'
@@ -169,7 +175,7 @@ test('Ollama stream without tools', async () => {
   }
   expect(lastMsg!.done).toBe(true)
   expect(response).toBe('response')
-  expect(reasoning).toBe('reasoning')
+  expect(reasoning).toBe('reasoning+thinking')
   expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
   await ollama.stop()
   expect(_ollama.Ollama.prototype.abort).toHaveBeenCalled()

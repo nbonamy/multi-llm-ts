@@ -49,6 +49,14 @@ const updateOllama = async(content, q, tr, regex, template) => {
     ]`
   )
 
+  fileContent = await updateOllama(
+    fileContent, 'thinking', (tool) => tool,
+    /const reasoningModels = [\s\S]*?\]/,
+    `const reasoningModels = [
+{{models}}
+    ]`
+  )
+
   fs.writeFileSync(filePath, fileContent, 'utf8');
   console.log('Updated ollama.ts successfully');
 
