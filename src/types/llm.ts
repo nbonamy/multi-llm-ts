@@ -236,12 +236,10 @@ export type LlmToolArrayItems = {
 }
 
 export type LlmToolParameterOpenAI = {
-  name: string
   type: string
   description: string
   enum?: string[]
   items?: LlmToolArrayItems
-  required?: boolean
 }
 
 export type LlmToolOpenAI = {

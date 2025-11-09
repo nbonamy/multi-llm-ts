@@ -1,5 +1,5 @@
 
-import { LlmToolExecutionValidationResponse, LlmToolParameterOpenAI } from './llm'
+import { LlmToolExecutionValidationResponse } from './llm'
 
 export interface IPlugin {
 
@@ -15,7 +15,17 @@ export interface IPlugin {
   executeWithUpdates?(context: PluginExecutionContext , parameters: any): AsyncGenerator<PluginExecutionUpdate>
 }
 
-export type PluginParameter = LlmToolParameterOpenAI
+export type PluginParameter = {
+  name: string
+  type: string
+  description: string
+  required?: boolean
+  enum?: string[]
+  items?: {
+    type: string,
+    properties?: PluginParameter[]
+  }
+}
 
 export type PluginExecutionContext = {
   model: string

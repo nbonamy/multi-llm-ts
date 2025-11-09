@@ -291,8 +291,8 @@ export default abstract class LlmEngine {
   }
 
   protected async getAvailableTools(): Promise<LlmTool[]> {
-    
-    const tools = []
+
+    const tools: LlmTool[] = []
     for (const plugin of this.plugins) {
 
       // needs to be enabled

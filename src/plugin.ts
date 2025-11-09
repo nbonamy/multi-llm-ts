@@ -1,7 +1,8 @@
+import { LlmTool } from 'types/llm'
 import { IPlugin, PluginExecutionContext, PluginParameter } from './types/plugin'
 
 export interface ICustomPlugin extends IPlugin {
-  getTools(): Promise<any|any[]>
+  getTools(): Promise<LlmTool|LlmTool[]>
 }
 
 export class Plugin implements IPlugin {
