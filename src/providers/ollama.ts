@@ -337,6 +337,9 @@ export default class extends LlmEngine {
     if (opts?.structuredOutput) {
       chatOptions.format = zodToJsonSchema(opts.structuredOutput.structure, { name: opts.structuredOutput.name })
     }
+    if (opts?.customOpts) {
+      chatOptions.options = { ...chatOptions.options, ...opts.customOpts }
+    }
     if (Object.keys(opts || {}).length === 0) {
       delete chatOptions.options
     }
