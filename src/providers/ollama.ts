@@ -93,12 +93,15 @@ export default class extends LlmEngine {
       'qwen2.5',
       'qwen2.5-coder',
       'qwen3',
+      'qwen3-coder',
+      'qwen3-vl',
       'qwq',
       'smollm2',
     ]
 
     const visionModels = [
       'bakllava',
+      'deepseek-ocr',
       'gemma3',
       'granite3.2-vision',
       'llama3.2-vision',
@@ -336,6 +339,9 @@ export default class extends LlmEngine {
     }
     if (opts?.structuredOutput) {
       chatOptions.format = zodToJsonSchema(opts.structuredOutput.structure, { name: opts.structuredOutput.name })
+    }
+    if (opts?.think !== undefined) {
+      chatOptions.think = opts.think
     }
     if (opts?.customOpts) {
       chatOptions.options = { ...chatOptions.options, ...opts.customOpts }

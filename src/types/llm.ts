@@ -80,6 +80,12 @@ export type LlmGoogleModelOpts = {
   thinkingBudget?: number
 }
 
+export type LlmOllamaThink = boolean | 'high' | 'medium' | 'low'
+
+export type LlmOllamaModelOpts = {
+  think?: LlmOllamaThink
+}
+
 export type LlmModelOpts = {
   contextWindowSize?: number
   maxTokens?: number
@@ -87,7 +93,7 @@ export type LlmModelOpts = {
   top_k?: number
   top_p?: number
   customOpts?: LLmCustomModelOpts
-} & LlmOpenAIModelOpts & LlmAnthropicModelOpts & LlmGoogleModelOpts
+} & LlmOpenAIModelOpts & LlmAnthropicModelOpts & LlmGoogleModelOpts & LlmOllamaModelOpts
 
 export type LlmStructuredOutput = {
   name: string

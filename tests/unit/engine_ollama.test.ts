@@ -9,6 +9,7 @@ import { loadModels, loadOllamaModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import { z } from 'zod'
+import { ChatResponse } from 'ollama'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
@@ -124,7 +125,7 @@ test('Ollama completion', async () => {
   const response = await ollama.complete(ollama.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
-  ], { temperature: 0.8 })
+  ], { temperature: 0.8, think: 'medium' })
   expect(_ollama.Ollama.prototype.chat).toHaveBeenCalledWith({
     model: 'model',
     messages: [
@@ -132,6 +133,7 @@ test('Ollama completion', async () => {
       { role: 'user', content: 'prompt' },
     ],
     options: { temperature : 0.8 },
+    think: 'medium',
     stream: false,
   })
   expect(response).toStrictEqual({
@@ -349,7 +351,7 @@ test('Ollama streaming validation deny - yields canceled chunk', async () => {
 
   // Simulate tool_calls - need to pass chunk with tool_calls
   const toolCallChunk = { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'plugin2', arguments: {} } }], done: false } }
-  for await (const chunk of ollama.nativeChunkToLlmChunk(toolCallChunk, context)) {
+  for await (const chunk of ollama.nativeChunkToLlmChunk(toolCallChunk as unknown as ChatResponse, context)) {
     chunks.push(chunk)
   }
 
@@ -388,7 +390,7 @@ test('Ollama streaming validation abort - yields tool_abort chunk', async () => 
   // Simulate tool_calls - abort throws, so we need to catch it
   const toolCallChunk = { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'plugin2', arguments: {} } }], done: false } }
   try {
-    for await (const chunk of ollama.nativeChunkToLlmChunk(toolCallChunk, context)) {
+    for await (const chunk of ollama.nativeChunkToLlmChunk(toolCallChunk as unknown as ChatResponse, context)) {
       chunks.push(chunk)
     }
   } catch (error: any) {
