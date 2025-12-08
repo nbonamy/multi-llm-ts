@@ -25,7 +25,10 @@
     "test:watch": "vitest --watch",
     "test:ui": "vitest --ui --coverage.enabled=true",
     "test:real": "REAL_API=1 vitest tests/unit/engine_real_apis.test.ts",
-    "example": "tsx ./example/index.ts"
+    "example": "tsx ./example/index.ts",
+    "docs:dev": "vitepress dev docs --port 5175",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
   },
   "author": {
     "name": "Nicolas Bonamy",
@@ -45,6 +48,7 @@
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
+    "vitepress": "^1.6.4",
     "vitest": "^2.1.8"
   },
   "dependencies": {
