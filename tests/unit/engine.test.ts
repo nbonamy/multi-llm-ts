@@ -1,6 +1,6 @@
 
 import { LlmChunk } from '../../src/types/llm'
-import { vi, expect, test } from 'vitest'
+import { vi, expect, test, beforeEach } from 'vitest'
 import { Plugin1, Plugin2 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
@@ -67,6 +67,10 @@ vi.mock('openai', async() => {
     }
   }
   return { default: OpenAI }
+})
+
+beforeEach(() => {
+  vi.clearAllMocks()
 })
 
 test('Default Configuration', () => {
@@ -232,6 +236,30 @@ test('Generate content', async () => {
   expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'preparing', status: 'prep2', done: false })
   expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'running', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
   expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'completed', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
+})
+
+test('Generates tool calls information', async () => {
+  const openai = new OpenAI(config)
+  const messages = [
+    new Message('system', 'instructions'),
+    new Message('user', 'prompt1'),
+    new Message('assistant', 'response1', undefined, [ { id: 'tool1', function: 'plugin2', args: { param: 'value' }, result : { result: 'ok' } } ]),
+  ]
+  const stream = openai.generate(openai.buildModel('model'), messages)
+  expect(stream).toBeDefined()
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, no-empty
+  for await (const chunk of stream) { }
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenCalledWith({
+    model: 'model', stream: true, stream_options: { include_usage: false },
+    messages: [
+      { role: 'system', content: 'instructions' },
+      { role: 'user', content: [{ type: 'text', text: 'prompt1' }] },
+      { role: 'assistant', content: 'response1', tool_calls: [
+        { id: 'tool1', type: 'function', function: { name: 'plugin2', arguments: JSON.stringify({ param: 'value' }) } }
+      ] },
+      { role: 'tool', tool_call_id: 'tool1', name: 'plugin2', content: '{"result":"ok"}' },
+    ]
+  })
 })
 
 test('Switch to vision when model provided', async () => {

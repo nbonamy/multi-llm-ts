@@ -12,6 +12,7 @@ import { EngineCreateOpts } from '../../src/types/index'
 import { LlmStreamingContextTools } from '../../src/engine'
 import { z } from 'zod'
 
+Plugin1.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result1'))
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
 vi.mock('@mistralai/mistralai', async() => {
@@ -39,13 +40,20 @@ vi.mock('@mistralai/mistralai', async() => {
       return { choices: [ { message: { content: 'response' } } ] }
     }),
     stream: vi.fn(() => {
-      return { 
+      return {
         async * [Symbol.asyncIterator]() {
-          
-          // first we yield tool call chunks
-          yield { data: { choices: [{ delta: { toolCalls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "ar' }} ] }, finishReason: 'none' } ] } }
-          yield { data: { choices: [{ delta: { toolCalls: [ { function: { arguments: [ 'g" ]' ] } }] }, finishReason: 'tool_calls' } ] } }
-          
+
+          // first we yield tool call chunks for multiple tools
+          // First tool call: plugin1 with empty args (index 0)
+          yield { data: { choices: [{ delta: { toolCalls: [ { index: 0, id: '1', function: { name: 'plugin1', arguments: '[]' }} ] }, finishReason: 'none' } ] } }
+
+          // Second tool call: plugin2 with args split across chunks (index 1)
+          yield { data: { choices: [{ delta: { toolCalls: [ { index: 1, id: '2', function: { name: 'plugin2', arguments: '[ "ar' }} ] }, finishReason: 'none' } ] } }
+          yield { data: { choices: [{ delta: { toolCalls: [ { index: 1, function: { arguments: 'g" ]' } }] }, finishReason: 'none' } ] } }
+
+          // Finish reason to trigger processing of both accumulated tools
+          yield { data: { choices: [{ finishReason: 'tool_calls' } ] } }
+
           // now the text response
           const content = 'response'
           for (let i = 0; i < content.length; i++) {
@@ -93,6 +101,20 @@ test('MistralAI buildPayload', async () => {
   message.attach(new Attachment('image', 'image/png'))
   const payload = mistralai.buildPayload(mistralai.buildModel('mistral-large'), [ message ])
   expect(payload).toStrictEqual([{ role: 'user', content: [{ type: 'text', text: 'text' }] }])
+})
+
+test('MistralAI buildPayload with tool calls', async () => {
+  const mistralai = new MistralAI(config)
+  const message = new Message('assistant', 'text', undefined, [
+    { id: 'tool1', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' } }
+  ])
+  expect(mistralai.buildPayload(mistralai.buildModel('mistral-large'), [ message ])).toStrictEqual([
+    { role: 'assistant', prefix: false, toolCalls: [
+      { id: 'tool1', index: 0, function: { name: 'plugin2', arguments: '{"param":"value"}' } }
+    ] },
+    { role: 'tool', toolCallId: 'tool1', name: 'plugin2', content: '{"result":"ok"}' },
+    { role: 'assistant', content: 'text' }
+  ])
 })
 
 test('MistralAI completion', async () => {
@@ -179,18 +201,30 @@ test('MistralAI stream with tools', async () => {
     messages: [
       { role: 'system', content: 'instruction' },
       { role: 'user', content: [{ type: 'text', text: 'prompt' }] },
-      { role: 'assistant', toolCalls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "arg" ]' } } ] },
-      { role: 'tool', toolCallId: 1, name: 'plugin2', content: '"result2"' }
+      { role: 'assistant', toolCalls: [
+        { id: '1', function: { name: 'plugin1', arguments: '[]' } },
+      ] },
+      { role: 'tool', toolCallId: '1', name: 'plugin1', content: '"result1"' },
+      { role: 'assistant', toolCalls: [
+        { id: '2', function: { name: 'plugin2', arguments: '[ "arg" ]' } }
+      ] },
+      { role: 'tool', toolCallId: '2', name: 'plugin2', content: '"result2"' }
     ],
     toolChoice: 'auto',
     tools: expect.any(Array),
   })
   expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
+  expect(Plugin1.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, [])
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, ['arg'])
-  expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'preparing', status: 'prep2', done: false })
-  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'running', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
-  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'completed', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
+
+  // Verify tool call sequence: preparing for both tools, then running, then completed
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: '1', name: 'plugin1', state: 'preparing', status: 'prep1', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: '2', name: 'plugin2', state: 'preparing', status: 'prep2', done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: '1', name: 'plugin1', state: 'running', status: 'run1 with []', call: { params: [], result: undefined }, done: false })
+  expect(toolCalls[3]).toStrictEqual({ type: 'tool', id: '1', name: 'plugin1', state: 'completed', call: { params: [], result: 'result1' }, status: undefined, done: true })
+  expect(toolCalls[4]).toStrictEqual({ type: 'tool', id: '2', name: 'plugin2', state: 'running', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
+  expect(toolCalls[5]).toStrictEqual({ type: 'tool', id: '2', name: 'plugin2', state: 'completed', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
   await mistralai.stop()
   //expect(Mistral.prototype.abort).toHaveBeenCalled()
 })

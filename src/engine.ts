@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort } from './types/llm'
+import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort } from './types/llm'
 import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter, PluginExecutionResult } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 import Attachment from './models/attachment'
@@ -56,12 +56,12 @@ export default abstract class LlmEngine {
    */
   abstract stop(stream: any): Promise<void>
 
-  protected addTextToPayload(message: Message, attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
+  protected addTextToPayload(model: ChatModel, message: Message, attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
 
     if (Array.isArray(payload.content)) {
       
       // we may need to add to already existing content
-      if (this.requiresFlatTextPayload(message)) {
+      if (this.requiresFlatTextPayload(model, message)) {
         const existingText = payload.content.find((c) => c.type === 'text')
         if (existingText) {
           existingText.text = `${existingText.text}\n\n${attachment.content}`
@@ -80,7 +80,7 @@ export default abstract class LlmEngine {
     }
   }
 
-  protected addImageToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
+  protected addImageToPayload(model: ChatModel, attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
 
     // if we have a string content, convert it to an array
     if (typeof payload.content === 'string') {
@@ -238,8 +238,13 @@ export default abstract class LlmEngine {
 
   }
 
-  requiresFlatTextPayload(msg: Message) {
+  requiresFlatTextPayload(model: ChatModel, msg: Message) {
     return ['system', 'assistant'].includes(msg.role)
+  }
+
+  requiresReasoningContent(): boolean {
+    // for deekseek
+    return false
   }
 
   buildPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
@@ -250,14 +255,22 @@ export default abstract class LlmEngine {
 
     } else {
 
-      return thread.filter((msg) => msg.contentForModel !== null).map((msg): LLmCompletionPayload => {
-        
+      const payloads: LLmCompletionPayload[] = []
+
+      for (const msg of thread) {
+
+        if (msg.contentForModel === null) {
+          continue
+        }
+
         // init the payload
-        const payload: LLmCompletionPayload = {
-          role: msg.role,
-          content: this.requiresFlatTextPayload(msg) ? msg.contentForModel : [{
+        const payload: LlmCompletionPayloadContent = {
+          role: msg.role as 'system'|'developer'|'user'|'assistant',
+          content: this.requiresFlatTextPayload(model, msg) ? msg.contentForModel : [{
             type: 'text',
-            text: msg.contentForModel 
+            text: msg.contentForModel,
+            ...(this.requiresReasoningContent() && msg.reasoning ? { reasoning_content: msg.reasoning } : {}),
+            ...(msg.thoughtSignature ? { thoughtSignature: msg.thoughtSignature } : {}),
           }],
         }
         
@@ -273,20 +286,57 @@ export default abstract class LlmEngine {
 
           // text formats
           if (attachment.isText()) {
-            this.addTextToPayload(msg, attachment, payload, opts)
+            this.addTextToPayload(model, msg, attachment, payload, opts)
           }
 
           // image formats
           if (attachment.isImage() && model.capabilities.vision) {
-            this.addImageToPayload(attachment, payload, opts)
+            this.addImageToPayload(model, attachment, payload, opts)
           }
 
         }
 
-        // done
-        return payload
-      
-      })
+        if (msg.role === 'assistant' && msg.toolCalls.length > 0 && opts?.toolCallsInThread !== false) {
+
+          payload.tool_calls = msg.toolCalls.map((tc: LlmToolCall) => {
+            return {
+              type: 'function',
+              id: tc.id,
+              function: {
+                name: tc.function,
+                arguments: typeof tc.args === 'string' ? tc.args : JSON.stringify(tc.args),
+              },
+              ...(tc.thoughtSignature ? { thoughtSignature: tc.thoughtSignature } : {})
+            }
+          })
+
+        }
+
+        // main payload
+        payloads.push(payload)
+
+        // tool calls response
+        if (opts?.toolCallsInThread !== false) {
+        
+          for (const toolCall of msg.toolCalls) {
+
+            const toolPayload: LlmCompletionPayloadTool = {
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              name: toolCall.function,
+              content: typeof toolCall.result === 'string' ? toolCall.result : JSON.stringify(toolCall.result),
+            }
+            payloads.push(toolPayload)
+
+          }
+        
+        }
+
+      }
+
+      // done
+      return payloads
+    
     }
   }
 

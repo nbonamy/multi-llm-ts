@@ -1,6 +1,6 @@
 import { ChatCompletionChunk } from 'openai/resources'
 import Message from '../models/message'
-import { EngineCreateOpts, ModelCapabilities, ModelGeneric, ModelsList } from '../types/index'
+import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGeneric, ModelsList } from '../types/index'
 import { LlmChunk, LlmRole } from '../types/llm'
 import OpenAI, { OpenAIStreamingContext } from './openai'
 
@@ -74,8 +74,8 @@ export default class extends OpenAI {
     // avoid override by super
   }
 
-  requiresFlatTextPayload(msg: Message): boolean {
-    return super.defaultRequiresFlatTextPayload(msg)
+  requiresFlatTextPayload(model: ChatModel, msg: Message): boolean {
+    return super.defaultRequiresFlatTextPayload(model, msg)
   }
 
   async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk> {

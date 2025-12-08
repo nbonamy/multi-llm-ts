@@ -417,11 +417,33 @@ export default class extends LlmEngine {
       
     }
 
-    // default
-    yield {
-      type: 'content',
-      text: chunk.data.choices[0].delta.content as string || '',
-      done: chunk.data.choices[0].finishReason != null
+    if (Array.isArray(chunk.data.choices[0]?.delta?.content)) {
+      for (const contentPart of chunk.data.choices[0].delta.content) {
+        if (contentPart.type === 'thinking') {
+
+          let reasongingText = ''
+          for (const t of contentPart.thinking) {
+            if (t.type === 'text') {
+              reasongingText += t.text
+            }
+          }
+
+          yield {
+            type: 'reasoning',
+            text: reasongingText,
+            done: false,
+          }
+        }
+      }
+    } else {
+
+      // default
+      yield {
+        type: 'content',
+        text: chunk.data.choices[0].delta.content as string || '',
+        done: chunk.data.choices[0].finishReason != null
+      }
+
     }
 
     // usage
@@ -431,7 +453,7 @@ export default class extends LlmEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  protected addImageToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
+  protected addImageToPayload(model: ChatModel, attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
 
     // if we have a string content, convert it to an array
     if (typeof payload.content === 'string') {
@@ -448,5 +470,62 @@ export default class extends LlmEngine {
         imageUrl: { url: `data:${attachment.mimeType};base64,${attachment.content}` }
       })
     }
+  }
+
+  buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): any[] {
+    
+    const payload: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
+    return payload.reduce((arr: any[], item: LLmCompletionPayload) => {
+
+      if (item.role === 'assistant' && item.tool_calls) {
+        arr.push({
+          role: 'assistant',
+          prefix: false,
+          toolCalls: item.tool_calls.map((tc, index) => ({
+            id: tc.id,
+            index,
+            function: {
+              name: tc.function.name,
+              arguments: tc.function.arguments,
+            }
+          }))
+        })
+      }
+
+      if (item.role === 'tool') {
+
+        const message = {
+          role: 'tool',
+          toolCallId: item.tool_call_id!,
+          name: item.name!,
+          content: item.content
+        }
+
+        const index = arr.findLastIndex((m) => m.role === 'assistant')
+        if (index === -1) {
+          arr.push(message)
+        } else {
+          arr.splice(index, 0, message)
+        }
+
+        return arr
+      }
+      
+      if (typeof item.content == 'string') {
+        arr.push({
+          role: item.role as 'user'|'assistant',
+          content: item.content
+        })
+      } else {
+        arr.push({
+          role: item.role as 'user'|'assistant',
+          content: item.content
+        })
+      }
+
+      // done
+      return arr
+
+    }, [])
   }
 }

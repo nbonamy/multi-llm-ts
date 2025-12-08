@@ -3,7 +3,7 @@ import { ZodType } from 'zod'
 import { ChatModel } from './index'
 import { PluginExecutionContext } from './plugin'
 
-export type LlmRole = 'system'|'developer'|'user'|'assistant'|'tool'
+export type LlmRole = 'system'|'developer'|'user'|'assistant'
 
 export type LlmToolChoiceAuto = { type: 'auto' }
 export type LlmToolChoiceNone = { type: 'none' }
@@ -25,15 +25,18 @@ export type LlmResponse = {
   type: 'text'
   content?: string
   toolCalls?: LlmToolCallInfo[]
+  thoughtSignature?: string
   openAIResponseId?: string
   usage?: LlmUsage
 }
 
 export type LlmToolCall = {
   id: string
-  message: any
   function: string
-  args: string
+  args: any
+  message?: any
+  result?: any
+  thoughtSignature?: string
 }
 
 export type LlmToolResponse = {
@@ -113,6 +116,7 @@ export type LlmCompletionOpts = {
   tools?: boolean
   toolChoice?: LlmToolChoice
   toolExecutionValidation?: LlmToolExecutionValidationCallback
+  toolCallsInThread?: boolean
   caching?: boolean
   visionFallbackModel?: ChatModel
   usage?: boolean
@@ -125,17 +129,26 @@ export type LlmCompletionOpts = {
 
 } & LlmModelOpts
 
-export type LLmCompletionPayload = {
+export type LlmCompletionPayloadContent = {
   role: LlmRole
   content: string|LlmContentPayload[]
   images?: string[]
-  tool_call_id?: string
   tool_calls?: any[]
 }
+
+export type LlmCompletionPayloadTool = {
+  role: 'tool'
+  tool_call_id: string
+  name: string
+  content: string
+}
+
+export type LLmCompletionPayload = LlmCompletionPayloadContent | LlmCompletionPayloadTool
 
 export type LLmContentPayloadText = {
   type: 'text'
   text: string
+  thoughtSignature?: string
 }
 
 export type LLmContentPayloadImageOpenai ={
@@ -168,21 +181,19 @@ export type LLmContentPayloadImageAnthropic = {
   }
 }
 
-export type LlmContextPayloadMistralai ={
+export type LlmContentPayloadMistralai ={
   type: 'image_url'
   imageUrl: {
     url: string
   }
 }
 
-
-
 export type LlmContentPayload =
   LLmContentPayloadText |
   LLmContentPayloadImageOpenai |
   LLmContentPayloadDocumentAnthropic |
   LLmContentPayloadImageAnthropic |
-  LlmContextPayloadMistralai
+  LlmContentPayloadMistralai
 
 export type LlmChunkToolAbort = {
   type: 'tool_abort'
@@ -194,6 +205,8 @@ export type LlmChunkToolAbort = {
 export type LlmChunkContent = {
   type: 'content'|'reasoning'
   text: string
+  thoughtSignature?: string
+  reasoning_content?: string
   done: boolean
 }
 
@@ -214,6 +227,7 @@ export type LlmChunkTool = {
     params: any
     result: any
   }
+  thoughtSignature?: string
   done: boolean
 }
 

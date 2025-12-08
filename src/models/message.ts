@@ -1,5 +1,5 @@
 
-import { LlmRole, LlmChunkContent } from '../types/llm'
+import { LlmRole, LlmChunkContent, LlmToolCall } from '../types/llm'
 import Attachment from './attachment'
 
 export default class Message {
@@ -8,16 +8,19 @@ export default class Message {
   content: string
   reasoning: string|null
   attachments: Attachment[]
+  toolCalls: LlmToolCall[]
+  thoughtSignature?: string
 
   get contentForModel(): string {
     return this.content
   }
 
-  constructor(role: LlmRole, content: string|null = null, attachment?: Attachment) {
+  constructor(role: LlmRole, content: string|null = null, attachment?: Attachment, toolCalls?: LlmToolCall[]) {
     this.role = role
     this.reasoning = null
     this.content = (content !== null) ? content : ''
     this.attachments = attachment ? [attachment] : []
+    this.toolCalls = toolCalls || []
   }
 
   attach(attachment: Attachment) {

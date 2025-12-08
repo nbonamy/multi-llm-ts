@@ -63,8 +63,16 @@ export default class extends OpenAI {
     // avoid override by super
   }
 
-  requiresFlatTextPayload(msg: Message): boolean {
-    return super.defaultRequiresFlatTextPayload(msg)
+  requiresFlatTextPayload(model: ChatModel, msg: Message): boolean {
+    if (msg.role === 'assistant' && msg.reasoning) {
+      return false
+    } else {
+      return super.defaultRequiresFlatTextPayload(model, msg)
+    }
+  }
+
+  requiresReasoningContent(): boolean {
+    return true
   }
 
 }

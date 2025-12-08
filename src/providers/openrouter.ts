@@ -53,8 +53,8 @@ export default class extends OpenAI {
     // avoid override by super
   }
 
-  requiresFlatTextPayload(msg: Message): boolean {
-    return super.defaultRequiresFlatTextPayload(msg)
+  requiresFlatTextPayload(model: ChatModel, msg: Message): boolean {
+    return super.defaultRequiresFlatTextPayload(model, msg)
   }
 
 }

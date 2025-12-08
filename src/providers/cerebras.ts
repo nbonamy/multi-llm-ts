@@ -1,6 +1,6 @@
 import { ChatCompletionChunk } from 'openai/resources'
 import Message from '../models/message'
-import { EngineCreateOpts, Model, ModelCerebras } from '../types/index'
+import { ChatModel, EngineCreateOpts, Model, ModelCerebras } from '../types/index'
 import { LlmChunk, LlmRole } from '../types/llm'
 import OpenAI, { OpenAIStreamingContext } from './openai'
 
@@ -63,7 +63,7 @@ export default class extends OpenAI {
   //   "code": "wrong_api_format"
   // }
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  requiresFlatTextPayload(msg: Message): boolean {
+  requiresFlatTextPayload(model: ChatModel, msg: Message): boolean {
     return true
   }
 

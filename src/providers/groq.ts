@@ -6,7 +6,7 @@ import LlmEngine, { LlmStreamingContextTools } from '../engine'
 import logger from '../logger'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGroq } from '../types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmCompletionPayloadContent, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { zeroUsage } from '../usage'
 
@@ -486,11 +486,11 @@ export default class extends LlmEngine {
   buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {
 
     // default
-    let payload: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
+    let payloads: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
 
     // when using vision models, we cannot use a system prompt (!!)
     let hasImages = false
-    for (const p of payload) {
+    for (const p of payloads) {
       if (Array.isArray(p.content)) {
         for (const m of p.content) {
           if (m.type == 'image_url') {
@@ -503,15 +503,22 @@ export default class extends LlmEngine {
 
     // remove system prompt
     if (hasImages) {
-      payload = payload.filter((p) => p.role != 'system')
+      payloads = payloads.filter((p) => p.role != 'system')
     }
 
     // now return
-    return payload.map((payload): LLmCompletionPayload => {
+    return payloads.map((payload): LLmCompletionPayload => {
       return {
         role: payload.role,
-        content: payload.content
-      }
+        content: payload.content,
+        ...(payload.role !== 'tool' && payload.tool_calls ? {
+            tool_calls: payload.tool_calls
+        } : {}),
+        ...(payload.role === 'tool' &&  payload.name && payload.tool_call_id ? {
+          tool_call_id: payload.tool_call_id,
+          name: payload.name
+        } : {})
+      } as LlmCompletionPayloadContent
     })
   }
 

@@ -11,6 +11,7 @@ import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import { z } from 'zod'
 import { ChatResponse } from 'ollama'
 
+Plugin1.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result1'))
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
 vi.mock('ollama/dist/browser.cjs', async() => {
@@ -43,13 +44,13 @@ vi.mock('ollama/dist/browser.cjs', async() => {
     if (opts.stream) {
       return {
         async * [Symbol.asyncIterator]() {
-              
-          // first we yield tool call chunks
+
+          // first we yield tool call chunks for multiple tools
           if (opts.model.includes('tool')) {
-            yield { message: { role: 'assistant', content: '', tool_calls: [{
-                function: { name: 'plugin2', arguments: ['arg'] },
-              }], done: false }
-            }
+            yield { message: { role: 'assistant', content: '', tool_calls: [
+              { function: { name: 'plugin1', arguments: [] } },
+              { function: { name: 'plugin2', arguments: ['arg'] } }
+            ], done: false } }
           }
           
           // yield some reasoning (legacy)
@@ -118,6 +119,19 @@ test('Ollama buildPayload', async () => {
   message.attach(new Attachment('image', 'image/png'))
   expect(ollama.buildPayload(ollama.buildModel('llama:latest'), [ message ])).toStrictEqual([ { role: 'user', content: 'text' } ])
   expect(ollama.buildPayload(ollama.buildModel('llava:latest'), [ message ])).toStrictEqual([ { role: 'user', content: 'text', images: [ 'image' ] }])
+})
+
+test('Ollama buildPayload with tool calls', async () => {
+  const ollama = new Ollama(config)
+  const message = new Message('assistant', 'text', undefined, [
+    { id: 'tool1', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' } }
+  ])
+  expect(ollama.buildPayload(ollama.buildModel('llama:latest'), [ message ])).toStrictEqual([
+    { role: 'assistant', content: 'text', tool_calls: [
+      { id: 'tool1', function: { index: 0, name: 'plugin2', arguments: { param: "value" } } }
+    ] },
+    { role: 'tool', content: '{"result":"ok"}' },
+  ])
 })
 
 test('Ollama completion', async () => {
@@ -220,7 +234,13 @@ test('Ollama stream with tools', async () => {
     messages: [
       { role: 'system', content: 'instruction' },
       { role: 'user', content: 'prompt' },
-      { role: 'assistant', content: '', done: false, tool_calls: [ { function: { name: 'plugin2', arguments: [ 'arg' ] } } ] },
+      { role: 'assistant', content: '', done: false, tool_calls: [
+        { function: { name: 'plugin1', arguments: [] } },
+      ] },
+      { role: 'tool', content: '"result1"' },
+      { role: 'assistant', content: '', done: false, tool_calls: [
+        { function: { name: 'plugin2', arguments: ['arg'] } }
+      ] },
       { role: 'tool', content: '"result2"' },
     ],
     //tool_choice: 'auto',
@@ -230,10 +250,16 @@ test('Ollama stream with tools', async () => {
   })
   expect(lastMsg!.done).toBe(true)
   expect(response).toBe('response')
-expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'llama3-groq-tool-use' }, ['arg'])
-  expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: '0', name: 'plugin2', state: 'preparing', status: 'prep2', done: false })
-  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: '0', name: 'plugin2', state: 'running', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
-  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: '0', name: 'plugin2', state: 'completed', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
+  expect(Plugin1.prototype.execute).toHaveBeenCalledWith({ model: 'llama3-groq-tool-use' }, [])
+  expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'llama3-groq-tool-use' }, ['arg'])
+
+  // Verify tool call sequence: preparing for both tools, then running, then completed
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: expect.stringMatching(/0-.*/), name: 'plugin1', state: 'preparing', status: 'prep1', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: expect.stringMatching(/0-.*/), name: 'plugin1', state: 'running', status: 'run1 with []', call: { params: [], result: undefined }, done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: expect.stringMatching(/0-.*/), name: 'plugin1', state: 'completed', call: { params: [], result: 'result1' }, status: undefined, done: true })
+  expect(toolCalls[3]).toStrictEqual({ type: 'tool', id: expect.stringMatching(/1-.*/), name: 'plugin2', state: 'preparing', status: 'prep2', done: false })
+  expect(toolCalls[4]).toStrictEqual({ type: 'tool', id: expect.stringMatching(/1-.*/), name: 'plugin2', state: 'running', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
+  expect(toolCalls[5]).toStrictEqual({ type: 'tool', id: expect.stringMatching(/1-.*/), name: 'plugin2', state: 'completed', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
   await ollama.stop()
   expect(_ollama.Ollama.prototype.abort).toHaveBeenCalled()
 })

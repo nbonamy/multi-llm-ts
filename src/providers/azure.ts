@@ -1,4 +1,4 @@
-import { EngineCreateOpts, ModelOpenAI } from '../types/index'
+import { ChatModel, EngineCreateOpts, ModelOpenAI } from '../types/index'
 import Message from '../models/message'
 import { AzureOpenAI } from 'openai'
 import OpenAI from './openai'
@@ -31,7 +31,7 @@ export default class extends OpenAI {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  requiresFlatTextPayload(msg: Message): boolean {
+  requiresFlatTextPayload(model: ChatModel, msg: Message): boolean {
     return true
   }
 }

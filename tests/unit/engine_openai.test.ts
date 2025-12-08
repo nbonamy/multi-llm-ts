@@ -11,6 +11,7 @@ import { loadModels, loadOpenAIModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
 import { z } from 'zod'
 
+Plugin1.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result1'))
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
 vi.mock('openai', async () => {
@@ -60,15 +61,21 @@ vi.mock('openai', async () => {
         if (opts.stream) {
           return {
             async * [Symbol.asyncIterator]() {
-              
-              // first we yield tool call chunks
+
+              // first we yield tool call chunks for multiple tools
               if (!opts.model.startsWith('o1-')) {
-                yield { choices: [{ delta: { tool_calls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "a' }} ] }, finish_reason: 'none' } ] }
-                yield { choices: [{ delta: { tool_calls: [ { id: '', function: { arguments: [ 'r' ] } }] }, finish_reason: 'none' } ] }
-                yield { choices: [{ delta: { tool_calls: [ { id: null, function: { arguments: [ 'g" ]' ] } }] }, finish_reason: 'none' } ] }
+                // First tool call: plugin1 with empty args (index 0)
+                yield { choices: [{ delta: { tool_calls: [ { index: 0, id: '1', function: { name: 'plugin1', arguments: '[]' }} ] }, finish_reason: 'none' } ] }
+
+                // Second tool call: plugin2 with args split across chunks (index 1)
+                yield { choices: [{ delta: { tool_calls: [ { index: 1, id: '2', function: { name: 'plugin2', arguments: '[ "a' }} ] }, finish_reason: 'none' } ] }
+                yield { choices: [{ delta: { tool_calls: [ { index: 1, id: '', function: { arguments: 'r' } }] }, finish_reason: 'none' } ] }
+                yield { choices: [{ delta: { tool_calls: [ { index: 1, id: null, function: { arguments: 'g" ]' } }] }, finish_reason: 'none' } ] }
+
+                // Finish reason to trigger processing of both accumulated tools
                 yield { choices: [{ finish_reason: 'tool_calls' } ] }
               }
-              
+
               // now the text response
               const content = 'response'
               for (let i = 0; i < content.length; i++) {
@@ -223,6 +230,19 @@ test('OpenAI buildPayload in compatibility mode', async () => {
   ]}])
 })
 
+test('OpenAI buildPayload with tool calls', async () => {
+  const openai = new OpenAI(config)
+  const message = new Message('assistant', 'text', undefined, [
+    { id: 'tool1', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' } }
+  ])
+  expect(openai.buildPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([
+    { role: 'assistant', content: 'text', tool_calls: [
+      { id: 'tool1', type: 'function', function: { name: 'plugin2', arguments: JSON.stringify({ param: 'value' }) } }
+    ] },
+    { role: 'tool', tool_call_id: 'tool1', name: 'plugin2', content: '{"result":"ok"}' }
+  ])
+})
+
 test('OpenAI completion', async () => {
   const openai = new OpenAI(config)
   const response = await openai.complete(openai.buildModel('model'), [
@@ -259,6 +279,7 @@ test('OpenAI nativeChunkToLlmChunk Text', async () => {
     opts: {},
     toolCalls: [],
     responsesApi: false,
+    reasoningContent: '',
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     thinking: false,
   }
@@ -313,8 +334,14 @@ test('OpenAI stream', async () => {
     messages: [
       { role: 'system', content: 'instruction' },
       { role: 'user', content: [{ type: 'text', text: 'prompt' }] },
-      { role: 'assistant', content: '', tool_calls: [ { id: 1, function: { name: 'plugin2', arguments: '[ "arg" ]' } } ] },
-      { role: 'tool', content: '"result2"', name: 'plugin2', tool_call_id: 1 }
+      { role: 'assistant', content: '', tool_calls: [
+        { id: '1', function: { name: 'plugin1', arguments: '[]' } },
+      ] },
+      { role: 'tool', content: '"result1"', name: 'plugin1', tool_call_id: '1' },
+      { role: 'assistant', content: '', tool_calls: [
+        { id: '2', function: { name: 'plugin2', arguments: '[ "arg" ]' } }
+      ] },
+      { role: 'tool', content: '"result2"', name: 'plugin2', tool_call_id: '2' }
     ],
     tool_choice: 'auto',
     tools: expect.any(Array),
@@ -327,10 +354,16 @@ test('OpenAI stream', async () => {
   })
   expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
+  expect(Plugin1.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, [])
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, ['arg'])
-  expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'preparing', status: 'prep2', done: false })
-  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'running', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
-  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'completed', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
+
+  // Verify tool call sequence: preparing for both tools, then running, then completed
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: '1', name: 'plugin1', state: 'preparing', status: 'prep1', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: '2', name: 'plugin2', state: 'preparing', status: 'prep2', done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: '1', name: 'plugin1', state: 'running', status: 'run1 with []', call: { params: [], result: undefined }, done: false })
+  expect(toolCalls[3]).toStrictEqual({ type: 'tool', id: '1', name: 'plugin1', state: 'completed', call: { params: [], result: 'result1' }, status: undefined, done: true })
+  expect(toolCalls[4]).toStrictEqual({ type: 'tool', id: '2', name: 'plugin2', state: 'running', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
+  expect(toolCalls[5]).toStrictEqual({ type: 'tool', id: '2', name: 'plugin2', state: 'completed', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
   await openai.stop(stream)
   expect(stream.controller!.abort).toHaveBeenCalled()
 })
@@ -500,13 +533,13 @@ test('OpenAI streaming validation deny - yields canceled chunk', async () => {
   })
 
   const chunks: LlmChunk[] = []
-  // @ts-expect-error protected
   const context = {
     model: openai.buildModel('model'),
     thread: [],
     opts: { toolExecutionValidation: validator },
-    toolCalls: [{ id: 1, function: 'plugin2', args: '{}', message: [] }],
+    toolCalls: [{ id: '1', function: 'plugin2', args: '{}', message: [] }],
     responsesApi: false,
+    reasoningContent: '',
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     thinking: false,
   }
@@ -540,13 +573,13 @@ test('OpenAI streaming validation abort - yields tool_abort chunk', async () => 
   })
 
   const chunks: LlmChunk[] = []
-  // @ts-expect-error protected
   const context = {
     model: openai.buildModel('model'),
     thread: [],
     opts: { toolExecutionValidation: validator },
-    toolCalls: [{ id: 1, function: 'plugin2', args: '{}', message: [] }],
+    toolCalls: [{ id: '1', function: 'plugin2', args: '{}', message: [] }],
     responsesApi: false,
+    reasoningContent: '',
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     thinking: false,
   }

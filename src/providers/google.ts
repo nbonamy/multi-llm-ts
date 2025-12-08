@@ -7,7 +7,7 @@ import Attachment from '../models/attachment'
 import Message from '../models/message'
 import { Plugin } from '../plugin'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGoogle } from '../types/index'
-import { LLmCompletionPayload, LLmContentPayloadText, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
+import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LLmContentPayloadText, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { addUsages, zeroUsage } from '../usage'
 
@@ -229,11 +229,15 @@ export default class extends LlmEngine {
 
     }
 
+    // thought signature from reasoning if any
+    const thoughtSignature = response.candidates?.[0].content?.parts?.find(p => p.thoughtSignature)?.thoughtSignature
+
     // done
     return {
       type: 'text',
       content: response.text,
       toolCalls: toolCallInfo,
+      ...(thoughtSignature ? { thoughtSignature } : {}),
       ...(opts?.usage && response.usageMetadata ? response.usageMetadata : {}),
     }
   }
@@ -409,7 +413,12 @@ export default class extends LlmEngine {
     return Object.keys(config).length ? config : undefined
   }
 
-  private threadToHistory(thread: Message[], model: ChatModel, opts?: LlmCompletionOpts): Content[] {
+  requiresFlatTextPayload(model: ChatModel, msg: Message) {
+    if (msg.thoughtSignature) return false
+    else return super.requiresFlatTextPayload(model, msg)
+  }
+
+  public threadToHistory(thread: Message[], model: ChatModel, opts?: LlmCompletionOpts): Content[] {
     const supportsInstructions = this.supportsInstructions(model)
     const payload = this.buildPayload(model, thread.filter((m) => supportsInstructions ? m.role !== 'system' : true), opts).map((p) => {
       if (p.role === 'system') p.role = 'user'
@@ -419,19 +428,66 @@ export default class extends LlmEngine {
   }
 
   private messageToContent(payload: LLmCompletionPayload): Content {
-    const content: Content = {
-      role: payload.role == 'assistant' ? 'model' : payload.role,
-      parts: Array.isArray(payload.content) ? payload.content.map((c) => ({ text: (c as LLmContentPayloadText).text })) : [ { text: payload.content as string } ],
-    }
-    for (const index in payload.images) {
-      content.parts!.push({
-        inlineData: {
-          mimeType: 'image/png',
-          data: payload.images[Number(index)],
+
+    if (payload.role === 'tool') {
+
+      let response = payload.content
+      try {
+        response = JSON.parse(response)
+      } catch {
+        // ignore
+      }
+
+      return {
+        role: 'tool',
+        parts: [ {
+          functionResponse: {
+            id: payload.name,
+            name: payload.name,
+            response: response as any,
+          }
+        } ],
+      }
+
+    } else {
+
+      const content: Content = {
+        role: payload.role == 'assistant' ? 'model' : payload.role as 'user' | 'model',
+        parts: Array.isArray(payload.content) ? payload.content.map((c) => ({
+          text: (c as LLmContentPayloadText).text,
+          // ...(c as LlmContentPayload).thoughtSignature ? { thoughtSignature: (c as LlmContentPayload).thoughtSignature } : {},
+        })) : [ {
+          text: payload.content as string,
+        } ],
+      }
+
+      if (payload.role === 'assistant' && payload.tool_calls) {
+        for (const tc of payload.tool_calls) {
+          content.parts!.splice(content.parts!.length-1, 0, {
+            functionCall: {
+              name: tc.function.name,
+              args: JSON.parse(tc.function.arguments),
+            },
+            ...(tc.thoughtSignature ? { thoughtSignature: tc.thoughtSignature } : {})
+          })
         }
-      })
+      }
+      
+      // add images
+      for (const index in payload.images) {
+        content.parts!.push({
+          inlineData: {
+            mimeType: 'image/png',
+            data: payload.images[Number(index)],
+          }
+        })
+      }
+      
+      // done
+      return content
+
     }
-    return content
+  
   }
 
   private addAttachment(parts: Array<string|Part>, attachment: Attachment) {
@@ -473,37 +529,50 @@ export default class extends LlmEngine {
       context.requestUsage.completion_tokens_details!.reasoning_tokens! = chunk.usageMetadata.thoughtsTokenCount ?? 0
     }
 
-    // tool calls
-    const toolCalls = chunk.functionCalls
-    if (toolCalls?.length) {
+    // tool calls - accumulate across chunks
+    const toolParts: Part[] = chunk.candidates?.[0].content?.parts?.filter(p => p.functionCall?.name) || []
+    if (toolParts?.length) {
 
-      // save
-      context.toolCalls = toolCalls.filter(tc => tc.name).map((tc) => {
-        return {
-          id: tc.id || tc.name!,
+      // accumulate tool calls (don't overwrite!)
+      for (const part of toolParts) {
+        const tc = part.functionCall!
+        const toolCallId = tc.id || crypto.randomUUID()
+
+        // push
+        const toolCall: LlmToolCall = {
+          id: toolCallId,
           message: '',
           function: tc.name!,
           args: JSON.stringify(tc.args),
+          thoughtSignature: part.thoughtSignature
         }
-      })
+        context.toolCalls.push(toolCall)
 
-      // results
+        // yield preparation notification immediately
+        yield {
+          type: 'tool',
+          id: toolCallId,
+          name: toolCall.function,
+          state: 'preparing',
+          status: this.getToolPreparationDescription(toolCall.function),
+          ...(toolCall.thoughtSignature ? { thoughtSignature: toolCall.thoughtSignature } : {}),
+          done: false
+        }
+
+      }
+    }
+
+    // check for finish reason and accumulated tool calls
+    const done = !!chunk.candidates?.[0].finishReason
+    if (done && context.toolCalls?.length) {
+
+      // now process all accumulated tool calls
       const results: FunctionResponse[] = []
 
       // call
       for (const toolCall of context.toolCalls) {
 
-        // first notify
-        yield {
-          type: 'tool',
-          id: toolCall.id,
-          name: toolCall.function,
-          state: 'preparing',
-          status: this.getToolPreparationDescription(toolCall.function),
-          done: false
-        }
-
-        // need
+        // parse args
         logger.log(`[google] tool call ${toolCall.function} with ${toolCall.args}`)
         const args = JSON.parse(toolCall.args)
 
@@ -567,7 +636,7 @@ export default class extends LlmEngine {
 
           // send
           results.push({
-            id: toolCall.id,
+            id: toolCall.function,
             name: toolCall.function,
             response: content
           })
@@ -599,10 +668,16 @@ export default class extends LlmEngine {
 
       }
 
-      // function call
+      // function call - reconstruct parts from tool calls
       context.content.push({
         role: 'assistant',
-        parts: chunk.candidates![0].content!.parts,
+        parts: context.toolCalls.map((tc) => ({
+          functionCall: {
+            name: tc.function,
+            args: JSON.parse(tc.args),
+          },
+          ...(tc.thoughtSignature ? { thoughtSignature: tc.thoughtSignature } : {}),
+        })),
       })
 
       // send
@@ -633,13 +708,13 @@ export default class extends LlmEngine {
 
     }
 
-    // iterate on candidates
-    const done = !!chunk.candidates?.[0].finishReason
+    // iterate on candidates (content and reasoning)
     for (const candidate of chunk.candidates || []) {
       for (const part of candidate.content?.parts || []) {
         yield {
           type: part.thought ? 'reasoning' : 'content',
           text: part.text || '',
+          ...(part.thoughtSignature ? { thoughtSignature: part.thoughtSignature } : {}),
           done: done
         }
       }
@@ -653,7 +728,7 @@ export default class extends LlmEngine {
   }
    
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addImageToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
+  addImageToPayload(model: ChatModel, attachment: Attachment, payload: LlmCompletionPayloadContent, opts?: LlmCompletionOpts) {
     if (!payload.images) payload.images = []
     payload.images.push(attachment!.content)
   }

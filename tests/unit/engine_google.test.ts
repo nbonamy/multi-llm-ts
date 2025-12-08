@@ -11,6 +11,7 @@ import * as _Google from '@google/genai'
 import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
 import { z } from 'zod'
 
+Plugin1.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result1'))
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
 vi.mock('@google/genai', async () => {
@@ -44,10 +45,18 @@ vi.mock('@google/genai', async () => {
       return {
         async *[Symbol.asyncIterator]() {
 
-          // first we yield tool call chunks
+          // first chunk with plugin1 tool call
+          yield { candidates: [{ content: { parts: [{
+            functionCall: { name: 'plugin1', args: [] }
+          }] } }], functionCalls: [{ name: 'plugin1', args: [] }] }
+
+          // second chunk with plugin2 tool call
           yield { candidates: [{ content: { parts: [{
             functionCall: { name: 'plugin2', args: ['arg'] }
           }] } }], functionCalls: [{ name: 'plugin2', args: ['arg'] }] }
+
+          // finish reason to trigger processing (both accumulated tool calls)
+          yield { candidates: [{ content: { parts: [] }, finishReason: 'STOP' }], functionCalls: [] }
 
           // now the text response
           const content = 'response'
@@ -106,6 +115,22 @@ test('Google Basic', async () => {
   expect(google.getName()).toBe('google')
 })
 
+test('Google buildPayload with tool calls', async () => {
+  const google = new Google(config)
+  const message = new Message('assistant', 'text', undefined, [
+    { id: 'uuid', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' }, thoughtSignature: 'abcdef' }
+  ])
+  expect(google.threadToHistory([ message ], google.buildModel('llama:latest'), )).toStrictEqual([
+    { role: 'model', parts: [{
+      thoughtSignature: 'abcdef',
+      functionCall: { name: 'plugin2', args: { param: 'value' } },
+    }, { text: 'text' }]},
+    { role: 'tool', parts : [{
+      functionResponse: { id: 'plugin2', name: 'plugin2', response: { result: 'ok' } }
+    }]},
+  ])
+})
+
 test('Google completion', async () => {
   const google = new Google(config)
   const response = await google.complete(google.buildModel('gemma'), [
@@ -146,6 +171,7 @@ test('Google nativeChunkToLlmChunk Text', async () => {
     content: [],
     opts: {},
     toolCalls: [],
+    requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
   for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk, context)) {
@@ -284,8 +310,14 @@ test('Google stream', async () => {
     model: 'gemini-pro',
     contents: [
       { role: 'user', parts: [{ text: 'prompt' }] },
-      { role: 'assistant', parts: [{ functionCall: { name: 'plugin2', args: ['arg'] } }] },
-      { role: 'tool', parts: [{ functionResponse: { id: 'plugin2', name: 'plugin2', response: 'result2' } }] },
+      { role: 'assistant', parts: [
+        { functionCall: { name: 'plugin1', args: [] } },
+        { functionCall: { name: 'plugin2', args: ['arg'] } }
+      ] },
+      { role: 'tool', parts: [
+        { functionResponse: { id: 'plugin1', name: 'plugin1', response: 'result1' } },
+        { functionResponse: { id: 'plugin2', name: 'plugin2', response: 'result2' } }
+      ] },
     ], config: {
       systemInstruction: 'instruction',
       topK: 4,
@@ -294,12 +326,20 @@ test('Google stream', async () => {
       tools: tools,
     }
   })
+  // Verify generateContentStream was only called twice (initial + after tool execution)
+  expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenCalledTimes(2)
   expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
+  expect(Plugin1.prototype.execute).toHaveBeenCalledWith({ model: 'gemini-pro' }, [])
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'gemini-pro' }, ['arg'])
-  expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 'plugin2', name: 'plugin2', state: 'preparing', status: 'prep2', done: false })
-  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 'plugin2', name: 'plugin2', state: 'running', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
-  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 'plugin2', name: 'plugin2', state: 'completed', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
+
+  // Verify tool call sequence: preparing for both tools, then running, then completed
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: expect.any(String), name: 'plugin1', state: 'preparing', status: 'prep1', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: expect.any(String), name: 'plugin2', state: 'preparing', status: 'prep2', done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: expect.any(String), name: 'plugin1', state: 'running', status: 'run1 with []', call: { params: [], result: undefined }, done: false })
+  expect(toolCalls[3]).toStrictEqual({ type: 'tool', id: expect.any(String), name: 'plugin1', state: 'completed', call: { params: [], result: 'result1' }, status: undefined, done: true })
+  expect(toolCalls[4]).toStrictEqual({ type: 'tool', id: expect.any(String), name: 'plugin2', state: 'running', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
+  expect(toolCalls[5]).toStrictEqual({ type: 'tool', id: expect.any(String), name: 'plugin2', state: 'completed', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
   await google.stop(stream)
   //expect(response.controller.abort).toHaveBeenCalled()
 })
@@ -448,6 +488,7 @@ test('Google streaming validation deny - yields canceled chunk', async () => {
     content: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [{ id: 'plugin2', function: 'plugin2', args: '{}', message: [] }],
+    requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
 
@@ -455,10 +496,11 @@ test('Google streaming validation deny - yields canceled chunk', async () => {
   const toolCallChunk: GenerateContentResponse = {
     candidates: [{
       index: 0,
-      content: { role: 'model', parts: [] },
+      content: { role: 'model', parts: [{
+        functionCall: { name: 'plugin2', args: {} }
+      }] },
       finishReason: 'STOP' as FinishReason,
     }],
-    functionCalls: [{ name: 'plugin2', args: {} }],
   } as unknown as GenerateContentResponse
 
   for await (const chunk of google.nativeChunkToLlmChunk(toolCallChunk, context)) {
@@ -493,6 +535,7 @@ test('Google streaming validation abort - yields tool_abort chunk', async () => 
     content: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [{ id: 'plugin2', function: 'plugin2', args: '{}', message: [] }],
+    requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
 
@@ -500,10 +543,11 @@ test('Google streaming validation abort - yields tool_abort chunk', async () => 
   const toolCallChunk: GenerateContentResponse = {
     candidates: [{
       index: 0,
-      content: { role: 'model', parts: [] },
+      content: { role: 'model', parts: [{
+        functionCall: { name: 'plugin2', args: {} }
+      }] },
       finishReason: 'STOP' as FinishReason,
     }],
-    functionCalls: [{ name: 'plugin2', args: {} }],
   } as unknown as GenerateContentResponse
 
   try {

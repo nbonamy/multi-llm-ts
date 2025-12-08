@@ -250,6 +250,7 @@ export const loadGoogleModels = async (engineConfig: EngineCreateOpts, computerI
   
   const imageModels = models.filter((m) => (
     (m.meta as ModelGoogle).supportedActions?.includes('predict') ||
+    (m.id.includes('nano-banana')) ||
     (m.id.includes('-image'))
   ))
   

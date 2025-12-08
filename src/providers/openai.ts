@@ -21,6 +21,7 @@ const defaultBaseUrl = 'https://api.openai.com/v1'
 // 
 
 export type OpenAIStreamingContext = LlmStreamingContextTools & {
+  reasoningContent: string
   responsesApi: boolean
   thinking: boolean
   done?: boolean
@@ -171,18 +172,24 @@ export default class extends LlmEngine {
   }
 
   buildPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
-    let payload = super.buildPayload(model, thread, opts)
+    
+    let payloads = super.buildPayload(model, thread, opts)
+    
     if (!this.modelAcceptsSystemRole(model.id)) {
-      payload = payload.filter((msg: LLmCompletionPayload) => msg.role !== 'system')
+    
+      payloads = payloads.filter((msg: LLmCompletionPayload) => msg.role !== 'system')
+    
     } else if (this.systemRole !== 'system') {
-      payload = payload.map((msg: LLmCompletionPayload) => {
+    
+      payloads = payloads.map((msg: LLmCompletionPayload) => {
         if (msg.role === 'system') {
           msg.role = this.systemRole
         }
         return msg
       })
     }
-    return payload
+    
+    return payloads
   }
 
   async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
@@ -328,6 +335,7 @@ export default class extends LlmEngine {
     const context: OpenAIStreamingContext = {
       model: model,
       responsesApi: false,
+      reasoningContent: '',
       thread: this.buildPayload(model, thread, opts),
       opts: opts || {},
       toolCalls: [],
@@ -583,6 +591,7 @@ export default class extends LlmEngine {
           context.thread.push({
             role: 'assistant',
             content: '',
+            ...(this.requiresReasoningContent() ? { reasoning_content: context.reasoningContent } : {}),
             tool_calls: toolCall.message
           })
 
@@ -646,6 +655,7 @@ export default class extends LlmEngine {
     // reasoning chunk
 
     if (chunk.choices?.length && chunk.choices?.[0]?.delta?.reasoning_content) {
+      context.reasoningContent += chunk.choices?.[0]?.delta?.reasoning_content
       yield {
         type: 'reasoning',
         text: chunk.choices?.[0]?.delta?.reasoning_content || '',
@@ -669,12 +679,12 @@ export default class extends LlmEngine {
 
   }
 
-  defaultRequiresFlatTextPayload(msg: Message): boolean {
-    return super.requiresFlatTextPayload(msg)
+  defaultRequiresFlatTextPayload(model: ChatModel, msg: Message): boolean {
+    return super.requiresFlatTextPayload(model, msg)
   }
 
-  requiresFlatTextPayload(msg: Message): boolean {
-    return this.defaultRequiresFlatTextPayload(msg) || (this.client.baseURL?.length > 0 && this.client.baseURL !== defaultBaseUrl)
+  requiresFlatTextPayload(model: ChatModel, msg: Message): boolean {
+    return this.defaultRequiresFlatTextPayload(model, msg) || (this.client.baseURL?.length > 0 && this.client.baseURL !== defaultBaseUrl)
   }
 
   accumulateUsage(cumulate: LlmUsage, usage: CompletionUsage) {
@@ -1211,8 +1221,8 @@ export default class extends LlmEngine {
         } else if (msg.role === 'tool') {
           input.push({
             type: 'function_call',
-            call_id: msg.tool_call_id!,
-            name: msg.tool_calls?.[0].name || '',
+            call_id: msg.tool_call_id || '',
+            name: msg.name || '',
             arguments: '',
           })
         }

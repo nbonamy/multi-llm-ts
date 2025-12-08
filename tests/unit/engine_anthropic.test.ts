@@ -8,6 +8,7 @@ import { EngineCreateOpts } from '../../src/types/index'
 import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
 import * as _Anthropic from '@anthropic-ai/sdk'
 
+Plugin1.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result1'))
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
 vi.mock('@anthropic-ai/sdk', async() => {
@@ -29,13 +30,21 @@ vi.mock('@anthropic-ai/sdk', async() => {
       if (opts.stream) {
         return {
           async * [Symbol.asyncIterator]() {
-            
-            // first we yield tool call chunks
-            yield { type: 'content_block_start', content_block: { type: 'tool_use', id: 1, name: 'plugin2' } }
+
+            // first tool call: plugin1
+            yield { type: 'content_block_start', content_block: { type: 'tool_use', id: 1, name: 'plugin1' } }
+            yield { type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: '[]' }  }
+            yield { type: 'content_block_stop' }
+
+            // second tool call: plugin2 (split across chunks)
+            yield { type: 'content_block_start', content_block: { type: 'tool_use', id: 2, name: 'plugin2' } }
             yield { type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: '[ "ar' }  }
             yield { type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: 'g" ]' }  }
+            yield { type: 'content_block_stop' }
+
+            // stop_reason triggers processing of both accumulated tools
             yield { type: 'message_delta', delta: { stop_reason: 'tool_use' }  }
-            
+
             // now the text response
             const content = 'response'
             yield { type: 'content_block_delta', delta: { type: 'citations_delta', citation: {
@@ -142,6 +151,39 @@ test('Anthropic build payload image', async () => {
   ]}])
 })
 
+test('Anthropic buildPayload with tool calls', async () => {
+  const anthropic = new Anthropic(config)
+  const user = new Message('user', 'text')
+  const assistant = new Message('assistant', 'text', undefined, [
+    { id: 'tool1', function: 'plugin1', args: { param: 'value' }, result: { result: 'ok' } },
+    { id: 'tool2', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' } }
+  ])
+  expect(anthropic.buildPayload(anthropic.buildModel('claude'), [ user, assistant ])).toStrictEqual([
+    { role: 'user', content: [{ type: 'text', text: 'text' }] },
+    { role: 'assistant', content: [{
+      type: 'tool_use',
+      id: 'tool1',
+      name: 'plugin1',
+      input: { param: 'value' },
+    }, {
+      type: 'tool_use',
+      id: 'tool2',
+      name: 'plugin2',
+      input: { param: 'value' },
+    }]},
+    { role: 'user', content: [{
+      type: 'tool_result',
+      tool_use_id: 'tool1',
+      content: '{"result":"ok"}'
+    }, {
+      type: 'tool_result',
+      tool_use_id: 'tool2',
+      content: '{"result":"ok"}'
+    }]},
+    { role: 'assistant', content: 'text' },
+  ])
+})
+
 test('Anthropic completion', async () => {
   const anthropic = new Anthropic(config)
   const response = await anthropic.complete(anthropic.buildModel('model'), [
@@ -173,8 +215,10 @@ test('Anthropic nativeChunkToLlmChunk Text', async () => {
     model: anthropic.buildModel('model'),
     system: 'instruction',
     thread: [],
+    toolCalls: [],
     opts: {},
     firstTextBlockStart: true,
+    requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 }
   }
   for await (const llmChunk of anthropic.nativeChunkToLlmChunk(streamChunk, context)) {
@@ -223,20 +267,34 @@ test('Anthropic stream', async () => {
     system: 'instruction',
     messages: [
       { role: 'user', content: [{ type: 'text', text: 'prompt' }] },
-      { role: 'assistant', content: [ { type: 'tool_use', id: 1, name: 'plugin2', input: [ 'arg' ], } ] },
-      { role: 'user', content: [ { type: 'tool_result', tool_use_id: 1, content: '"result2"' } ] },
+      { role: 'assistant', content: [
+        { type: 'tool_use', id: 1, name: 'plugin1', input: [], },
+        { type: 'tool_use', id: 2, name: 'plugin2', input: [ 'arg' ], }
+      ] },
+      { role: 'user', content: [
+        { type: 'tool_result', tool_use_id: 1, content: '"result1"' },
+        { type: 'tool_result', tool_use_id: 2, content: '"result2"' }
+      ] },
     ],
     tools: expect.any(Array),
     tool_choice: { type: 'auto' },
     top_k: 4,
     stream: true,
   })
+  // Verify messages.create was only called twice (initial + after tool execution)
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalledTimes(2)
   expect(lastMsg?.done).toBe(true)
   expect(response).toBe('cited_text\nresponse')
+  expect(Plugin1.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, [])
   expect(Plugin2.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, ['arg'])
-  expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'preparing', status: 'prep2', done: false })
-  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'running', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
-  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin2', state: 'completed', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
+
+  // Verify tool call sequence: preparing for both tools, then running, then completed
+  expect(toolCalls[0]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin1', state: 'preparing', status: 'prep1', done: false })
+  expect(toolCalls[1]).toStrictEqual({ type: 'tool', id: 2, name: 'plugin2', state: 'preparing', status: 'prep2', done: false })
+  expect(toolCalls[2]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin1', state: 'running', status: 'run1 with []', call: { params: [], result: undefined }, done: false })
+  expect(toolCalls[3]).toStrictEqual({ type: 'tool', id: 1, name: 'plugin1', state: 'completed', call: { params: [], result: 'result1' }, status: undefined, done: true })
+  expect(toolCalls[4]).toStrictEqual({ type: 'tool', id: 2, name: 'plugin2', state: 'running', status: 'run2', call: { params: ['arg'], result: undefined }, done: false })
+  expect(toolCalls[5]).toStrictEqual({ type: 'tool', id: 2, name: 'plugin2', state: 'completed', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
   await anthropic.stop(stream)
   expect(stream.controller!.abort).toHaveBeenCalled()
 })
@@ -471,8 +529,8 @@ test('Anthropic streaming validation deny - yields canceled chunk', async () => 
     model: anthropic.buildModel('model'),
     system: 'instruction',
     thread: [],
+    toolCalls: [{ id: '1', function: 'plugin2', args: '{}', message: '' }],
     opts: { toolExecutionValidation: validator },
-    toolCall: { id: '1', function: 'plugin2', args: '{}', message: '' },
     firstTextBlockStart: true,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 }
@@ -480,7 +538,7 @@ test('Anthropic streaming validation deny - yields canceled chunk', async () => 
 
   // Simulate tool_use stop
   const toolCallChunk = { type: 'message_delta', delta: { stop_reason: 'tool_use' } }
-  for await (const chunk of anthropic.nativeChunkToLlmChunk(toolCallChunk, context)) {
+  for await (const chunk of anthropic.nativeChunkToLlmChunk(toolCallChunk as any, context)) {
     chunks.push(chunk)
   }
 
@@ -511,8 +569,8 @@ test('Anthropic streaming validation abort - yields tool_abort chunk', async () 
     model: anthropic.buildModel('model'),
     system: 'instruction',
     thread: [],
+    toolCalls: [{ id: '1', function: 'plugin2', args: '{}', message: '' }],
     opts: { toolExecutionValidation: validator },
-    toolCall: { id: '1', function: 'plugin2', args: '{}', message: '' },
     firstTextBlockStart: true,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 }
@@ -521,7 +579,7 @@ test('Anthropic streaming validation abort - yields tool_abort chunk', async () 
   // Simulate tool_use stop - abort throws, so we need to catch it
   const toolCallChunk = { type: 'message_delta', delta: { stop_reason: 'tool_use' } }
   try {
-    for await (const chunk of anthropic.nativeChunkToLlmChunk(toolCallChunk, context)) {
+    for await (const chunk of anthropic.nativeChunkToLlmChunk(toolCallChunk as any, context)) {
       chunks.push(chunk)
     }
   } catch (error: any) {

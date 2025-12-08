@@ -3,7 +3,7 @@ import logger from '../logger'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelOllama, ModelsList } from '../types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmCompletionPayloadContent, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 
 import { minimatch } from 'minimatch'
@@ -79,6 +79,7 @@ export default class extends LlmEngine {
       'llama3.3',
       'llama4',
       'magistral',
+      'ministral-3',
       'mistral',
       'mistral-large',
       'mistral-nemo',
@@ -110,6 +111,7 @@ export default class extends LlmEngine {
       'llava-llama3',
       'llava-phi3',
       'minicpm-v',
+      'ministral-3',
       'mistral-small3.1',
       'mistral-small3.2',
       'moondream',
@@ -394,7 +396,7 @@ export default class extends LlmEngine {
 
         // record the tool call
         const toolCall: LlmToolCall = {
-          id: `${context.toolCalls.length}`,
+          id: (tool as any).id || `${context.toolCalls.length}-${Date.now()}`,
           message: tool,
           function: tool.function.name,
           args: JSON.stringify(tool.function.arguments || ''),
@@ -473,8 +475,13 @@ export default class extends LlmEngine {
             }
           }
 
-          // add tool call message
-          context.thread.push(chunk.message)
+          // add assistant message for this specific tool call
+          context.thread.push({
+            role: 'assistant',
+            content: '',
+            done: false,
+            tool_calls: [tool]
+          })
 
           // add tool response message
           context.thread.push({
@@ -563,14 +570,47 @@ export default class extends LlmEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  requiresFlatTextPayload(msg: Message): boolean {
+  requiresFlatTextPayload(model: ChatModel, msg: Message): boolean {
     return true
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addImageToPayload(attachment: Attachment, payload: LLmCompletionPayload, opts: LlmCompletionOpts) {
+  addImageToPayload(model: ChatModel, attachment: Attachment, payload: LlmCompletionPayloadContent, opts: LlmCompletionOpts) {
     if (!payload.images) payload.images = []
     payload.images.push(attachment!.content)
+  }
+
+  buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+
+    // default
+    const payloads: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
+
+    // now return
+    return payloads.map((payload): LLmCompletionPayload => {
+
+      if (payload.role === 'tool') {
+        return {
+          role: 'tool',
+          content: payload.content,
+        } as LLmCompletionPayload
+      }
+
+      return {
+        ...payload,
+        ...('tool_calls' in payload ?  {
+            tool_calls: payload.tool_calls!.map((tc, index) => {
+            return {
+              id: tc.id,
+              function: {
+                index,
+                name: tc.function.name,
+                arguments: JSON.parse(tc.function.arguments)
+              }
+            }
+          })
+        } : []),
+      }
+    })
   }
 
 }

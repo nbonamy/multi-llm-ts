@@ -36,8 +36,13 @@ export class Plugin1 extends Plugin {
     return 'Plugin 1'
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  getPreparationDescription(tool: string): string {
+    return `prep1`
+  }
+
   getRunningDescription(tool: string, args: any): string {
-    return `run1 of ${tool} with ${JSON.stringify(args)}`
+    return `run1 with ${JSON.stringify(args)}`
   }
 
   getParameters(): PluginParameter[] {

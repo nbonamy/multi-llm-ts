@@ -19,9 +19,9 @@ test('Engine plugin descriptions', () => {
   llm.addPlugin(new Plugin2())
   llm.addPlugin(new Plugin3())
   // @ts-expect-error protected
-  expect(llm.getToolPreparationDescription('plugin1')).toBe('')
+  expect(llm.getToolPreparationDescription('plugin1')).toBe('prep1')
   // @ts-expect-error protected
-  expect(llm.getToolRunningDescription('plugin1', { arg: 'arg1' })).toBe('run1 of plugin1 with {"arg":"arg1"}')
+  expect(llm.getToolRunningDescription('plugin1', { arg: 'arg1' })).toBe('run1 with {"arg":"arg1"}')
   // @ts-expect-error protected
   expect(llm.getToolPreparationDescription('plugin2')).toBe('prep2')
   // @ts-expect-error protected
@@ -42,7 +42,7 @@ test('Engine plugin execution without updates', async () => {
   llm.addPlugin(new Plugin2())
   llm.addPlugin(new MultiPlugin())
 
-  const callTool = async (...args) => {
+  const callTool = async (...args: any) => {
     // @ts-expect-error protected
     for await (const update of llm.callTool(...args)) {
       if (update.type === 'result') {
