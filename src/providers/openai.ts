@@ -465,6 +465,7 @@ export default class extends LlmEngine {
               }),
               function: tool_call.function.name || '',
               args: tool_call.function.arguments || '',
+              reasoningDetails: chunk.choices[0]?.delta?.reasoning_details,
             }
             context.toolCalls.push(toolCall)
 
@@ -528,6 +529,7 @@ export default class extends LlmEngine {
             name: toolCall.function,
             state: 'running',
             status: this.getToolRunningDescription(toolCall.function, args),
+            ...(toolCall.reasoningDetails ? { reasoningDetails: toolCall.reasoningDetails } : {}),
             call: {
               params: args,
               result: undefined
@@ -592,6 +594,7 @@ export default class extends LlmEngine {
             role: 'assistant',
             content: '',
             ...(this.requiresReasoningContent() ? { reasoning_content: context.reasoningContent } : {}),
+            ...(toolCall.reasoningDetails ? { reasoning_details: toolCall.reasoningDetails } : {}),
             tool_calls: toolCall.message
           })
 
@@ -600,7 +603,7 @@ export default class extends LlmEngine {
             role: 'tool',
             tool_call_id: toolCall.id,
             name: toolCall.function,
-            content: JSON.stringify(content)
+            content: JSON.stringify(content),
           })
 
           // Check if canceled

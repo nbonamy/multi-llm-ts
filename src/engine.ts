@@ -272,6 +272,7 @@ export default abstract class LlmEngine {
             ...(this.requiresReasoningContent() && msg.reasoning ? { reasoning_content: msg.reasoning } : {}),
             ...(msg.thoughtSignature ? { thoughtSignature: msg.thoughtSignature } : {}),
           }],
+          ...(msg.reasoningDetails ? { reasoning_details: msg.reasoningDetails } : {}),
         }
         
         // Attachments array may be absent when Message-like objects are supplied.

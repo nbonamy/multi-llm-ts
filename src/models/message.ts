@@ -10,6 +10,7 @@ export default class Message {
   attachments: Attachment[]
   toolCalls: LlmToolCall[]
   thoughtSignature?: string
+  reasoningDetails?: any
 
   get contentForModel(): string {
     return this.content

@@ -37,6 +37,7 @@ export type LlmToolCall = {
   message?: any
   result?: any
   thoughtSignature?: string
+  reasoningDetails?: any
 }
 
 export type LlmToolResponse = {
@@ -206,7 +207,6 @@ export type LlmChunkContent = {
   type: 'content'|'reasoning'
   text: string
   thoughtSignature?: string
-  reasoning_content?: string
   done: boolean
 }
 
@@ -228,6 +228,7 @@ export type LlmChunkTool = {
     result: any
   }
   thoughtSignature?: string
+  reasoningDetails?: any
   done: boolean
 }
 
