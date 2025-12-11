@@ -1,13 +1,13 @@
 import { Content, Environment, FunctionCallingConfigMode, FunctionDeclaration, FunctionResponse, GenerateContentConfig, GenerateContentResponse, GoogleGenAI, Part, Schema, Type } from '@google/genai'
 import { minimatch } from 'minimatch'
 import { zodToJsonSchema } from 'zod-to-json-schema'
-import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import LlmEngine from '../engine'
 import logger from '../logger'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
 import { Plugin } from '../plugin'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGoogle } from '../types/index'
-import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LLmContentPayloadText, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
+import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LLmContentPayloadText, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { addUsages, zeroUsage } from '../usage'
 
@@ -25,10 +25,10 @@ export interface GoogleComputerToolInfo {
   screenNumber(): number
 }
 
-export type GoogleStreamingContext = Omit<LlmStreamingContextTools, 'thread'> & {
+export type GoogleStreamingContext = LlmStreamingContext & {
   opts: GoogleCompletionOpts
   requestUsage: LlmUsage
-  content: Content[]
+  content: Content[]  // Google uses 'content' instead of 'thread'
 }
 
 export default class extends LlmEngine {
@@ -264,6 +264,8 @@ export default class extends LlmEngine {
         instruction: this.getInstructions(model, thread),
       },
       toolCalls: [],
+      toolHistory: [],
+      currentRound: 0,
       usage: zeroUsage(),
       requestUsage: zeroUsage()
     }
@@ -515,7 +517,28 @@ export default class extends LlmEngine {
   async stop(stream: LlmStream) {
     //await stream?.controller?.abort()
   }
-   
+
+  syncToolHistoryToThread(context: GoogleStreamingContext): void {
+    // sync mutations from toolHistory back to content
+    // Google content format: { role: 'tool', parts: [{ functionResponse: { id, name, response } }] }
+    // Google doesn't manage IDs, so we match by name and index position
+    let historyIndex = 0
+    for (const msg of context.content) {
+      if (msg.role === 'tool' && msg.parts) {
+        for (const part of msg.parts as Part[]) {
+          const functionResponse = part.functionResponse as FunctionResponse | undefined
+          if (functionResponse && historyIndex < context.toolHistory.length) {
+            const entry = context.toolHistory[historyIndex]
+            if (functionResponse.name === entry.name && functionResponse.response !== entry.result) {
+              functionResponse.response = (typeof entry.result === 'string') ? { result: entry.result } : entry.result
+            }
+            historyIndex++
+          }
+        }
+      }
+    }
+  }
+
   async *nativeChunkToLlmChunk(chunk: GenerateContentResponse, context: GoogleStreamingContext): AsyncGenerator<LlmChunk> {
 
     // debug
@@ -641,6 +664,15 @@ export default class extends LlmEngine {
             response: content
           })
 
+          // add to tool history
+          context.toolHistory.push({
+            id: toolCall.id,
+            name: toolCall.function,
+            args: args,
+            result: content,
+            round: context.currentRound,
+          })
+
           // Check if canceled
           if (context.opts?.abortSignal?.aborted) {
             return  // Stop processing
@@ -697,12 +729,19 @@ export default class extends LlmEngine {
         context.requestUsage = zeroUsage()
       }
 
+      // call hook and sync tool history
+      await this.callHook('beforeToolCallsResponse', context)
+      this.syncToolHistoryToThread(context)
+
+      // increment round for next iteration
+      context.currentRound++
+
       // switch to new stream
       yield {
         type: 'stream',
         stream: await this.doStream(context),
       }
-      
+
       // done
       return
 

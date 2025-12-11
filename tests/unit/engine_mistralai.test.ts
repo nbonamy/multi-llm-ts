@@ -4,12 +4,11 @@ import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
-import MistralAI from '../../src/providers/mistralai'
+import MistralAI, { MistralStreamingContext } from '../../src/providers/mistralai'
 import { Mistral } from '@mistralai/mistralai'
 import { CompletionEvent } from '@mistralai/mistralai/models/components'
 import { loadMistralAIModels, loadModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
-import { LlmStreamingContextTools } from '../../src/engine'
 import { z } from 'zod'
 
 Plugin1.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result1'))
@@ -343,6 +342,8 @@ test('MistralAI streaming validation deny - yields canceled chunk', async () => 
     thread: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [{ id: '1', function: 'plugin2', args: '{}', message: [] }],
+    toolHistory: [],
+    currentRound: 0,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
 
@@ -380,6 +381,8 @@ test('MistralAI streaming validation abort - yields tool_abort chunk', async () 
     thread: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [{ id: '1', function: 'plugin2', args: '{}', message: [] }],
+    toolHistory: [],
+    currentRound: 0,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
 
@@ -418,8 +421,8 @@ test('MistralAI chat validation deny - throws error', async () => {
     extra: { reason: 'Not allowed' }
   })
 
-  // Mock to return tool calls
-  Mistral.prototype.chat.complete = vi.fn().mockResolvedValue({
+  // Mock to return tool calls (use mockImplementationOnce to preserve original mock)
+  vi.mocked(Mistral.prototype.chat.complete).mockImplementationOnce(() => Promise.resolve({
     choices: [{
       message: {
         role: 'assistant',
@@ -432,7 +435,7 @@ test('MistralAI chat validation deny - throws error', async () => {
       },
       finishReason: 'tool_calls'
     }]
-  })
+  }) as any)
 
   await expect(
     mistralai.complete(mistralai.buildModel('model'), [
@@ -454,8 +457,8 @@ test('MistralAI chat validation abort - throws LlmChunkToolAbort', async () => {
     extra: { reason: 'Security violation' }
   })
 
-  // Mock to return tool calls
-  Mistral.prototype.chat.complete = vi.fn().mockResolvedValue({
+  // Mock to return tool calls (use mockImplementationOnce to preserve original mock)
+  vi.mocked(Mistral.prototype.chat.complete).mockImplementationOnce(() => Promise.resolve({
     choices: [{
       message: {
         role: 'assistant',
@@ -468,7 +471,7 @@ test('MistralAI chat validation abort - throws LlmChunkToolAbort', async () => {
       },
       finishReason: 'tool_calls'
     }]
-  })
+  }) as any)
 
   try {
     await mistralai.complete(mistralai.buildModel('model'), [
@@ -488,4 +491,106 @@ test('MistralAI chat validation abort - throws LlmChunkToolAbort', async () => {
       }
     })
   }
+})
+
+test('MistralAI syncToolHistoryToThread updates thread from toolHistory', () => {
+  const mistralai = new MistralAI(config)
+
+  // MistralAI uses camelCase: toolCallId (not tool_call_id like OpenAI)
+  const context: MistralStreamingContext = {
+    model: mistralai.buildModel('model'),
+    thread: [
+      { role: 'user', content: 'hello' },
+      { role: 'assistant', content: '', toolCalls: [{ id: 'call_1', type: 'function', function: { name: 'test_tool', arguments: '{}' } }] },
+      { role: 'tool', toolCallId: 'call_1', name: 'test_tool', content: JSON.stringify({ original: 'result' }) },
+      { role: 'assistant', content: '', toolCalls: [{ id: 'call_2', type: 'function', function: { name: 'test_tool', arguments: '{}' } }] },
+      { role: 'tool', toolCallId: 'call_2', name: 'test_tool', content: JSON.stringify({ original: 'result2' }) },
+    ],
+    opts: {},
+    toolCalls: [],
+    toolHistory: [
+      { id: 'call_1', name: 'test_tool', args: {}, result: { modified: 'truncated' }, round: 0 },
+      { id: 'call_2', name: 'test_tool', args: {}, result: { modified: 'truncated2' }, round: 1 },
+    ],
+    currentRound: 2,
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+  }
+
+  // Call syncToolHistoryToThread
+  mistralai.syncToolHistoryToThread(context)
+
+  // Verify thread was updated (note: MistralAI uses toolCallId not tool_call_id)
+  const toolMessage1 = context.thread.find((m: any) => m.role === 'tool' && m.toolCallId === 'call_1') as any
+  const toolMessage2 = context.thread.find((m: any) => m.role === 'tool' && m.toolCallId === 'call_2') as any
+
+  expect(toolMessage1.content).toBe(JSON.stringify({ modified: 'truncated' }))
+  expect(toolMessage2.content).toBe(JSON.stringify({ modified: 'truncated2' }))
+})
+
+test('MistralAI addHook and hook execution', async () => {
+  const mistralai = new MistralAI(config)
+
+  const hookCallback = vi.fn()
+  const unsubscribe = mistralai.addHook('beforeToolCallsResponse', hookCallback)
+
+  const context: MistralStreamingContext = {
+    model: mistralai.buildModel('model'),
+    thread: [],
+    opts: {},
+    toolCalls: [],
+    toolHistory: [{ id: 'call_1', name: 'test', args: {}, result: { data: 'original' }, round: 0 }],
+    currentRound: 1,
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+  }
+
+  // @ts-expect-error accessing protected method for testing
+  await mistralai.callHook('beforeToolCallsResponse', context)
+
+  expect(hookCallback).toHaveBeenCalledWith(context)
+
+  // Test unsubscribe
+  unsubscribe()
+  hookCallback.mockClear()
+
+  // @ts-expect-error accessing protected method for testing
+  await mistralai.callHook('beforeToolCallsResponse', context)
+
+  expect(hookCallback).not.toHaveBeenCalled()
+})
+
+test('MistralAI hook modifies tool results before second API call', async () => {
+  const mistralai = new MistralAI(config)
+  mistralai.addPlugin(new Plugin1())
+  mistralai.addPlugin(new Plugin2())
+
+  // Register hook that only truncates plugin1 result (not plugin2)
+  mistralai.addHook('beforeToolCallsResponse', (context) => {
+    for (const entry of context.toolHistory) {
+      if (entry.name === 'plugin1') {
+        entry.result = '[truncated]'
+      }
+    }
+  })
+
+  const { stream, context } = await mistralai.stream(mistralai.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+
+  // Consume the stream to trigger tool execution and second API call
+  for await (const chunk of stream) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const msg of mistralai.nativeChunkToLlmChunk(chunk, context)) {
+      // just consume
+    }
+  }
+
+  // Verify second API call has truncated plugin1 but original plugin2
+  // MistralAI uses camelCase: toolCallId (not tool_call_id like OpenAI)
+  expect(Mistral.prototype.chat.stream).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    messages: expect.arrayContaining([
+      expect.objectContaining({ role: 'tool', toolCallId: '1', content: '"[truncated]"' }),
+      expect.objectContaining({ role: 'tool', toolCallId: '2', content: '"result2"' }),
+    ])
+  }))
 })

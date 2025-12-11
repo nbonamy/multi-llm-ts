@@ -1,11 +1,11 @@
 import { Mistral } from '@mistralai/mistralai'
 import { AssistantMessage, ChatCompletionStreamRequest, CompletionEvent, SystemMessage, ToolMessage, UserMessage } from '@mistralai/mistralai/models/components'
-import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import LlmEngine from '../engine'
 import logger from '../logger'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMistralAI } from '../types/index'
-import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
+import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { zeroUsage } from '../usage'
 
@@ -19,6 +19,10 @@ type MistralMessages = Array<
 //
 // https://docs.mistral.ai/api/
 //
+
+export type MistralStreamingContext = LlmStreamingContext & {
+  thread: any[]  // MistralMessages
+}
 
 export default class extends LlmEngine {
 
@@ -165,11 +169,13 @@ export default class extends LlmEngine {
     model = this.selectModel(model, thread, opts)
   
     // context
-    const context: LlmStreamingContextTools = {
+    const context: MistralStreamingContext = {
       model: model,
       thread: this.buildPayload(model, thread, opts) as MistralMessages,
       opts: opts || {},
       toolCalls: [],
+      toolHistory: [],
+      currentRound: 0,
       usage: zeroUsage(),
     }
 
@@ -181,7 +187,7 @@ export default class extends LlmEngine {
 
   }
 
-  async doStream(context: LlmStreamingContextTools): Promise<LlmStream> {
+  async doStream(context: MistralStreamingContext): Promise<LlmStream> {
 
     // reset
     context.toolCalls = []
@@ -231,8 +237,20 @@ export default class extends LlmEngine {
   async stop() {
   }
 
-   
-  async *nativeChunkToLlmChunk(chunk: CompletionEvent, context: LlmStreamingContextTools): AsyncGenerator<LlmChunk> {
+  syncToolHistoryToThread(context: MistralStreamingContext): void {
+    // sync mutations from toolHistory back to thread
+    // MistralAI thread format: { role: 'tool', tool_call_id, name, content }
+    for (const entry of context.toolHistory) {
+      const threadEntry = context.thread.find(
+        (t: any) => t.role === 'tool' && t.toolCallId === entry.id
+      )
+      if (threadEntry) {
+        threadEntry.content = JSON.stringify(entry.result)
+      }
+    }
+  }
+
+  async *nativeChunkToLlmChunk(chunk: CompletionEvent, context: MistralStreamingContext): AsyncGenerator<LlmChunk> {
 
     // debug
     //console.dir(chunk, { depth: null })
@@ -374,6 +392,15 @@ export default class extends LlmEngine {
             content: JSON.stringify(content)
           })
 
+          // add to tool history
+          context.toolHistory.push({
+            id: toolCall.id,
+            name: toolCall.function,
+            args: args,
+            result: content,
+            round: context.currentRound,
+          })
+
           // Check if canceled
           if (context.opts?.abortSignal?.aborted) {
             return  // Stop processing
@@ -405,6 +432,13 @@ export default class extends LlmEngine {
       if (context.opts.toolChoice?.type === 'tool') {
         delete context.opts.toolChoice
       }
+
+      // call hook and sync tool history
+      await this.callHook('beforeToolCallsResponse', context)
+      this.syncToolHistoryToThread(context)
+
+      // increment round for next iteration
+      context.currentRound++
 
       // switch to new stream
       yield {

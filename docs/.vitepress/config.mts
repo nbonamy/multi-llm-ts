@@ -49,7 +49,8 @@ export default defineConfig({
             { text: 'Generation Options', link: '/guide/generation-options' },
             { text: 'Structured Output', link: '/guide/structured-output' },
             { text: 'Abort Operations', link: '/guide/abort' },
-            { text: 'Tool Validation', link: '/guide/tool-validation' }
+            { text: 'Tool Validation', link: '/guide/tool-validation' },
+            { text: 'Hooks', link: '/guide/hooks' }
           ]
         }
       ],

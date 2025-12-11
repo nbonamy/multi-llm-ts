@@ -1,7 +1,7 @@
 
 import { vi, beforeEach, expect, test } from 'vitest'
 import Message from '../../src/models/message'
-import Groq from '../../src/providers/groq'
+import Groq, { GroqStreamingContext } from '../../src/providers/groq'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import { ChatCompletionChunk } from 'groq-sdk/resources/chat'
 import { loadGroqModels, loadModels } from '../../src/llm'
@@ -321,6 +321,8 @@ test('Groq streaming validation deny - yields canceled chunk', async () => {
     thread: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [{ id: 1, function: 'plugin2', args: '{}', message: [] }],
+    toolHistory: [],
+    currentRound: 0,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
 
@@ -359,6 +361,8 @@ test('Groq streaming validation abort - yields tool_abort chunk', async () => {
     thread: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [{ id: 1, function: 'plugin2', args: '{}', message: [] }],
+    toolHistory: [],
+    currentRound: 0,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
 
@@ -398,8 +402,8 @@ test('Groq chat validation deny - throws error', async () => {
     extra: { reason: 'Not allowed' }
   })
 
-  // Mock to return tool calls
-  _Groq.prototype.chat.completions.create = vi.fn().mockResolvedValue({
+  // Mock to return tool calls (use mockImplementationOnce to preserve original mock)
+  vi.mocked(_Groq.prototype.chat.completions.create).mockImplementationOnce(() => Promise.resolve({
     choices: [{
       message: {
         role: 'assistant',
@@ -412,7 +416,7 @@ test('Groq chat validation deny - throws error', async () => {
       },
       finish_reason: 'tool_calls'
     }]
-  })
+  }) as any)
 
   await expect(
     groq.complete(groq.buildModel('model'), [
@@ -434,8 +438,8 @@ test('Groq chat validation abort - throws LlmChunkToolAbort', async () => {
     extra: { reason: 'Security violation' }
   })
 
-  // Mock to return tool calls
-  _Groq.prototype.chat.completions.create = vi.fn().mockResolvedValue({
+  // Mock to return tool calls (use mockImplementationOnce to preserve original mock)
+  vi.mocked(_Groq.prototype.chat.completions.create).mockImplementationOnce(() => Promise.resolve({
     choices: [{
       message: {
         role: 'assistant',
@@ -448,7 +452,7 @@ test('Groq chat validation abort - throws LlmChunkToolAbort', async () => {
       },
       finish_reason: 'tool_calls'
     }]
-  })
+  }) as any)
 
   try {
     await groq.complete(groq.buildModel('model'), [
@@ -468,4 +472,105 @@ test('Groq chat validation abort - throws LlmChunkToolAbort', async () => {
       }
     })
   }
+})
+
+test('Groq syncToolHistoryToThread updates thread from toolHistory', () => {
+  const groq = new Groq(config)
+
+  // Groq uses same format as OpenAI: { role: 'tool', tool_call_id, content }
+  const context: GroqStreamingContext = {
+    model: groq.buildModel('model'),
+    thread: [
+      { role: 'user', content: 'hello' },
+      { role: 'assistant', content: '', tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'test_tool', arguments: '{}' } }] },
+      { role: 'tool', tool_call_id: 'call_1', content: JSON.stringify({ original: 'result' }) },
+      { role: 'assistant', content: '', tool_calls: [{ id: 'call_2', type: 'function', function: { name: 'test_tool', arguments: '{}' } }] },
+      { role: 'tool', tool_call_id: 'call_2', content: JSON.stringify({ original: 'result2' }) },
+    ],
+    opts: {},
+    toolCalls: [],
+    toolHistory: [
+      { id: 'call_1', name: 'test_tool', args: {}, result: { modified: 'truncated' }, round: 0 },
+      { id: 'call_2', name: 'test_tool', args: {}, result: { modified: 'truncated2' }, round: 1 },
+    ],
+    currentRound: 2,
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+  }
+
+  // Call syncToolHistoryToThread
+  groq.syncToolHistoryToThread(context)
+
+  // Verify thread was updated
+  const toolMessage1 = context.thread.find((m: any) => m.role === 'tool' && m.tool_call_id === 'call_1') as any
+  const toolMessage2 = context.thread.find((m: any) => m.role === 'tool' && m.tool_call_id === 'call_2') as any
+
+  expect(toolMessage1.content).toBe(JSON.stringify({ modified: 'truncated' }))
+  expect(toolMessage2.content).toBe(JSON.stringify({ modified: 'truncated2' }))
+})
+
+test('Groq addHook and hook execution', async () => {
+  const groq = new Groq(config)
+
+  const hookCallback = vi.fn()
+  const unsubscribe = groq.addHook('beforeToolCallsResponse', hookCallback)
+
+  const context: GroqStreamingContext = {
+    model: groq.buildModel('model'),
+    thread: [],
+    opts: {},
+    toolCalls: [],
+    toolHistory: [{ id: 'call_1', name: 'test', args: {}, result: { data: 'original' }, round: 0 }],
+    currentRound: 1,
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+  }
+
+  // @ts-expect-error accessing protected method for testing
+  await groq.callHook('beforeToolCallsResponse', context)
+
+  expect(hookCallback).toHaveBeenCalledWith(context)
+
+  // Test unsubscribe
+  unsubscribe()
+  hookCallback.mockClear()
+
+  // @ts-expect-error accessing protected method for testing
+  await groq.callHook('beforeToolCallsResponse', context)
+
+  expect(hookCallback).not.toHaveBeenCalled()
+})
+
+test('Groq hook modifies tool results before second API call', async () => {
+  const groq = new Groq(config)
+  groq.addPlugin(new Plugin1())
+  groq.addPlugin(new Plugin2())
+
+  // Register hook that only truncates plugin1 result (not plugin2)
+  groq.addHook('beforeToolCallsResponse', (context) => {
+    for (const entry of context.toolHistory) {
+      if (entry.name === 'plugin1') {
+        entry.result = '[truncated]'
+      }
+    }
+  })
+
+  const { stream, context } = await groq.stream(groq.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+
+  // Consume the stream to trigger tool execution and second API call
+  for await (const chunk of stream) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const msg of groq.nativeChunkToLlmChunk(chunk, context)) {
+      // just consume
+    }
+  }
+
+  // Verify second API call has truncated plugin1 but original plugin2
+  expect(_Groq.prototype.chat.completions.create).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    messages: expect.arrayContaining([
+      expect.objectContaining({ role: 'tool', tool_call_id: '1', content: '"[truncated]"' }),
+      expect.objectContaining({ role: 'tool', tool_call_id: '2', content: '"result2"' }),
+    ])
+  }))
 })

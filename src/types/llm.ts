@@ -55,12 +55,44 @@ export type LlmStream = AsyncIterable<any> & {
 
 }
 
-export type LlmStreamingContext = any
+//
+// Streaming context
+//
+
+export type ToolHistoryEntry = {
+  id: string
+  name: string
+  args: any
+  result: any
+  round: number
+}
+
+// Base context without thread - providers add their own thread type
+export type LlmStreamingContext = {
+  model: ChatModel
+  opts: LlmCompletionOpts
+  usage: LlmUsage
+  toolCalls: LlmToolCall[]  // current round's tool calls (reset each round)
+  toolHistory: ToolHistoryEntry[]  // all tool calls across all rounds
+  currentRound: number
+}
 
 export type LlmStreamingResponse = {
   stream: LlmStream
   context: LlmStreamingContext
 }
+
+//
+// Engine hooks
+//
+
+export type EngineHookName = 'beforeToolCallsResponse'
+
+export type EngineHookPayloads = {
+  beforeToolCallsResponse: LlmStreamingContext
+}
+
+export type EngineHookCallback<T extends EngineHookName> = (payload: EngineHookPayloads[T]) => void | Promise<void>
 
 export type LlmReasoningEffort = 'low'|'medium'|'high'
 

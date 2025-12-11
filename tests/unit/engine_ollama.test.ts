@@ -371,6 +371,8 @@ test('Ollama streaming validation deny - yields canceled chunk', async () => {
     thread: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [],
+    toolHistory: [],
+    currentRound: 0,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     thinking: false,
   }
@@ -409,6 +411,8 @@ test('Ollama streaming validation abort - yields tool_abort chunk', async () => 
     thread: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [],
+    toolHistory: [],
+    currentRound: 0,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     thinking: false,
   }
@@ -448,8 +452,8 @@ test('Ollama chat validation deny - throws error', async () => {
     extra: { reason: 'Not allowed' }
   })
 
-  // Mock to return tool calls
-  _ollama.Ollama.prototype.chat = vi.fn().mockResolvedValue({
+  // Mock to return tool calls (use mockImplementationOnce to preserve original mock)
+  vi.mocked(_ollama.Ollama.prototype.chat).mockImplementationOnce(() => Promise.resolve({
     message: {
       role: 'assistant',
       content: null,
@@ -457,7 +461,7 @@ test('Ollama chat validation deny - throws error', async () => {
         function: { name: 'plugin2', arguments: {} }
       }]
     }
-  })
+  }) as any)
 
   await expect(
     ollama.complete(ollama.buildModel('model'), [
@@ -479,8 +483,8 @@ test('Ollama chat validation abort - throws LlmChunkToolAbort', async () => {
     extra: { reason: 'Security violation' }
   })
 
-  // Mock to return tool calls
-  _ollama.Ollama.prototype.chat = vi.fn().mockResolvedValue({
+  // Mock to return tool calls (use mockImplementationOnce to preserve original mock)
+  vi.mocked(_ollama.Ollama.prototype.chat).mockImplementationOnce(() => Promise.resolve({
     message: {
       role: 'assistant',
       content: null,
@@ -488,7 +492,7 @@ test('Ollama chat validation abort - throws LlmChunkToolAbort', async () => {
         function: { name: 'plugin2', arguments: {} }
       }]
     }
-  })
+  }) as any)
 
   try {
     await ollama.complete(ollama.buildModel('model'), [
@@ -508,4 +512,109 @@ test('Ollama chat validation abort - throws LlmChunkToolAbort', async () => {
       }
     })
   }
+})
+
+test('Ollama syncToolHistoryToThread updates thread from toolHistory', () => {
+  const ollama = new Ollama(config)
+
+  // Ollama uses simple tool format without tool_call_id, matching by name
+  const context: OllamaStreamingContext = {
+    model: ollama.buildModel('model'),
+    thread: [
+      { role: 'user', content: 'hello' },
+      { role: 'assistant', content: '', tool_calls: [{ function: { name: 'test_tool', arguments: {} } }] },
+      { role: 'tool', content: JSON.stringify({ original: 'result' }) },
+      { role: 'assistant', content: '', tool_calls: [{ function: { name: 'test_tool', arguments: {} } }] },
+      { role: 'tool', content: JSON.stringify({ original: 'result2' }) },
+    ],
+    opts: {},
+    toolCalls: [],
+    toolHistory: [
+      { id: 'call_1', name: 'test_tool', args: {}, result: { modified: 'truncated' }, round: 0 },
+      { id: 'call_2', name: 'test_tool', args: {}, result: { modified: 'truncated2' }, round: 1 },
+    ],
+    currentRound: 2,
+    thinking: false,
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+  }
+
+  // Call syncToolHistoryToThread
+  ollama.syncToolHistoryToThread(context)
+
+  // Verify thread was updated
+  // Ollama matches by index (first tool message matches first toolHistory entry, etc.)
+  const toolMessages = context.thread.filter((m: any) => m.role === 'tool') as any[]
+
+  expect(toolMessages[0].content).toBe(JSON.stringify({ modified: 'truncated' }))
+  expect(toolMessages[1].content).toBe(JSON.stringify({ modified: 'truncated2' }))
+})
+
+test('Ollama addHook and hook execution', async () => {
+  const ollama = new Ollama(config)
+
+  const hookCallback = vi.fn()
+  const unsubscribe = ollama.addHook('beforeToolCallsResponse', hookCallback)
+
+  const context: OllamaStreamingContext = {
+    model: ollama.buildModel('model'),
+    thread: [],
+    opts: {},
+    toolCalls: [],
+    toolHistory: [{ id: 'call_1', name: 'test', args: {}, result: { data: 'original' }, round: 0 }],
+    currentRound: 1,
+    thinking: false,
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+  }
+
+  // @ts-expect-error accessing protected method for testing
+  await ollama.callHook('beforeToolCallsResponse', context)
+
+  expect(hookCallback).toHaveBeenCalledWith(context)
+
+  // Test unsubscribe
+  unsubscribe()
+  hookCallback.mockClear()
+
+  // @ts-expect-error accessing protected method for testing
+  await ollama.callHook('beforeToolCallsResponse', context)
+
+  expect(hookCallback).not.toHaveBeenCalled()
+})
+
+test('Ollama hook modifies tool results before second API call', async () => {
+  const ollama = new Ollama(config)
+  ollama.addPlugin(new Plugin1())
+  ollama.addPlugin(new Plugin2())
+
+  // Register hook that only truncates plugin1 result (not plugin2)
+  ollama.addHook('beforeToolCallsResponse', (context) => {
+    for (const entry of context.toolHistory) {
+      if (entry.name === 'plugin1') {
+        entry.result = '[truncated]'
+      }
+    }
+  })
+
+  // Use model name containing 'tool' to trigger tool call mock (see line 49)
+  const { stream, context } = await ollama.stream(ollama.buildModel('model-with-tool'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+
+  // Consume the stream to trigger tool execution and second API call
+  for await (const chunk of stream) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const msg of ollama.nativeChunkToLlmChunk(chunk, context)) {
+      // just consume
+    }
+  }
+
+  // Verify second API call has truncated plugin1 but original plugin2
+  // Ollama uses simple { role: 'tool', content } format without IDs, matched by index
+  expect(_ollama.Ollama.prototype.chat).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    messages: expect.arrayContaining([
+      expect.objectContaining({ role: 'tool', content: '"[truncated]"' }),
+      expect.objectContaining({ role: 'tool', content: '"result2"' }),
+    ])
+  }))
 })

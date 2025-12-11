@@ -1,9 +1,9 @@
-import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import LlmEngine from '../engine'
 import logger from '../logger'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelOllama, ModelsList } from '../types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmCompletionPayloadContent, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
+import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmCompletionPayloadContent, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 
 import { minimatch } from 'minimatch'
@@ -11,8 +11,8 @@ import { ChatRequest, ChatResponse, Ollama, ProgressResponse, ShowResponse } fro
 import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.27169772.cjs'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 
-export type OllamaStreamingContext = LlmStreamingContextTools & {
-  usage: LlmUsage
+export type OllamaStreamingContext = LlmStreamingContext & {
+  thread: any[]  // ChatRequest['messages']
   thinking: boolean
 }
 
@@ -282,6 +282,8 @@ export default class extends LlmEngine {
       thread: this.buildPayload(model, thread, opts),
       opts: opts || {},
       toolCalls: [],
+      toolHistory: [],
+      currentRound: 0,
       usage: { prompt_tokens: 0, completion_tokens: 0 },
       thinking: false,
     }
@@ -372,6 +374,19 @@ export default class extends LlmEngine {
 
   async stop() {
     await this.client.abort()
+  }
+
+  syncToolHistoryToThread(context: OllamaStreamingContext): void {
+    // sync mutations from toolHistory back to thread
+    // Ollama thread format: { role: 'tool', content }
+    // Since Ollama doesn't have tool_call_id, we match by index/order
+    const toolMessages = context.thread.filter((t: any) => t.role === 'tool')
+    for (let i = 0; i < context.toolHistory.length; i++) {
+      const entry = context.toolHistory[i]
+      if (toolMessages[i]) {
+        toolMessages[i].content = JSON.stringify(entry.result)
+      }
+    }
   }
 
   async *nativeChunkToLlmChunk(chunk: ChatResponse, context: OllamaStreamingContext): AsyncGenerator<LlmChunk> {
@@ -489,6 +504,15 @@ export default class extends LlmEngine {
             content: JSON.stringify(content)
           })
 
+          // add to tool history
+          context.toolHistory.push({
+            id: toolCall.id,
+            name: toolCall.function,
+            args: args,
+            result: content,
+            round: context.currentRound,
+          })
+
           // Check if canceled
           if (context.opts?.abortSignal?.aborted) {
             return  // Stop processing
@@ -520,6 +544,13 @@ export default class extends LlmEngine {
       if (context.opts.toolChoice?.type === 'tool') {
         delete context.opts.toolChoice
       }
+
+      // call hook and sync tool history
+      await this.callHook('beforeToolCallsResponse', context)
+      this.syncToolHistoryToThread(context)
+
+      // increment round for next iteration
+      context.currentRound++
 
       // switch to new stream
       yield {

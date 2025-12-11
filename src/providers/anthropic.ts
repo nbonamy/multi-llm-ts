@@ -2,13 +2,13 @@ import Anthropic from '@anthropic-ai/sdk'
 import { ContentBlockParam, InputJSONDelta, MessageCreateParams, MessageDeltaUsage, MessageParam, RawMessageDeltaEvent, RawMessageStartEvent, RawMessageStreamEvent, TextBlock, Tool, ToolChoice, ToolUseBlock, Usage } from '@anthropic-ai/sdk/resources'
 import { BetaToolUnion, MessageCreateParamsBase } from '@anthropic-ai/sdk/resources/beta/messages/messages'
 import { minimatch } from 'minimatch'
-import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import LlmEngine from '../engine'
 import logger from '../logger'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
 import { Plugin } from '../plugin'
 import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCapabilities } from '../types/index'
-import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
+import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { addUsages, zeroUsage } from '../usage'
 
@@ -26,7 +26,8 @@ export interface AnthropicComputerToolInfo {
   screenNumber (): number
 }
 
-export type AnthropicStreamingContext = LlmStreamingContextTools & {
+export type AnthropicStreamingContext = LlmStreamingContext & {
+  thread: MessageParam[]
   system: string
   requestUsage: LlmUsage
   thinkingBlock?: string
@@ -268,6 +269,8 @@ export default class extends LlmEngine {
       system: thread[0].contentForModel,
       thread: this.buildPayload(model, thread, opts) as MessageParam[],
       toolCalls: [],
+      toolHistory: [],
+      currentRound: 0,
       opts: opts || {},
       usage: zeroUsage(),
       requestUsage: zeroUsage(),
@@ -457,7 +460,23 @@ export default class extends LlmEngine {
   async stop(stream: LlmStream): Promise<void> {
     stream.controller?.abort()
   }
-   
+
+  syncToolHistoryToThread(context: AnthropicStreamingContext): void {
+    // sync mutations from toolHistory back to thread
+    // Anthropic thread format: { role: 'user', content: [{ type: 'tool_result', tool_use_id, content }] }
+    for (const entry of context.toolHistory) {
+      for (const msg of context.thread) {
+        if (msg.role === 'user' && Array.isArray(msg.content)) {
+          for (const block of msg.content) {
+            if (typeof block === 'object' && 'type' in block && block.type === 'tool_result' && 'tool_use_id' in block && block.tool_use_id === entry.id) {
+              (block as any).content = JSON.stringify(entry.result)
+            }
+          }
+        }
+      }
+    }
+  }
+
   async *nativeChunkToLlmChunk(chunk: RawMessageStreamEvent, context: AnthropicStreamingContext): AsyncGenerator<LlmChunk> {
     
     // log
@@ -566,7 +585,7 @@ export default class extends LlmEngine {
             content: [{
               type: 'thinking',
               thinking: context.thinkingBlock,
-              signature: context.thinkingSignature
+              signature: context.thinkingSignature || ''
             }]
           })
         }
@@ -672,6 +691,15 @@ export default class extends LlmEngine {
               })
             }
 
+            // add to tool history
+            context.toolHistory.push({
+              id: toolCall.id,
+              name: toolCall.function,
+              args: args,
+              result: content,
+              round: context.currentRound,
+            })
+
             // Check if canceled
             if (context.opts?.abortSignal?.aborted) {
               return  // Stop processing
@@ -722,6 +750,13 @@ export default class extends LlmEngine {
           context.usage = addUsages(context.usage, context.requestUsage)
           context.requestUsage = zeroUsage()
         }
+
+        // call hook and sync tool history
+        await this.callHook('beforeToolCallsResponse', context)
+        this.syncToolHistoryToThread(context)
+
+        // increment round for next iteration
+        context.currentRound++
 
         // switch to new stream
         yield {

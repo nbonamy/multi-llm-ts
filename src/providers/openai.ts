@@ -4,11 +4,11 @@ import { zodResponseFormat } from 'openai/helpers/zod'
 import { CompletionUsage } from 'openai/resources'
 import { ChatCompletionCreateParamsBase, ChatCompletionMessageFunctionToolCall } from 'openai/resources/chat/completions'
 import { Response, ResponseCreateParams, ResponseFunctionToolCall, ResponseInputItem, ResponseOutputMessage, ResponseStreamEvent, ResponseUsage, Tool, ToolChoiceFunction, ToolChoiceOptions } from 'openai/resources/responses/responses'
-import LlmEngine, { LlmStreamingContextTools } from '../engine'
+import LlmEngine from '../engine'
 import logger from '../logger'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpenAI } from '../types/index'
-import { LLmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
+import { LLmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmStreamingContext, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { zeroUsage } from '../usage'
 
@@ -20,7 +20,8 @@ const defaultBaseUrl = 'https://api.openai.com/v1'
 // https://platform.openai.com/docs/api-reference/introduction
 // 
 
-export type OpenAIStreamingContext = LlmStreamingContextTools & {
+export type OpenAIStreamingContext = LlmStreamingContext & {
+  thread: any[]  // ChatCompletionMessageParam[]
   reasoningContent: string
   responsesApi: boolean
   thinking: boolean
@@ -339,6 +340,8 @@ export default class extends LlmEngine {
       thread: this.buildPayload(model, thread, opts),
       opts: opts || {},
       toolCalls: [],
+      toolHistory: [],
+      currentRound: 0,
       usage: zeroUsage(),
       thinking: false,
       done: false,
@@ -413,6 +416,19 @@ export default class extends LlmEngine {
 
   async stop(stream: LlmStream) {
     stream?.controller?.abort()
+  }
+
+  syncToolHistoryToThread(context: OpenAIStreamingContext): void {
+    // sync mutations from toolHistory back to thread
+    // OpenAI thread format: { role: 'tool', tool_call_id, name, content }
+    for (const entry of context.toolHistory) {
+      const threadEntry = context.thread.find(
+        (t: any) => t.role === 'tool' && t.tool_call_id === entry.id
+      )
+      if (threadEntry) {
+        threadEntry.content = JSON.stringify(entry.result)
+      }
+    }
   }
 
   async *nativeChunkToLlmChunk(chunk: any, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk> {
@@ -606,6 +622,15 @@ export default class extends LlmEngine {
             content: JSON.stringify(content),
           })
 
+          // add to tool history
+          context.toolHistory.push({
+            id: toolCall.id,
+            name: toolCall.function,
+            args: args,
+            result: content,
+            round: context.currentRound,
+          })
+
           // Check if canceled
           if (context.opts?.abortSignal?.aborted) {
             return  // Stop processing
@@ -637,6 +662,13 @@ export default class extends LlmEngine {
       if (context.opts.toolChoice?.type === 'tool') {
         delete context.opts.toolChoice
       }
+
+      // call hook and sync tool history
+      await this.callHook('beforeToolCallsResponse', context)
+      this.syncToolHistoryToThread(context)
+
+      // increment round for next iteration
+      context.currentRound++
 
       // switch to new stream
       yield {

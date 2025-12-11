@@ -530,6 +530,8 @@ test('Anthropic streaming validation deny - yields canceled chunk', async () => 
     system: 'instruction',
     thread: [],
     toolCalls: [{ id: '1', function: 'plugin2', args: '{}', message: '' }],
+    toolHistory: [],
+    currentRound: 0,
     opts: { toolExecutionValidation: validator },
     firstTextBlockStart: true,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
@@ -570,6 +572,8 @@ test('Anthropic streaming validation abort - yields tool_abort chunk', async () 
     system: 'instruction',
     thread: [],
     toolCalls: [{ id: '1', function: 'plugin2', args: '{}', message: '' }],
+    toolHistory: [],
+    currentRound: 0,
     opts: { toolExecutionValidation: validator },
     firstTextBlockStart: true,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
@@ -610,11 +614,11 @@ test('Anthropic chat validation deny - throws error', async () => {
     extra: { reason: 'Not allowed' }
   })
 
-  // Mock to return tool calls
-  _Anthropic.default.prototype.messages.create = vi.fn().mockResolvedValue({
+  // Mock to return tool calls (use mockImplementationOnce to preserve original mock)
+  vi.mocked(_Anthropic.default.prototype.messages.create).mockImplementationOnce(() => Promise.resolve({
     stop_reason: 'tool_use',
     content: [{ type: 'tool_use', id: '1', name: 'plugin2', input: {} }]
-  })
+  }) as any)
 
   await expect(
     anthropic.complete(anthropic.buildModel('model'), [
@@ -636,11 +640,11 @@ test('Anthropic chat validation abort - throws LlmChunkToolAbort', async () => {
     extra: { reason: 'Security violation' }
   })
 
-  // Mock to return tool calls
-  _Anthropic.default.prototype.messages.create = vi.fn().mockResolvedValue({
+  // Mock to return tool calls (use mockImplementationOnce to preserve original mock)
+  vi.mocked(_Anthropic.default.prototype.messages.create).mockImplementationOnce(() => Promise.resolve({
     stop_reason: 'tool_use',
     content: [{ type: 'tool_use', id: '1', name: 'plugin2', input: {} }]
-  })
+  }) as any)
 
   try {
     await anthropic.complete(anthropic.buildModel('model'), [
@@ -660,4 +664,116 @@ test('Anthropic chat validation abort - throws LlmChunkToolAbort', async () => {
       }
     })
   }
+})
+
+test('Anthropic syncToolHistoryToThread updates thread from toolHistory', () => {
+  const anthropic = new Anthropic(config)
+
+  // Anthropic uses nested tool_result format
+  const context: AnthropicStreamingContext = {
+    model: anthropic.buildModel('model'),
+    system: 'instruction',
+    thread: [
+      { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+      { role: 'assistant', content: [{ type: 'tool_use', id: 'call_1', name: 'test_tool', input: {} }] },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call_1', content: JSON.stringify({ original: 'result' }) }] },
+      { role: 'assistant', content: [{ type: 'tool_use', id: 'call_2', name: 'test_tool', input: {} }] },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'call_2', content: JSON.stringify({ original: 'result2' }) }] },
+    ],
+    opts: {},
+    toolCalls: [],
+    toolHistory: [
+      { id: 'call_1', name: 'test_tool', args: {}, result: { modified: 'truncated' }, round: 0 },
+      { id: 'call_2', name: 'test_tool', args: {}, result: { modified: 'truncated2' }, round: 1 },
+    ],
+    currentRound: 2,
+    firstTextBlockStart: true,
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+    requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
+  }
+
+  // Call syncToolHistoryToThread
+  anthropic.syncToolHistoryToThread(context)
+
+  // Find the tool_result blocks and verify they were updated
+  const toolResult1 = (context.thread[2] as any).content.find((c: any) => c.type === 'tool_result' && c.tool_use_id === 'call_1')
+  const toolResult2 = (context.thread[4] as any).content.find((c: any) => c.type === 'tool_result' && c.tool_use_id === 'call_2')
+
+  expect(toolResult1.content).toBe(JSON.stringify({ modified: 'truncated' }))
+  expect(toolResult2.content).toBe(JSON.stringify({ modified: 'truncated2' }))
+})
+
+test('Anthropic addHook and hook execution', async () => {
+  const anthropic = new Anthropic(config)
+
+  const hookCallback = vi.fn()
+  const unsubscribe = anthropic.addHook('beforeToolCallsResponse', hookCallback)
+
+  const context: AnthropicStreamingContext = {
+    model: anthropic.buildModel('model'),
+    system: 'instruction',
+    thread: [],
+    opts: {},
+    toolCalls: [],
+    toolHistory: [{ id: 'call_1', name: 'test', args: {}, result: { data: 'original' }, round: 0 }],
+    currentRound: 1,
+    firstTextBlockStart: true,
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+    requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
+  }
+
+  // @ts-expect-error accessing protected method for testing
+  await anthropic.callHook('beforeToolCallsResponse', context)
+
+  expect(hookCallback).toHaveBeenCalledWith(context)
+
+  // Test unsubscribe
+  unsubscribe()
+  hookCallback.mockClear()
+
+  // @ts-expect-error accessing protected method for testing
+  await anthropic.callHook('beforeToolCallsResponse', context)
+
+  expect(hookCallback).not.toHaveBeenCalled()
+})
+
+test('Anthropic hook modifies tool results before second API call', async () => {
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new Plugin1())
+  anthropic.addPlugin(new Plugin2())
+
+  // Register hook that only truncates plugin1 result (not plugin2)
+  anthropic.addHook('beforeToolCallsResponse', (context) => {
+    for (const entry of context.toolHistory) {
+      if (entry.name === 'plugin1') {
+        entry.result = '[truncated]'
+      }
+    }
+  })
+
+  const { stream, context } = await anthropic.stream(anthropic.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+
+  // Consume the stream to trigger tool execution and second API call
+  for await (const chunk of stream) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const msg of anthropic.nativeChunkToLlmChunk(chunk, context)) {
+      // just consume
+    }
+  }
+
+  // Verify second API call has truncated plugin1 but original plugin2
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    messages: expect.arrayContaining([
+      expect.objectContaining({
+        role: 'user',
+        content: expect.arrayContaining([
+          expect.objectContaining({ type: 'tool_result', tool_use_id: 1, content: '"[truncated]"' }),
+          expect.objectContaining({ type: 'tool_result', tool_use_id: 2, content: '"result2"' }),
+        ])
+      })
+    ])
+  }))
 })

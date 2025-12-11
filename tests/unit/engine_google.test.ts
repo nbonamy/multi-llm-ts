@@ -488,6 +488,8 @@ test('Google streaming validation deny - yields canceled chunk', async () => {
     content: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [{ id: 'plugin2', function: 'plugin2', args: '{}', message: [] }],
+    toolHistory: [],
+    currentRound: 0,
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
@@ -535,6 +537,8 @@ test('Google streaming validation abort - yields tool_abort chunk', async () => 
     content: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [{ id: 'plugin2', function: 'plugin2', args: '{}', message: [] }],
+    toolHistory: [],
+    currentRound: 0,
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
@@ -583,8 +587,8 @@ test('Google chat validation deny - throws error', async () => {
     extra: { reason: 'Not allowed' }
   })
 
-  // Mock to return tool calls
-  _Google.GoogleGenAI.prototype.models.generateContent = vi.fn().mockResolvedValue({
+  // Mock to return tool calls (use mockImplementationOnce to preserve original mock)
+  vi.mocked(_Google.GoogleGenAI.prototype.models.generateContent).mockImplementationOnce(() => Promise.resolve({
     candidates: [{
       content: {
         role: 'model',
@@ -596,7 +600,7 @@ test('Google chat validation deny - throws error', async () => {
     }],
     functionCalls: [{ name: 'plugin2', args: {} }],
     text: null
-  })
+  }) as any)
 
   await expect(
     google.complete(google.buildModel('model'), [
@@ -618,8 +622,8 @@ test('Google chat validation abort - throws LlmChunkToolAbort', async () => {
     extra: { reason: 'Security violation' }
   })
 
-  // Mock to return tool calls
-  _Google.GoogleGenAI.prototype.models.generateContent = vi.fn().mockResolvedValue({
+  // Mock to return tool calls (use mockImplementationOnce to preserve original mock)
+  vi.mocked(_Google.GoogleGenAI.prototype.models.generateContent).mockImplementationOnce(() => Promise.resolve({
     candidates: [{
       content: {
         role: 'model',
@@ -631,7 +635,7 @@ test('Google chat validation abort - throws LlmChunkToolAbort', async () => {
     }],
     functionCalls: [{ name: 'plugin2', args: {} }],
     text: null
-  })
+  }) as any)
 
   try {
     await google.complete(google.buildModel('model'), [
@@ -651,4 +655,114 @@ test('Google chat validation abort - throws LlmChunkToolAbort', async () => {
       }
     })
   }
+})
+
+test('Google syncToolHistoryToThread updates content from toolHistory by index order', () => {
+  const google = new Google(config)
+
+  // Google uses content with functionResponse format
+  // Test with SAME tool name called twice to verify index-based matching preserves order
+  const context: GoogleStreamingContext = {
+    model: google.buildModel('model'),
+    content: [
+      { role: 'user', parts: [{ text: 'hello' }] },
+      { role: 'model', parts: [{ functionCall: { name: 'search', args: {} } }] },
+      { role: 'tool', parts: [{ functionResponse: { id: 'search', name: 'search', response: { original: 'first_result' } } }] },
+      { role: 'model', parts: [{ functionCall: { name: 'search', args: {} } }] },
+      { role: 'tool', parts: [{ functionResponse: { id: 'search', name: 'search', response: { original: 'second_result' } } }] },
+    ],
+    opts: {},
+    toolCalls: [],
+    toolHistory: [
+      { id: 'id1', name: 'search', args: {}, result: 'FIRST_TRUNCATED', round: 0 },
+      { id: 'id2', name: 'search', args: {}, result: { transformed: 'SECOND_TRUNCATED' }, round: 1 },
+    ],
+    currentRound: 2,
+    requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+  }
+
+  // Call syncToolHistoryToThread
+  google.syncToolHistoryToThread(context)
+
+  // Verify content was updated IN ORDER (first history entry -> first tool response)
+  const toolContent1 = context.content[2] as any
+  const toolContent2 = context.content[4] as any
+
+  expect(toolContent1.parts[0].functionResponse.response).toStrictEqual({ result: 'FIRST_TRUNCATED' })
+  expect(toolContent2.parts[0].functionResponse.response).toStrictEqual({ transformed: 'SECOND_TRUNCATED' })
+})
+
+test('Google addHook and hook execution', async () => {
+  const google = new Google(config)
+
+  const hookCallback = vi.fn()
+  const unsubscribe = google.addHook('beforeToolCallsResponse', hookCallback)
+
+  const context: GoogleStreamingContext = {
+    model: google.buildModel('model'),
+    content: [],
+    opts: {},
+    toolCalls: [],
+    toolHistory: [{ id: 'call_1', name: 'test', args: {}, result: { data: 'original' }, round: 0 }],
+    currentRound: 1,
+    requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+  }
+
+  // @ts-expect-error accessing protected method for testing
+  await google.callHook('beforeToolCallsResponse', context)
+
+  expect(hookCallback).toHaveBeenCalledWith(context)
+
+  // Test unsubscribe
+  unsubscribe()
+  hookCallback.mockClear()
+
+  // @ts-expect-error accessing protected method for testing
+  await google.callHook('beforeToolCallsResponse', context)
+
+  expect(hookCallback).not.toHaveBeenCalled()
+})
+
+test('Google hook modifies tool results before second API call', async () => {
+  const google = new Google(config)
+  google.addPlugin(new Plugin1())
+  google.addPlugin(new Plugin2())
+
+  // Register hook that only truncates plugin1 result (not plugin2)
+  google.addHook('beforeToolCallsResponse', (context) => {
+    for (const entry of context.toolHistory) {
+      if (entry.name === 'plugin1') {
+        entry.result = '[truncated]'
+      }
+    }
+  })
+
+  const { stream, context } = await google.stream(google.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+
+  // Consume the stream to trigger tool execution and second API call
+  for await (const chunk of stream) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const msg of google.nativeChunkToLlmChunk(chunk, context)) {
+      // just consume
+    }
+  }
+
+  // Verify second API call has truncated plugin1 but original plugin2
+  // Google uses functionResponse format with response field
+  expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    contents: expect.arrayContaining([
+      expect.objectContaining({
+        role: 'tool',
+        parts: expect.arrayContaining([
+          expect.objectContaining({ functionResponse: expect.objectContaining({ name: 'plugin1', response: { result: '[truncated]' } }) }),
+          expect.objectContaining({ functionResponse: expect.objectContaining({ name: 'plugin2', response: 'result2' }) }),
+        ])
+      })
+    ])
+  }))
 })

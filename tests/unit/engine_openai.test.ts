@@ -4,7 +4,7 @@ import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
-import OpenAI from '../../src/providers/openai'
+import OpenAI, { OpenAIStreamingContext } from '../../src/providers/openai'
 import * as _openai from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
 import { loadModels, loadOpenAIModels } from '../../src/llm'
@@ -278,6 +278,8 @@ test('OpenAI nativeChunkToLlmChunk Text', async () => {
     thread: [],
     opts: {},
     toolCalls: [],
+    toolHistory: [],
+    currentRound: 0,
     responsesApi: false,
     reasoningContent: '',
     usage: { prompt_tokens: 0, completion_tokens: 0 },
@@ -538,6 +540,8 @@ test('OpenAI streaming validation deny - yields canceled chunk', async () => {
     thread: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [{ id: '1', function: 'plugin2', args: '{}', message: [] }],
+    toolHistory: [],
+    currentRound: 0,
     responsesApi: false,
     reasoningContent: '',
     usage: { prompt_tokens: 0, completion_tokens: 0 },
@@ -578,6 +582,8 @@ test('OpenAI streaming validation abort - yields tool_abort chunk', async () => 
     thread: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [{ id: '1', function: 'plugin2', args: '{}', message: [] }],
+    toolHistory: [],
+    currentRound: 0,
     responsesApi: false,
     reasoningContent: '',
     usage: { prompt_tokens: 0, completion_tokens: 0 },
@@ -619,8 +625,8 @@ test('OpenAI chat validation deny - throws error', async () => {
     extra: { reason: 'Not allowed' }
   })
 
-  // Mock to return tool calls
-  _openai.default.prototype.chat.completions.create = vi.fn().mockResolvedValue({
+  // Mock to return tool calls - use mockImplementationOnce to preserve the original mock
+  vi.mocked(_openai.default.prototype.chat.completions.create).mockImplementationOnce(() => Promise.resolve({
     choices: [{
       message: {
         role: 'assistant',
@@ -633,7 +639,7 @@ test('OpenAI chat validation deny - throws error', async () => {
       },
       finish_reason: 'tool_calls'
     }]
-  })
+  }) as any)
 
   await expect(
     openai.complete(openai.buildModel('model'), [
@@ -655,8 +661,8 @@ test('OpenAI chat validation abort - throws LlmChunkToolAbort', async () => {
     extra: { reason: 'Security violation' }
   })
 
-  // Mock to return tool calls
-  _openai.default.prototype.chat.completions.create = vi.fn().mockResolvedValue({
+  // Mock to return tool calls - use mockImplementationOnce to preserve the original mock
+  vi.mocked(_openai.default.prototype.chat.completions.create).mockImplementationOnce(() => Promise.resolve({
     choices: [{
       message: {
         role: 'assistant',
@@ -669,7 +675,7 @@ test('OpenAI chat validation abort - throws LlmChunkToolAbort', async () => {
       },
       finish_reason: 'tool_calls'
     }]
-  })
+  }) as any)
 
   try {
     await openai.complete(openai.buildModel('model'), [
@@ -689,4 +695,110 @@ test('OpenAI chat validation abort - throws LlmChunkToolAbort', async () => {
       }
     })
   }
+})
+
+test('OpenAI syncToolHistoryToThread updates thread from toolHistory', () => {
+  const openai = new OpenAI(config)
+
+  const context: OpenAIStreamingContext = {
+    model: openai.buildModel('model'),
+    thread: [
+      { role: 'user', content: 'hello' },
+      { role: 'assistant', content: '', tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'test_tool', arguments: '{}' } }] },
+      { role: 'tool', tool_call_id: 'call_1', content: JSON.stringify({ original: 'result' }) },
+      { role: 'assistant', content: '', tool_calls: [{ id: 'call_2', type: 'function', function: { name: 'test_tool', arguments: '{}' } }] },
+      { role: 'tool', tool_call_id: 'call_2', content: JSON.stringify({ original: 'result2' }) },
+    ],
+    opts: {},
+    toolCalls: [],
+    toolHistory: [
+      { id: 'call_1', name: 'test_tool', args: {}, result: { modified: 'truncated' }, round: 0 },
+      { id: 'call_2', name: 'test_tool', args: {}, result: { modified: 'truncated2' }, round: 1 },
+    ],
+    currentRound: 2,
+    responsesApi: false,
+    reasoningContent: '',
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+    thinking: false,
+  }
+
+  // Call syncToolHistoryToThread
+  openai.syncToolHistoryToThread(context)
+
+  // Verify thread was updated
+  const toolMessage1 = context.thread.find((m: any) => m.role === 'tool' && m.tool_call_id === 'call_1') as any
+  const toolMessage2 = context.thread.find((m: any) => m.role === 'tool' && m.tool_call_id === 'call_2') as any
+
+  expect(toolMessage1.content).toBe(JSON.stringify({ modified: 'truncated' }))
+  expect(toolMessage2.content).toBe(JSON.stringify({ modified: 'truncated2' }))
+})
+
+test('OpenAI addHook and hook execution', async () => {
+  const openai = new OpenAI(config)
+
+  const hookCallback = vi.fn()
+  const unsubscribe = openai.addHook('beforeToolCallsResponse', hookCallback)
+
+  // Create a context
+  const context: OpenAIStreamingContext = {
+    model: openai.buildModel('model'),
+    thread: [],
+    opts: {},
+    toolCalls: [],
+    toolHistory: [{ id: 'call_1', name: 'test', args: {}, result: { data: 'original' }, round: 0 }],
+    currentRound: 1,
+    responsesApi: false,
+    reasoningContent: '',
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+    thinking: false,
+  }
+
+  // Call the hook manually (normally done by nativeChunkToLlmChunk)
+  // @ts-expect-error accessing protected method for testing
+  await openai.callHook('beforeToolCallsResponse', context)
+
+  expect(hookCallback).toHaveBeenCalledWith(context)
+
+  // Test unsubscribe
+  unsubscribe()
+  hookCallback.mockClear()
+
+  // @ts-expect-error accessing protected method for testing
+  await openai.callHook('beforeToolCallsResponse', context)
+
+  expect(hookCallback).not.toHaveBeenCalled()
+})
+
+test('OpenAI hook modifies tool results before second API call', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin1())
+  openai.addPlugin(new Plugin2())
+
+  // Register hook that truncates tool results from previous rounds
+  openai.addHook('beforeToolCallsResponse', (context) => {
+    for (const entry of context.toolHistory) {
+      if (entry.name === 'plugin1') {
+        entry.result = '[truncated]'
+      }
+    }
+  })
+
+  const { stream, context } = await openai.stream(openai.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+
+  // Consume the stream to trigger tool calls and hook
+  for await (const chunk of stream) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const msg of openai.nativeChunkToLlmChunk(chunk, context)) { /* empty */ }
+  }
+
+  // Verify the second API call has truncated tool results
+  expect(_openai.default.prototype.chat.completions.create).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    messages: expect.arrayContaining([
+      { role: 'tool', content: '"[truncated]"', name: 'plugin1', tool_call_id: '1' },
+      { role: 'tool', content: expect.not.stringContaining('[truncated]'), name: 'plugin2', tool_call_id: '2' }
+    ])
+  }))
 })

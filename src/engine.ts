@@ -1,28 +1,18 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort } from './types/llm'
+import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort, EngineHookName, EngineHookCallback, EngineHookPayloads } from './types/llm'
 import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter, PluginExecutionResult } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 import Attachment from './models/attachment'
 import Message from './models/message'
 import logger from './logger'
 
-export type LlmStreamingContextBase = {
-  model: ChatModel
-  thread: any[]
-  opts: LlmCompletionOpts
-  usage: LlmUsage
-}
-
-export type LlmStreamingContextTools = LlmStreamingContextBase & {
-  toolCalls: LlmToolCall[]
-}
-
 export default abstract class LlmEngine {
 
   config: EngineCreateOpts
   plugins: IPlugin[]
+  private hooks: Map<EngineHookName, EngineHookCallback<EngineHookName>[]> = new Map()
 
   static isConfigured = (opts: EngineCreateOpts): boolean => {
     return (opts?.apiKey != null && opts.apiKey.length > 0)
@@ -31,11 +21,34 @@ export default abstract class LlmEngine {
   static isReady = (opts: EngineCreateOpts, models: ModelsList): boolean => {
     return LlmEngine.isConfigured(opts) && models?.chat?.length > 0
   }
-  
+
   constructor(config: EngineCreateOpts) {
     this.config = config
     this.plugins = []
   }
+
+  //
+  // Hooks
+  //
+
+  addHook<T extends EngineHookName>(name: T, callback: EngineHookCallback<T>): () => void {
+    const callbacks = this.hooks.get(name) || []
+    callbacks.push(callback as EngineHookCallback<EngineHookName>)
+    this.hooks.set(name, callbacks)
+    return () => {
+      const cbs = this.hooks.get(name) || []
+      this.hooks.set(name, cbs.filter(cb => cb !== callback))
+    }
+  }
+
+  protected async callHook<T extends EngineHookName>(name: T, payload: EngineHookPayloads[T]): Promise<void> {
+    const callbacks = this.hooks.get(name) || []
+    for (const cb of callbacks) {
+      await cb(payload)
+    }
+  }
+
+  protected abstract syncToolHistoryToThread(context: LlmStreamingContext): void
 
   abstract getId(): string
   
