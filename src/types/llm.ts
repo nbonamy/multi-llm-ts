@@ -2,6 +2,7 @@
 import { ZodType } from 'zod'
 import { ChatModel } from './index'
 import { PluginExecutionContext } from './plugin'
+import Message from '../models/message'
 
 export type LlmRole = 'system'|'developer'|'user'|'assistant'
 
@@ -86,10 +87,42 @@ export type LlmStreamingResponse = {
 // Engine hooks
 //
 
-export type EngineHookName = 'beforeToolCallsResponse'
+export type EngineHookName =
+  | 'beforeRequest'
+  | 'onContentChunk'
+  | 'beforeToolCallsResponse'
+  | 'afterResponse'
+
+// Base hook context with abort capability
+export type EngineHookBaseContext = {
+  model: ChatModel
+  abortController?: AbortController
+}
+
+// Hook payload types
+export type BeforeRequestHookPayload = EngineHookBaseContext & {
+  thread: Message[]
+  opts: LlmCompletionOpts
+}
+
+export type OnContentChunkHookPayload = EngineHookBaseContext & {
+  chunk: LlmChunk
+  accumulatedContent: string
+  accumulatedTokens: number
+}
+
+export type AfterResponseHookPayload = EngineHookBaseContext & {
+  thread: Message[]
+  response: Message
+  toolHistory: ToolHistoryEntry[]
+  usage: LlmUsage
+}
 
 export type EngineHookPayloads = {
+  beforeRequest: BeforeRequestHookPayload
+  onContentChunk: OnContentChunkHookPayload
   beforeToolCallsResponse: LlmStreamingContext
+  afterResponse: AfterResponseHookPayload
 }
 
 export type EngineHookCallback<T extends EngineHookName> = (payload: EngineHookPayloads[T]) => void | Promise<void>

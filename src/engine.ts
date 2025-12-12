@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort, EngineHookName, EngineHookCallback, EngineHookPayloads } from './types/llm'
+import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort, EngineHookName, EngineHookCallback, EngineHookPayloads, BeforeRequestHookPayload, OnContentChunkHookPayload, AfterResponseHookPayload } from './types/llm'
 import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter, PluginExecutionResult } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 import Attachment from './models/attachment'
@@ -133,11 +133,43 @@ export default abstract class LlmEngine {
 
     // eslint-disable-next-line no-useless-catch
     try {
-      
+
       // init the streaming
       const chatModel = this.toModel(model)
+
+      // create an abort controller for guardrails to use
+      // this is linked to the user's abort signal if provided
+      const guardrailAbortController = new AbortController()
+      if (opts?.abortSignal) {
+        opts.abortSignal.addEventListener('abort', () => {
+          guardrailAbortController.abort(opts.abortSignal?.reason)
+        })
+      }
+
+      // call beforeRequest hook
+      const beforeRequestPayload: BeforeRequestHookPayload = {
+        model: chatModel,
+        thread,
+        opts: opts || {},
+        abortController: guardrailAbortController,
+      }
+      await this.callHook('beforeRequest', beforeRequestPayload)
+
+      // check if guardrails aborted
+      if (guardrailAbortController.signal.aborted) {
+        return
+      }
+
       const response: LlmStreamingResponse = await this.stream(chatModel, thread, opts)
       let currentStream: LlmStream = response.stream
+
+      // track accumulated content for onContentChunk hook
+      let accumulatedContent = ''
+      let accumulatedTokens = 0
+
+      // track response for afterResponse hook
+      const responseMessage = new Message('assistant', '')
+      let finalUsage: LlmUsage = { prompt_tokens: 0, completion_tokens: 0 }
 
       // now we iterate as when the model emits tool call tokens
       // we execute the tools and start a new stream with the results
@@ -149,9 +181,9 @@ export default abstract class LlmEngine {
         // iterate the native stream (getting native = user-specific chunks)
         for await (const chunk of currentStream) {
 
-          // Check if abort signal has been triggered
-          if (opts?.abortSignal?.aborted) {
-            currentStream.controller?.abort(opts?.abortSignal?.reason)
+          // Check if abort signal has been triggered (user or guardrail)
+          if (opts?.abortSignal?.aborted || guardrailAbortController.signal.aborted) {
+            currentStream.controller?.abort(opts?.abortSignal?.reason || 'Guardrail abort')
             return
           }
 
@@ -176,14 +208,42 @@ export default abstract class LlmEngine {
                   msg.done = false
                 }
 
+                // track content for hooks and response
+                if (msg.type === 'content') {
+                  accumulatedContent += msg.text
+                  accumulatedTokens++
+                  responseMessage.appendText(msg)
+
+                  // call onContentChunk hook
+                  const onContentChunkPayload: OnContentChunkHookPayload = {
+                    model: chatModel,
+                    chunk: msg,
+                    accumulatedContent,
+                    accumulatedTokens,
+                    abortController: guardrailAbortController,
+                  }
+                  await this.callHook('onContentChunk', onContentChunkPayload)
+
+                  // check if guardrails aborted
+                  if (guardrailAbortController.signal.aborted) {
+                    currentStream.controller?.abort('Guardrail abort')
+                    return
+                  }
+                }
+
+                // track usage
+                if (msg.type === 'usage') {
+                  finalUsage = msg.usage
+                }
+
                 // just forward the message
                 yield msg
 
               }
 
               // Check abort AFTER yielding (so canceled tool chunks go through)
-              if (opts?.abortSignal?.aborted) {
-                currentStream.controller?.abort(opts?.abortSignal?.reason)
+              if (opts?.abortSignal?.aborted || guardrailAbortController.signal.aborted) {
+                currentStream.controller?.abort(opts?.abortSignal?.reason || 'Guardrail abort')
                 return
               }
 
@@ -204,6 +264,17 @@ export default abstract class LlmEngine {
         currentStream = nextStream
 
       }
+
+      // call afterResponse hook
+      const afterResponsePayload: AfterResponseHookPayload = {
+        model: chatModel,
+        thread,
+        response: responseMessage,
+        toolHistory: response.context.toolHistory,
+        usage: finalUsage,
+        abortController: guardrailAbortController,
+      }
+      await this.callHook('afterResponse', afterResponsePayload)
 
     } catch (error) {
       // Re-throw the error to ensure it propagates to the caller
