@@ -125,8 +125,46 @@ export default abstract class LlmEngine {
 
   async complete(model: ChatModel|string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
     const chatModel = this.toModel(model)
+
+    // create an abort controller for guardrails to use
+    const guardrailAbortController = new AbortController()
+    if (opts?.abortSignal) {
+      opts.abortSignal.addEventListener('abort', () => {
+        guardrailAbortController.abort(opts.abortSignal?.reason)
+      })
+    }
+
+    // call beforeRequest hook
+    const beforeRequestPayload: BeforeRequestHookPayload = {
+      model: chatModel,
+      thread,
+      opts: opts || {},
+      abortController: guardrailAbortController,
+    }
+    await this.callHook('beforeRequest', beforeRequestPayload)
+
+    // check if guardrails aborted
+    if (guardrailAbortController.signal.aborted) {
+      throw new Error(guardrailAbortController.signal.reason || 'Request aborted by guardrail')
+    }
+
+    // do the actual completion
     const messages = this.buildPayload(chatModel, thread, opts)
-    return await this.chat(chatModel, messages, opts)
+    const response = await this.chat(chatModel, messages, opts)
+
+    // call afterResponse hook
+    const responseMessage = new Message('assistant', response.content)
+    const afterResponsePayload: AfterResponseHookPayload = {
+      model: chatModel,
+      thread: [...thread, responseMessage],
+      response: responseMessage,
+      toolHistory: [],
+      usage: response.usage || { prompt_tokens: 0, completion_tokens: 0 },
+      abortController: guardrailAbortController,
+    }
+    await this.callHook('afterResponse', afterResponsePayload)
+
+    return response
   }
 
   async *generate(model: ChatModel|string, thread: Message[], opts?: LlmCompletionOpts): AsyncIterable<LlmChunk> {
