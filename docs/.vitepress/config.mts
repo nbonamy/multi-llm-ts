@@ -7,8 +7,6 @@ export default defineConfig({
   base: '/multi-llm-ts/',
 
   themeConfig: {
-    logo: '/logo.svg',
-
     nav: [
       { text: 'Guide', link: '/guide/' },
       { text: 'API Reference', link: '/api/' },
