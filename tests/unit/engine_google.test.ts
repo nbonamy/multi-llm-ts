@@ -34,6 +34,7 @@ vi.mock('@google/genai', async () => {
           { name: 'models/video-model', displayName: 'Video Model', description: '', supportedActions: ['predictLongRunning'] },
           { name: 'models/native-audio-dialog-model', displayName: 'Dialog Model', description: '', supportedActions: ['bidiGenerateContent'] },
           { name: 'gemini-2.5-computer-use-preview-10-2025', displayName: 'Computer Use', description: '', supportedActions: ['generateContent'] },
+          { name: 'models/gemini-pro-latest', displayName: 'Gemini Pro Latest', description: '', supportedActions: ['generateContent'] },
         ]
         for (const model of models) {
           yield model
@@ -87,6 +88,7 @@ test('Google Load Models', async () => {
     { id: 'gemini-1.5-latest', name: 'Gemini 1.5', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
     //{ id: 'gemini-1.5', name: 'Gemini 1.5', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
     { id: 'gemma-model', name: 'Gemma Model', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false, caching: false } },
+    { id: 'gemini-pro-latest', name: 'Gemini Pro Latest', meta: expect.any(Object), capabilities: { tools: true, vision: true, reasoning: true, caching: false } },
   ])
   expect(models!.image).toStrictEqual([
     { id: 'image-model', name: 'Image Model', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
@@ -171,6 +173,8 @@ test('Google nativeChunkToLlmChunk Text', async () => {
     content: [],
     opts: {},
     toolCalls: [],
+    toolHistory: [],
+    currentRound: 0,
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
@@ -300,7 +304,7 @@ test('Google stream', async () => {
   let lastMsg: LlmChunkContent | null = null
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of google.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of google.nativeChunkToLlmChunk(chunk, context as GoogleStreamingContext)) {
       lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -377,7 +381,7 @@ test('Google stream tool choice option', async () => {
     })
   }))
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  for await (const chunk of stream) { for await (const msg of google.nativeChunkToLlmChunk(chunk, context)) {/* empty */ } }
+  for await (const chunk of stream) { for await (const msg of google.nativeChunkToLlmChunk(chunk, context as GoogleStreamingContext)) {/* empty */ } }
   expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenLastCalledWith(expect.objectContaining({
     config: expect.objectContaining({
       toolConfig: { functionCallingConfig: { mode: 'auto' } },
@@ -747,7 +751,7 @@ test('Google hook modifies tool results before second API call', async () => {
   // Consume the stream to trigger tool execution and second API call
   for await (const chunk of stream) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    for await (const msg of google.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of google.nativeChunkToLlmChunk(chunk, context as GoogleStreamingContext)) {
       // just consume
     }
   }

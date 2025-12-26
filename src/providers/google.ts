@@ -60,6 +60,7 @@ export default class extends LlmEngine {
       'gemini-exp-1206',
       'gemini-2.0-flash-thinking-*',
       'gemini-2.5-*',
+      'gemini-3-*',
     ]
 
     const excludeVisionGlobs = [
@@ -68,9 +69,10 @@ export default class extends LlmEngine {
     ]
 
     const reasoningGlobs = [
+      '*thinking*',
       'gemini-2.5-flash*',
       'gemini-2.5-pro*',
-      '*thinking*',
+      'gemini-3-*',
     ]
 
     if (!model.name) {
@@ -81,15 +83,22 @@ export default class extends LlmEngine {
         caching: false,
       }
     }
-    
-    const modelName = model.name.replace('models/', '')
 
-    return {
-      tools: !modelName.includes('gemma') && !modelName.includes('dialog') && !modelName.includes('tts'),
-      vision: visionGlobs.some((m) => minimatch(modelName, m)) && !excludeVisionGlobs.some((m) => minimatch(modelName, m)),
-      reasoning: reasoningGlobs.some((m) => minimatch(modelName, m)),
-      caching: false,
+    // calc
+    const modelName = model.name.replace('models/', '')
+    let tools = !modelName.includes('gemma') && !modelName.includes('dialog') && !modelName.includes('tts')
+    let vision = visionGlobs.some((m) => minimatch(modelName, m)) && !excludeVisionGlobs.some((m) => minimatch(modelName, m))
+    let reasoning = reasoningGlobs.some((m) => minimatch(modelName, m))
+
+    // latest aliases have all
+    if (modelName.endsWith('latest') && !modelName.match(/\d/)) {
+      tools = true
+      vision = true
+      reasoning = true
     }
+
+    // done
+    return { tools, vision, reasoning, caching: false }
     
   }
 
