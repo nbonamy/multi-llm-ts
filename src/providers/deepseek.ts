@@ -20,6 +20,10 @@ export default class extends OpenAI {
     return 'deepseek'
   }
 
+  supportsServiceTiering(): boolean {
+    return false
+  }
+  
   getVisionModels(): string[] {
     return [ ]
   }

@@ -23,6 +23,10 @@ export default class extends OpenAI {
     return 'meta'
   }
 
+  supportsServiceTiering(): boolean {
+    return false
+  }
+  
   getModelCapabilities(model: ModelMeta): ModelCapabilities {
     const visionGlobs = [ '*Llama-4-*' ]
     return {

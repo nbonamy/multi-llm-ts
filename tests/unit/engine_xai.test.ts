@@ -115,7 +115,7 @@ test('xAI stream', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
@@ -155,7 +155,7 @@ test('xAI stream without tools', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(stream).toBeDefined()
 })
 

@@ -256,7 +256,7 @@ test('OpenAI completion', async () => {
       { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     temperature : 0.8
-  })
+  }, {})
   expect(response).toStrictEqual({
     type: 'text',
     content: 'response',
@@ -318,7 +318,7 @@ test('OpenAI stream', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
@@ -353,7 +353,7 @@ test('OpenAI stream', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
   expect(Plugin1.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, [])
@@ -379,26 +379,26 @@ test('OpenAI stream tool choice option', async () => {
   ], { toolChoice: { type: 'none' } })
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
     tool_choice: 'none',
-  }))
+  }), {})
   await openai.stream(openai.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { toolChoice: { type: 'required' } })
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenNthCalledWith(2, expect.objectContaining({
     tool_choice: 'required',
-  }))
+  }), {})
   const { stream, context } = await openai.stream(openai.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { toolChoice: { type: 'tool', name: 'plugin1' } })
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenNthCalledWith(3, expect.objectContaining({
     tool_choice: { type: 'function', function: { name: 'plugin1' } },
-  }))
+  }), {})
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   for await (const chunk of stream) { for await (const msg of openai.nativeChunkToLlmChunk(chunk, context)) {/* empty */ } }
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenNthCalledWith(4, expect.objectContaining({
     tool_choice: 'auto',
-  }))
+  }), {})
 })
 
 test('OpenAI stream tools disabled', async () => {
@@ -422,7 +422,7 @@ test('OpenAI stream tools disabled', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(Plugin2.prototype.execute).not.toHaveBeenCalled()
 })
 
@@ -445,7 +445,7 @@ test('OpenAI stream no tools for o1', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
 })
@@ -466,7 +466,7 @@ test('OpenAI stream without tools', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(stream).toBeDefined()
 })
 
@@ -800,5 +800,5 @@ test('OpenAI hook modifies tool results before second API call', async () => {
       { role: 'tool', content: '"[truncated]"', name: 'plugin1', tool_call_id: '1' },
       { role: 'tool', content: expect.not.stringContaining('[truncated]'), name: 'plugin2', tool_call_id: '2' }
     ])
-  }))
+  }), {})
 })

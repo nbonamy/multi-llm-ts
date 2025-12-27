@@ -100,11 +100,14 @@ export type LlmVerbosity = 'low'|'medium'|'high'
 
 export type LLmCustomModelOpts = Record<string, any>
 
+export type LlmOpenAIServiceTier = 'auto' | 'default' | 'flex' | 'scale' | 'priority' | null
+
 export type LlmOpenAIModelOpts = {
   useResponsesApi?: boolean
   responseId?: string
   reasoningEffort?: LlmReasoningEffort
   verbosity?: LlmVerbosity
+  serviceTier?: LlmOpenAIServiceTier
 }
 
 export type LlmAnthropicModelOpts = {
@@ -123,6 +126,7 @@ export type LlmOllamaModelOpts = {
 }
 
 export type LlmModelOpts = {
+  timeout?: number
   contextWindowSize?: number
   maxTokens?: number
   temperature?: number

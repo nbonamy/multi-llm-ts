@@ -21,6 +21,10 @@ export default class extends OpenAI {
     return 'cerebras'
   }
 
+  supportsServiceTiering(): boolean {
+    return false
+  }
+  
   getVisionModels(): string[] {
     return []
   }

@@ -99,7 +99,7 @@ test('Cerebras stream', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
 
   let response = ''
   let reasoning = ''

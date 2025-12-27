@@ -259,7 +259,7 @@ test('Generates tool calls information', async () => {
       ] },
       { role: 'tool', tool_call_id: 'tool1', name: 'plugin2', content: '{"result":"ok"}' },
     ]
-  })
+  }, {})
 })
 
 test('Switch to vision when model provided', async () => {
@@ -283,7 +283,7 @@ test('Switch to vision when model provided', async () => {
         { 'type': 'image_url', 'image_url': { 'url': 'data:image/png;base64,image' } },
       ]}
     ]
-  })
+  }, {})
 })
 
 test('Cannot switch to vision if not models provided', async () => {
@@ -302,7 +302,7 @@ test('Cannot switch to vision if not models provided', async () => {
       { role: 'system', content: 'instructions' },
       { role: 'user', content: [{ type: 'text', text: 'prompt1' }] }
     ]
-  })
+  }, {})
 })
 
 test('Does not add the same plugin twice', async () => {

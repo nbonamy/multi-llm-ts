@@ -104,7 +104,7 @@ test('Meta stream', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
@@ -140,7 +140,7 @@ test('Meta stream without tools', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(stream).toBeDefined()
 })
 

@@ -22,6 +22,10 @@ export default class extends OpenAI {
     return 'xai'
   }
 
+  supportsServiceTiering(): boolean {
+    return false
+  }
+  
   getModelCapabilities(model: ModelxAI): ModelCapabilities {
     const vision = model.id.includes('vision')
     const reasoning = model.id.includes('grok-3-mini')

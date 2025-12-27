@@ -20,6 +20,10 @@ export default class extends OpenAI {
     return 'azure'
   }
 
+  supportsServiceTiering(): boolean {
+    return false
+  }
+  
   async getModels(): Promise<ModelOpenAI[]> {
     return [
       { id: 'default', object: 'model', created: 0, owned_by: 'system' },

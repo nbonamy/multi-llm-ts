@@ -28,6 +28,10 @@ export default class extends OpenAI {
     return 'lmstudio'
   }
 
+  supportsServiceTiering(): boolean {
+    return false
+  }
+  
   getModelCapabilities(model: ModelGeneric): ModelCapabilities {
     
     const visionModels = [

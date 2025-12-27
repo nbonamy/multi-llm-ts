@@ -102,7 +102,7 @@ test('DeepSeek completion', async () => {
       { role: 'user', content: [{ type: 'text', text: 'prompt' }] }
     ],
     temperature : 0.8
-  })
+  }, {})
   expect(response).toStrictEqual({
     type: 'text',
     content: 'response',
@@ -133,7 +133,7 @@ test('DeepSeek stream', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
@@ -173,7 +173,7 @@ test('DeepSeek stream without tools', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(stream).toBeDefined()
 })
 

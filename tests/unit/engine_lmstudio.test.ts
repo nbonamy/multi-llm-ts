@@ -113,7 +113,7 @@ test('LMStudio stream', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
@@ -152,7 +152,7 @@ test('LMStudio stream without tools', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(stream).toBeDefined()
 })
 

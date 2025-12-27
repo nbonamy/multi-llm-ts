@@ -5,7 +5,8 @@ import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import { loadAzureModels, loadModels } from '../../src/llm'
 import Message from '../../src/models/message'
 import Azure from '../../src/providers/azure'
-import { AzureClientOptions, AzureOpenAI } from 'openai'
+import { AzureOpenAI } from 'openai'
+import { AzureClientOptions } from 'openai/azure'
 import { LlmChunk } from '../../src/types/llm'
 import { z } from 'zod'
 
@@ -95,7 +96,7 @@ test('Azure stream', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(stream).toBeDefined()
   expect(stream.controller).toBeDefined()
   let response = ''
@@ -131,7 +132,7 @@ test('Azure stream without tools', async () => {
     stream_options: {
       include_usage: false
     }
-  })
+  }, {})
   expect(stream).toBeDefined()
 })
 

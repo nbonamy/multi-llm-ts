@@ -11,6 +11,7 @@ import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpe
 import { LLmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmStreamingContext, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { zeroUsage } from '../usage'
+import { RequestOptions } from 'openai/internal/request-options'
 
 type OpenAIToolOpts = Omit<ChatCompletionCreateParamsBase, 'model' | 'messages' | 'stream'>
 
@@ -84,6 +85,10 @@ export default class extends LlmEngine {
       reasoning: modelId.startsWith('o') || modelId.startsWith('gpt-5'),
       caching: false,
     }
+  }
+
+  supportsServiceTiering(): boolean {
+    return true
   }
 
   modelAcceptsSystemRole(model: string): boolean {
@@ -215,7 +220,7 @@ export default class extends LlmEngine {
       messages: thread,
       ...this.getCompletionOpts(model, opts),
       ...await this.getToolsOpts(model, opts),
-    });
+    }, this.getRequestOptions(model, opts));
 
     // get choice
     const choice = response.choices?.[0]
@@ -369,8 +374,8 @@ export default class extends LlmEngine {
       ...await this.getToolsOpts(context.model, context.opts),
       stream_options: { include_usage: context.opts.usage || false },
       stream: true,
-    })
-
+    }, this.getRequestOptions(context.model, context.opts))
+    
     // done
     return stream
 
@@ -388,7 +393,14 @@ export default class extends LlmEngine {
           // @ts-expect-error structured output
           response_format: zodResponseFormat(opts.structuredOutput.structure, opts.structuredOutput.name)
         } : {}),
+      ...(this.supportsServiceTiering() && opts?.serviceTier && { service_tier: opts.serviceTier }),
       ...(opts?.customOpts ? opts.customOpts : {}),
+    }
+  }
+
+  getRequestOptions(model: ChatModel, opts?: LlmCompletionOpts): RequestOptions {
+    return {
+      ...(opts?.timeout ? { timeout: opts?.timeout } : {}),
     }
   }
 

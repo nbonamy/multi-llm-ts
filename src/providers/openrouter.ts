@@ -20,6 +20,10 @@ export default class extends OpenAI {
     return 'openrouter'
   }
 
+  supportsServiceTiering(): boolean {
+    return false
+  }
+  
   async getModels(): Promise<ModelOpenRouter[]> {
     return await super.getModels() as ModelOpenRouter[]
   }
