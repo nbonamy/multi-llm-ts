@@ -14,7 +14,7 @@ export default class extends OpenAI {
   constructor(config: EngineCreateOpts) {
     super(config, {
       apiKey: config.apiKey,
-      baseURL: xAIBaseURL,
+      baseURL: config.baseURL || xAIBaseURL,
     })
   }
 

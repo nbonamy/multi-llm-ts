@@ -12,7 +12,7 @@ export default class extends OpenAI {
   constructor(config: EngineCreateOpts) {
     super(config, {
       apiKey: config.apiKey,
-      baseURL: 'https://api.deepseek.com/v1',
+      baseURL: config.baseURL || 'https://api.deepseek.com/v1',
     })
   }
 

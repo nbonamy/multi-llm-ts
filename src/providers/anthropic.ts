@@ -44,6 +44,7 @@ export default class extends LlmEngine {
     super(config)
     this.client = new Anthropic({
       apiKey: config.apiKey,
+      baseURL: config.baseURL,
       dangerouslyAllowBrowser: true,
     })
     this.computerInfo = computerInfo

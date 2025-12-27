@@ -26,6 +26,7 @@ export default class extends LlmEngine {
     super(config)
     this.client = new Groq({
       apiKey: config.apiKey || '',
+      baseURL: config.baseURL,
       dangerouslyAllowBrowser: true,
       maxRetries: config.maxRetries
     })

@@ -13,7 +13,7 @@ export default class extends OpenAI {
   constructor(config: EngineCreateOpts) {
     super(config, {
       apiKey: config.apiKey,
-      baseURL: 'https://api.cerebras.ai/v1',
+      baseURL: config.baseURL || 'https://api.cerebras.ai/v1',
     })
   }
 

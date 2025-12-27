@@ -31,7 +31,8 @@ export default class extends LlmEngine {
   constructor(config: EngineCreateOpts) {
     super(config)
     this.client = new Mistral({
-      apiKey: config.apiKey || ''
+      apiKey: config.apiKey || '',
+      serverURL: config.baseURL,
     })
   }
 
