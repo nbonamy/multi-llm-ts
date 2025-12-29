@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort, EngineHookName, EngineHookCallback, EngineHookPayloads } from './types/llm'
+import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort, EngineHookName, EngineHookCallback, EngineHookPayloads, NormalizedToolChunk } from './types/llm'
 import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter, PluginExecutionResult } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 import Attachment from './models/attachment'
@@ -512,6 +512,212 @@ export default abstract class LlmEngine {
     const canceled = lastUpdate.canceled === true || lastUpdate.validation?.decision === 'deny'
 
     return { content, canceled }
+  }
+
+  protected *processToolCallChunk(
+    normalized: NormalizedToolChunk,
+    context: { toolCalls: LlmToolCall[] }
+  ): Generator<LlmChunk> {
+
+    if (normalized.type === 'start') {
+      // Start new tool call
+      const toolCall: LlmToolCall = {
+        id: normalized.id!,
+        function: normalized.name!,
+        args: normalized.args || '',
+        message: '',
+        ...normalized.metadata
+      }
+      context.toolCalls.push(toolCall)
+
+      // Yield preparation notification
+      yield {
+        type: 'tool',
+        id: toolCall.id,
+        name: toolCall.function,
+        state: 'preparing',
+        status: this.getToolPreparationDescription(toolCall.function),
+        done: false
+      } as LlmChunk
+
+    } else if (normalized.type === 'delta') {
+      // Append to last tool call
+      const currentTool = context.toolCalls[context.toolCalls.length - 1]
+      if (currentTool) {
+        currentTool.args += normalized.argumentsDelta || ''
+      }
+    }
+  }
+
+  protected async *executeToolCalls<T>(
+    toolCalls: LlmToolCall[],
+    context: LlmStreamingContext & { thread: T[] },
+    options: {
+      formatToolCallForThread: (tc: LlmToolCall) => T,
+      formatToolResultForThread: (result: any, toolCallId: string) => T,
+      createNewStream: (context: LlmStreamingContext & { thread: T[] }) => Promise<LlmStream>
+    }
+  ): AsyncGenerator<LlmChunk> {
+
+    // Iterate through all tool calls
+    for (const toolCall of toolCalls) {
+
+      // Log the tool call
+      logger.log(`[${this.getName()}] tool call ${toolCall.function} with ${toolCall.args}`)
+
+      // Parse arguments
+      let args = null
+      try {
+        args = JSON.parse(toolCall.args)
+      } catch (err) {
+        throw new Error(`[${this.getName()}] tool call ${toolCall.function} with invalid JSON args: "${toolCall.args}"`, { cause: err })
+      }
+
+      try {
+        // Yield running notification
+        yield {
+          type: 'tool',
+          id: toolCall.id,
+          name: toolCall.function,
+          state: 'running',
+          status: this.getToolRunningDescription(toolCall.function, args),
+          ...(toolCall.reasoningDetails ? { reasoningDetails: toolCall.reasoningDetails } : {}),
+          call: {
+            params: args,
+            result: undefined
+          },
+          done: false
+        } as LlmChunk
+
+        // Execute tool
+        let lastUpdate: PluginExecutionResult | undefined = undefined
+        for await (const update of this.callTool(
+          { model: context.model.id, abortSignal: context.opts?.abortSignal },
+          toolCall.function,
+          args,
+          context.opts?.toolExecutionValidation
+        )) {
+
+          // Check for abort
+          if (context.opts?.abortSignal?.aborted) {
+            yield {
+              type: 'tool',
+              id: toolCall.id,
+              name: toolCall.function,
+              state: 'canceled',
+              status: this.getToolCanceledDescription(toolCall.function, args) || 'Tool execution was canceled',
+              done: true,
+              call: {
+                params: args,
+                result: undefined
+              }
+            } as LlmChunk
+            return
+          }
+
+          // Handle status updates
+          if (update.type === 'status') {
+            yield {
+              type: 'tool',
+              id: toolCall.id,
+              name: toolCall.function,
+              state: 'running',
+              status: update.status,
+              call: {
+                params: args,
+                result: undefined
+              },
+              done: false
+            } as LlmChunk
+          } else if (update.type === 'result') {
+            lastUpdate = update
+          }
+        }
+
+        // Process result
+        const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
+          this.getName(),
+          toolCall.function,
+          args,
+          lastUpdate
+        )
+
+        // Yield completed notification
+        yield {
+          type: 'tool',
+          id: toolCall.id,
+          name: toolCall.function,
+          state: toolCallCanceled ? 'canceled' : 'completed',
+          status: toolCallCanceled
+            ? this.getToolCanceledDescription(toolCall.function, args) || content.error || 'Tool execution was canceled'
+            : this.getToolCompletedDescription(toolCall.function, args, content),
+          done: true,
+          call: {
+            params: args,
+            result: content
+          }
+        } as LlmChunk
+
+        // Add to thread using provider-specific format
+        context.thread.push(options.formatToolCallForThread(toolCall))
+        context.thread.push(options.formatToolResultForThread(content, toolCall.id))
+
+        // Add to tool history
+        context.toolHistory.push({
+          id: toolCall.id,
+          name: toolCall.function,
+          args: args,
+          result: content,
+          round: context.currentRound,
+        })
+
+      } catch (error: any) {
+
+        // Handle abort
+        if (context.opts?.abortSignal?.aborted) {
+          yield {
+            type: 'tool',
+            id: toolCall.id,
+            name: toolCall.function,
+            state: 'canceled',
+            status: this.getToolCanceledDescription(toolCall.function, args) || 'Tool execution was canceled',
+            done: true,
+            call: {
+              params: args,
+              result: undefined
+            }
+          } as LlmChunk
+          throw error
+        }
+
+        // Handle other errors
+        yield {
+          type: 'tool',
+          id: toolCall.id,
+          name: toolCall.function,
+          state: 'error',
+          status: error.message,
+          done: true,
+          call: {
+            params: args,
+            result: undefined
+          }
+        } as LlmChunk
+        throw error
+      }
+    }
+
+    // Call hook before continuing
+    await this.callHook('beforeToolCallsResponse', context)
+
+    // Sync tool history to thread
+    this.syncToolHistoryToThread(context)
+
+    // Recurse: yield new stream to continue the conversation with tool results
+    yield {
+      type: 'stream',
+      stream: await options.createNewStream(context)
+    } as LlmChunk
   }
 
   protected async *callTool(context: PluginExecutionContext, tool: string, args: any, toolExecutionValidation: LlmToolExecutionValidationCallback|undefined): AsyncGenerator<PluginExecutionUpdate> {

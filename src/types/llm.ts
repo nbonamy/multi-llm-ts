@@ -40,6 +40,25 @@ export type LlmToolCall = {
   reasoningDetails?: any
 }
 
+export type NormalizedToolChunk = {
+  type: 'start' | 'delta'
+
+  // For 'start': create new tool call
+  id?: string           // tool call ID
+  name?: string         // function name
+  args?: string         // initial args ('' for incremental, complete JSON for Google)
+
+  // For 'delta': append to current tool call
+  argumentsDelta?: string
+
+  // Common metadata
+  metadata?: {
+    index?: number              // Anthropic block tracking
+    thoughtSignature?: string   // Google
+    reasoningDetails?: any      // OpenAI
+  }
+}
+
 export type LlmToolResponse = {
   type: 'tools'
   calls: LlmToolCall[]
