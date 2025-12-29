@@ -306,150 +306,32 @@ export default class extends LlmEngine {
     // now tool calling
     if (chunk.data.choices[0]?.finishReason === 'tool_calls') {
 
-      // debug
-      //logger.log('[mistralai] tool calls:', context.toolCalls)
-
-      // add tools
-      for (const toolCall of context.toolCalls) {
-
-        // log
-        logger.log(`[mistralai] tool call ${toolCall.function} with ${toolCall.args}`)
-        const args = JSON.parse(toolCall.args)
-
-        try {
-          // first notify
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.function,
-            state: 'running',
-            status: this.getToolRunningDescription(toolCall.function, args),
-            call: {
-              params: args,
-              result: undefined
-            },
-            done: false
-          }
-
-          // now execute
-          let lastUpdate: PluginExecutionResult|undefined = undefined
-          for await (const update of this.callTool({ model: context.model.id, abortSignal: context.opts?.abortSignal }, toolCall.function, args, context.opts?.toolExecutionValidation)) {
-
-            if (update.type === 'status') {
-              yield {
-                type: 'tool',
-                id: toolCall.id,
-                name: toolCall.function,
-                state: 'running',
-                status: update.status,
-                call: {
-                  params: args,
-                  result: undefined
-                },
-                done: false
-              }
-
-            } else if (update.type === 'result') {
-              lastUpdate = update
-            }
-
-          }
-
-          // process result
-          const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
-            'mistralai',
-            toolCall.function,
-            args,
-            lastUpdate
-          )
-
-          // done
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.function,
-            state: toolCallCanceled ? 'canceled' : 'completed',
-            status: toolCallCanceled
-              ? this.getToolCanceledDescription(toolCall.function, args) || content.error || 'Tool execution was canceled'
-              : this.getToolCompletedDescription(toolCall.function, args, content),
-            done: true,
-            call: {
-              params: args,
-              result: content
-            }
-          }
-
-          // add tool call message
-          context.thread.push({
-            role: 'assistant',
-            toolCalls: toolCall.message
-          })
-
-          // add tool response message
-          context.thread.push({
-            role: 'tool',
-            toolCallId: toolCall.id,
-            name: toolCall.function,
-            content: JSON.stringify(content)
-          })
-
-          // add to tool history
-          context.toolHistory.push({
-            id: toolCall.id,
-            name: toolCall.function,
-            args: args,
-            result: content,
-            round: context.currentRound,
-          })
-
-          // Check if canceled
-          if (context.opts?.abortSignal?.aborted) {
-            return  // Stop processing
-          }
-
-        } catch (error) {
-          // Check if this was an abort
-          if (context.opts?.abortSignal?.aborted) {
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: 'canceled',
-              status: this.getToolCanceledDescription(toolCall.function, args),
-              done: true,
-              call: {
-                params: args,
-                result: undefined
-              }
-            }
-            return  // Stop processing
-          }
-          throw error  // Re-throw non-abort errors
-        }
-
-      }
-
       // clear force tool call to avoid infinite loop
       if (context.opts.toolChoice?.type === 'tool') {
         delete context.opts.toolChoice
       }
 
-      // call hook and sync tool history
-      await this.callHook('beforeToolCallsResponse', context)
-      this.syncToolHistoryToThread(context)
-
       // increment round for next iteration
       context.currentRound++
 
-      // switch to new stream
-      yield {
-        type: 'stream',
-        stream: await this.doStream(context),
-      }
+      // execute tool calls using base class method
+      yield* this.executeToolCalls(context.toolCalls, context, {
+        formatToolCallForThread: (tc: LlmToolCall) => ({
+          role: 'assistant' as const,
+          toolCalls: tc.message
+        }),
+        formatToolResultForThread: (result: any, tc: LlmToolCall) => ({
+          role: 'tool' as const,
+          toolCallId: tc.id,
+          name: tc.function,
+          content: JSON.stringify(result)
+        }),
+        createNewStream: async () => this.doStream(context)
+      })
 
       // done
       return
-      
+
     }
 
     if (Array.isArray(chunk.data.choices[0]?.delta?.content)) {
