@@ -777,3 +777,52 @@ test('Anthropic hook modifies tool results before second API call', async () => 
     ])
   }))
 })
+
+test('Anthropic thinking block added to thread before tool uses', async () => {
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new Plugin1())
+
+  const context: AnthropicStreamingContext = {
+    model: anthropic.buildModel('model'),
+    system: 'instruction',
+    thread: [{ role: 'user', content: [{ type: 'text', text: 'prompt' }] }],
+    toolCalls: [{ id: 'tool-1', function: 'plugin1', args: '[]', message: '' }],
+    toolHistory: [],
+    currentRound: 0,
+    opts: {},
+    firstTextBlockStart: true,
+    thinkingBlock: 'This is my reasoning about the tool call',
+    thinkingSignature: 'sig123',
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+    requestUsage: { prompt_tokens: 0, completion_tokens: 0 }
+  }
+
+  // Simulate tool_use stop
+  const toolCallChunk = { type: 'message_delta', delta: { stop_reason: 'tool_use' } }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  for await (const chunk of anthropic.nativeChunkToLlmChunk(toolCallChunk as any, context)) {
+    // consume
+  }
+
+  // Verify thinking block was added BEFORE tool uses
+  expect(context.thread[1]).toMatchObject({
+    role: 'assistant',
+    content: [{
+      type: 'thinking',
+      thinking: 'This is my reasoning about the tool call',
+      signature: 'sig123'
+    }]
+  })
+
+  // Verify tool uses come after thinking block
+  expect(context.thread[2]).toMatchObject({
+    role: 'assistant',
+    content: expect.arrayContaining([
+      expect.objectContaining({ type: 'tool_use', id: 'tool-1', name: 'plugin1' })
+    ])
+  })
+})
+
+// Note: Computer tool special result format (spreading instead of JSON stringify)
+// is handled in the provider but complex to test due to global mocks.
+// This behavior must be preserved during refactoring (see lines 681-693 in anthropic.ts)
