@@ -267,7 +267,7 @@ describe('executeToolCalls', () => {
     // @ts-expect-error protected method
     for await (const chunk of openai.executeToolCalls(toolCalls, context, {
       formatToolCallForThread: (tc) => ({ role: 'assistant', tool_calls: [tc] }),
-      formatToolResultForThread: (result, id) => ({ role: 'tool', tool_call_id: id, content: JSON.stringify(result) }),
+      formatToolResultForThread: (result, tc) => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) }),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -315,7 +315,7 @@ describe('executeToolCalls', () => {
     // @ts-expect-error protected method
     for await (const chunk of openai.executeToolCalls(toolCalls, context, {
       formatToolCallForThread: (tc) => ({ role: 'assistant', tool_calls: [tc] }),
-      formatToolResultForThread: (result, id) => ({ role: 'tool', tool_call_id: id, content: JSON.stringify(result) }),
+      formatToolResultForThread: (result, tc) => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) }),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -352,7 +352,7 @@ describe('executeToolCalls', () => {
     // @ts-expect-error protected method
     const generator = openai.executeToolCalls(toolCalls, context, {
       formatToolCallForThread: () => ({}),
-      formatToolResultForThread: () => ({}),
+      formatToolResultForThread: (_result, _tc) => ({}),
       createNewStream: async () => ({} as LlmStream)
     })
 
@@ -386,7 +386,7 @@ describe('executeToolCalls', () => {
     // @ts-expect-error protected method
     for await (const chunk of openai.executeToolCalls(toolCalls, context, {
       formatToolCallForThread: () => ({}),
-      formatToolResultForThread: () => ({}),
+      formatToolResultForThread: (_result, _tc) => ({}),
       createNewStream: async () => ({} as LlmStream)
     })) {
       chunks.push(chunk)
@@ -422,7 +422,7 @@ describe('executeToolCalls', () => {
     // @ts-expect-error protected method
     for await (const chunk of openai.executeToolCalls(toolCalls, context, {
       formatToolCallForThread: () => ({}),
-      formatToolResultForThread: () => ({}),
+      formatToolResultForThread: (_result, _tc) => ({}),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -454,7 +454,7 @@ describe('executeToolCalls', () => {
     // @ts-expect-error protected method
     for await (const _chunk of openai.executeToolCalls(toolCalls, context, {
       formatToolCallForThread: () => ({}),
-      formatToolResultForThread: () => ({}),
+      formatToolResultForThread: (_result, _tc) => ({}),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -486,7 +486,7 @@ describe('executeToolCalls', () => {
     // @ts-expect-error protected method
     for await (const _chunk of openai.executeToolCalls(toolCalls, context, {
       formatToolCallForThread: formatToolCallFn,
-      formatToolResultForThread: () => ({ role: 'tool' }),
+      formatToolResultForThread: (_result, tc) => ({ role: 'tool', tool_call_id: tc.id }),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -500,10 +500,10 @@ describe('executeToolCalls', () => {
     const openai = new OpenAI(config)
     openai.addPlugin(new Plugin2())
 
-    const formatResultFn = vi.fn((result: any, toolCallId: string) => ({
+    const formatResultFn = vi.fn((result: any, tc: LlmToolCall) => ({
       role: 'tool',
       custom_result: result,
-      custom_id: toolCallId
+      custom_id: tc.id
     }))
 
     const toolCalls: LlmToolCall[] = [{
@@ -524,7 +524,7 @@ describe('executeToolCalls', () => {
       }) as unknown as LlmStream
     })) { /* consume */ }
 
-    expect(formatResultFn).toHaveBeenCalledWith('result2', 'tool-1')
+    expect(formatResultFn).toHaveBeenCalledWith('result2', expect.objectContaining({ id: 'tool-1' }))
     expect(context.thread[1]).toMatchObject({ custom_id: 'tool-1' })
   })
 
@@ -551,7 +551,7 @@ describe('executeToolCalls', () => {
     // @ts-expect-error protected method
     for await (const chunk of openai.executeToolCalls(toolCalls, context, {
       formatToolCallForThread: () => ({}),
-      formatToolResultForThread: () => ({}),
+      formatToolResultForThread: (_result, _tc) => ({}),
       createNewStream: createStreamFn
     })) {
       chunks.push(chunk)
@@ -578,7 +578,7 @@ describe('executeToolCalls', () => {
     // @ts-expect-error protected method
     for await (const chunk of openai.executeToolCalls(toolCalls, context, {
       formatToolCallForThread: () => ({}),
-      formatToolResultForThread: () => ({}),
+      formatToolResultForThread: (_result, _tc) => ({}),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -610,7 +610,7 @@ describe('executeToolCalls', () => {
     // @ts-expect-error protected method
     for await (const chunk of openai.executeToolCalls(toolCalls, context, {
       formatToolCallForThread: () => ({}),
-      formatToolResultForThread: () => ({}),
+      formatToolResultForThread: (_result, _tc) => ({}),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -645,7 +645,7 @@ describe('executeToolCalls', () => {
     // @ts-expect-error protected method
     for await (const _chunk of openai.executeToolCalls(toolCalls, context, {
       formatToolCallForThread: () => ({}),
-      formatToolResultForThread: () => ({}),
+      formatToolResultForThread: (_result, _tc) => ({}),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream

@@ -554,7 +554,7 @@ export default abstract class LlmEngine {
     context: LlmStreamingContext & { thread: T[] },
     options: {
       formatToolCallForThread: (tc: LlmToolCall) => T,
-      formatToolResultForThread: (result: any, toolCallId: string) => T,
+      formatToolResultForThread: (result: any, tc: LlmToolCall) => T,
       createNewStream: (context: LlmStreamingContext & { thread: T[] }) => Promise<LlmStream>
     }
   ): AsyncGenerator<LlmChunk> {
@@ -660,7 +660,7 @@ export default abstract class LlmEngine {
 
         // Add to thread using provider-specific format
         context.thread.push(options.formatToolCallForThread(toolCall))
-        context.thread.push(options.formatToolResultForThread(content, toolCall.id))
+        context.thread.push(options.formatToolResultForThread(content, toolCall))
 
         // Add to tool history
         context.toolHistory.push({
