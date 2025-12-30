@@ -208,7 +208,7 @@ export type LlmCompletionPayloadTool = {
   content: string
 }
 
-export type LLmCompletionPayload = LlmCompletionPayloadContent | LlmCompletionPayloadTool
+export type LlmCompletionPayload = LlmCompletionPayloadContent | LlmCompletionPayloadTool
 
 export type LLmContentPayloadText = {
   type: 'text'

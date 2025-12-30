@@ -8,7 +8,7 @@ import LlmEngine from '../engine'
 import logger from '../logger'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpenAI } from '../types/index'
-import { LLmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
+import { LlmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { zeroUsage } from '../usage'
 import { RequestOptions } from 'openai/internal/request-options'
@@ -192,11 +192,11 @@ export default class extends LlmEngine {
     return payloads
   }
 
-  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: ChatCompletionMessageParam[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // process with responses api?
     if (this.shouldUseResponsesApi(model, opts)) {
-      return this.responsesChat(model, thread as any, opts)
+      return this.responsesChat(model, thread as LlmCompletionPayload[], opts)
     }
 
     // Fallback to Chat Completions
@@ -272,7 +272,6 @@ export default class extends LlmEngine {
         thread.push({
           role: 'tool',
           tool_call_id: tool_call.id,
-          name: functionToolCall.function.name,
           content: JSON.stringify(content)
         })
 
@@ -596,7 +595,7 @@ export default class extends LlmEngine {
 
   // ---------------------------------------------------------------------------
   // Responses API – via official SDK with automatic tool execution
-  async responsesChat(model: ChatModel, thread: LLmCompletionPayload[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async responsesChat(model: ChatModel, thread: LlmCompletionPayload[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // log
     logger.log(`[${this.getName()}] prompting model ${model.id}`)
@@ -1002,7 +1001,7 @@ export default class extends LlmEngine {
     return this.buildResponsesRequest(model, this.buildPayload(model, thread, opts), opts, stream)
   }
 
-  private async buildResponsesRequest(model: ChatModel, payload: LLmCompletionPayload[], opts: LlmCompletionOpts | undefined, stream: boolean): Promise<ResponseCreateParams> {
+  private async buildResponsesRequest(model: ChatModel, payload: LlmCompletionPayload[], opts: LlmCompletionOpts | undefined, stream: boolean): Promise<ResponseCreateParams> {
     
     // helper to extract text from messages
     function extractText(msg: any): string {

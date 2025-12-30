@@ -8,7 +8,7 @@ import Attachment from '../models/attachment'
 import Message from '../models/message'
 import { Plugin } from '../plugin'
 import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCapabilities } from '../types/index'
-import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
+import { LlmChunk, LlmCompletionOpts, LlmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import { addUsages, zeroUsage } from '../usage'
 import { PluginExecutionResult } from 'types/plugin'
 
@@ -642,7 +642,7 @@ export default class extends LlmEngine {
 
   }
 
-  addTextToPayload(model: ChatModel, message: Message, attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
+  addTextToPayload(model: ChatModel, message: Message, attachment: Attachment, payload: LlmCompletionPayload, opts?: LlmCompletionOpts): void {
     if (Array.isArray(payload.content)) {
       payload.content.push({
         type: 'document',
@@ -659,7 +659,7 @@ export default class extends LlmEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addImageToPayload(model: ChatModel, attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
+  addImageToPayload(model: ChatModel, attachment: Attachment, payload: LlmCompletionPayload, opts?: LlmCompletionOpts) {
     if (Array.isArray(payload.content)) {
       payload.content.push({
         type: 'image',

@@ -21,7 +21,7 @@ import Groq from './providers/groq'
 import LMStudio from './providers/lmstudio'
 import Meta from './providers/meta'
 import MistralAI from './providers/mistralai'
-import Ollama from './providers/ollama'
+import Ollama, { OllamaMessage } from './providers/ollama'
 import OpenAI from './providers/openai'
 import OpenRouter from './providers/openrouter'
 import XAI, { xAIBaseURL } from './providers/xai'
@@ -63,6 +63,7 @@ export {
   Meta,
   MistralAI,
   Ollama,
+  OllamaMessage,
   OpenAI,
   OpenRouter,
   XAI,

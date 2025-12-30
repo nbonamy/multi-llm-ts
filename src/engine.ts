@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, CompletedToolCall, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort, EngineHookName, EngineHookCallback, EngineHookPayloads, NormalizedToolChunk } from './types/llm'
+import { LlmResponse, LlmCompletionOpts, LlmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, CompletedToolCall, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort, EngineHookName, EngineHookCallback, EngineHookPayloads, NormalizedToolChunk } from './types/llm'
 import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter, PluginExecutionResult } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 import Attachment from './models/attachment'
@@ -60,7 +60,7 @@ export default abstract class LlmEngine {
   
   abstract getModels(): Promise<ModelMetadata[]>
   
-  protected abstract chat(model: Model, thread: LLmCompletionPayload[], opts?: LlmCompletionOpts): Promise<LlmResponse>
+  protected abstract chat(model: Model, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse>
 
   protected abstract stream(model: Model, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse>
 
@@ -69,7 +69,7 @@ export default abstract class LlmEngine {
    */
   abstract stop(stream: any): Promise<void>
 
-  protected addTextToPayload(model: ChatModel, message: Message, attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
+  protected addTextToPayload(model: ChatModel, message: Message, attachment: Attachment, payload: LlmCompletionPayload, opts?: LlmCompletionOpts): void {
 
     if (Array.isArray(payload.content)) {
       
@@ -93,7 +93,7 @@ export default abstract class LlmEngine {
     }
   }
 
-  protected addImageToPayload(model: ChatModel, attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
+  protected addImageToPayload(model: ChatModel, attachment: Attachment, payload: LlmCompletionPayload, opts?: LlmCompletionOpts) {
 
     // if we have a string content, convert it to an array
     if (typeof payload.content === 'string') {
@@ -260,7 +260,7 @@ export default abstract class LlmEngine {
     return false
   }
 
-  buildPayload<T = LLmCompletionPayload>(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): T[] {
+  buildPayload<T = LlmCompletionPayload>(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): T[] {
 
     if (typeof thread === 'string') {
 
@@ -268,7 +268,7 @@ export default abstract class LlmEngine {
 
     } else {
 
-      const payloads: LLmCompletionPayload[] = []
+      const payloads: LlmCompletionPayload[] = []
 
       for (const msg of thread) {
 

@@ -69,16 +69,16 @@ export default class extends LlmEngine {
 
   }
 
-  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: ChatCompletionMessageParam[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
-    
+
     // call
     logger.log(`[groq] prompting model ${model.id}`)
     const response = await this.client.chat.completions.create({
       model: model.id,
-      messages: thread as ChatCompletionMessageParam[],
+      messages: thread,
       ...this.getCompletionOpts(model, opts),
       ...await this.getToolOpts(model, opts),
     });
@@ -134,7 +134,6 @@ export default class extends LlmEngine {
         thread.push({
           role: 'tool',
           tool_call_id: toolCall.id,
-          name: toolCall.function.name,
           content: JSON.stringify(content)
         })
 

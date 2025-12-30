@@ -181,11 +181,11 @@ export default class extends LlmEngine {
     }
   }
 
-  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: OllamaMessage[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
-    
+
     // call
     logger.log(`[ollama] prompting model ${model.id}`)
     const response = await this.client.chat({

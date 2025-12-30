@@ -5,7 +5,7 @@ import logger from '../logger'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMistralAI } from '../types/index'
-import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
+import { LlmChunk, LlmCompletionOpts, LlmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { zeroUsage } from '../usage'
 
@@ -64,16 +64,16 @@ export default class extends LlmEngine {
     }
   }
 
-  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: MistralMessages, opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
-    
+
     // call
     logger.log(`[mistralai] prompting model ${model.id}`)
     const response = await this.client.chat.complete({
       model: model.id,
-      messages: thread as MistralMessages,
+      messages: thread,
       ...this.getCompletionOpts(model, opts),
       ...await this.getToolOpts(model, opts),
     });
@@ -112,12 +112,12 @@ export default class extends LlmEngine {
         }
 
         // add tool call message
-        thread.push(choice.message)
+        thread.push({ ...choice.message, role: 'assistant' as const })
 
         // add tool response message
         thread.push({
-          role: 'tool',
-          tool_call_id: toolCall.id,
+          role: 'tool' as const,
+          toolCallId: toolCall.id,
           name: toolCall.function.name,
           content: JSON.stringify(content)
         })
@@ -352,7 +352,7 @@ export default class extends LlmEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  protected addImageToPayload(model: ChatModel, attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
+  protected addImageToPayload(model: ChatModel, attachment: Attachment, payload: LlmCompletionPayload, opts?: LlmCompletionOpts) {
 
     // if we have a string content, convert it to an array
     if (typeof payload.content === 'string') {
