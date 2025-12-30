@@ -267,7 +267,7 @@ describe('executeToolCallsSequentially', () => {
     // @ts-expect-error protected method
     for await (const chunk of openai.executeToolCallsSequentially(toolCalls, context, {
       formatToolCallForThread: (tc) => ({ role: 'assistant', tool_calls: [tc] }),
-      formatToolResultForThread: (result, tc) => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) }),
+      formatToolResultForThread: (result, tc) => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) } as any),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -315,7 +315,7 @@ describe('executeToolCallsSequentially', () => {
     // @ts-expect-error protected method
     for await (const chunk of openai.executeToolCallsSequentially(toolCalls, context, {
       formatToolCallForThread: (tc) => ({ role: 'assistant', tool_calls: [tc] }),
-      formatToolResultForThread: (result, tc) => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) }),
+      formatToolResultForThread: (result, tc) => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) } as any),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -486,7 +486,7 @@ describe('executeToolCallsSequentially', () => {
     // @ts-expect-error protected method
     for await (const chunk of openai.executeToolCallsSequentially(toolCalls, context, {
       formatToolCallForThread: formatToolCallFn,
-      formatToolResultForThread: (_result, tc) => ({ role: 'tool', tool_call_id: tc.id }),
+      formatToolResultForThread: (_result, tc) => ({ role: 'tool', tool_call_id: tc.id } as any),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream

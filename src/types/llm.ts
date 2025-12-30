@@ -87,14 +87,22 @@ export type ToolHistoryEntry = {
   round: number
 }
 
-// Base context without thread - providers add their own thread type
-export type LlmStreamingContext = {
+// Base streaming context - all providers have a thread
+export type LlmStreamingContext<T = any> = {
   model: ChatModel
   opts: LlmCompletionOpts
   usage: LlmUsage
+  thread: T[]
   toolCalls: LlmToolCall[]  // current round's tool calls (reset each round)
   toolHistory: ToolHistoryEntry[]  // all tool calls across all rounds
   currentRound: number
+}
+
+// Completed tool call info for batched execution
+export type CompletedToolCall = {
+  tc: LlmToolCall
+  args: any
+  result: any
 }
 
 export type LlmStreamingResponse = {

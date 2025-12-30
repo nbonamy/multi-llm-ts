@@ -14,9 +14,7 @@ import { zeroUsage } from '../usage'
 // https://console.groq.com/docs/api-reference#chat-create
 //
 
-export type GroqStreamingContext = LlmStreamingContext & {
-  thread: any[]  // ChatCompletionMessageParam[]
-}
+export type GroqStreamingContext = LlmStreamingContext<ChatCompletionMessageParam>
 
 export default class extends LlmEngine {
 

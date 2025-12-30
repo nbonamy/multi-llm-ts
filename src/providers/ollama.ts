@@ -11,8 +11,7 @@ import { ChatRequest, ChatResponse, Ollama, ProgressResponse, ShowResponse } fro
 import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.27169772.cjs'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 
-export type OllamaStreamingContext = LlmStreamingContext & {
-  thread: any[]  // ChatRequest['messages']
+export type OllamaStreamingContext = LlmStreamingContext<ChatRequest['messages'][number]> & {
   thinking: boolean
 }
 

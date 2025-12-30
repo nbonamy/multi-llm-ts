@@ -25,10 +25,9 @@ export interface GoogleComputerToolInfo {
   screenNumber(): number
 }
 
-export type GoogleStreamingContext = LlmStreamingContext & {
+export type GoogleStreamingContext = LlmStreamingContext<Content> & {
   opts: GoogleCompletionOpts
   requestUsage: LlmUsage
-  thread: Content[]
 }
 
 export default class extends LlmEngine {

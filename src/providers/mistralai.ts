@@ -20,9 +20,7 @@ type MistralMessages = Array<
 // https://docs.mistral.ai/api/
 //
 
-export type MistralStreamingContext = LlmStreamingContext & {
-  thread: any[]  // MistralMessages
-}
+export type MistralStreamingContext = LlmStreamingContext<MistralMessages[number]>
 
 export default class extends LlmEngine {
 

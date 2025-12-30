@@ -2,7 +2,7 @@ import { minimatch } from 'minimatch'
 import OpenAI, { ClientOptions } from 'openai'
 import { zodResponseFormat } from 'openai/helpers/zod'
 import { CompletionUsage } from 'openai/resources'
-import { ChatCompletionCreateParamsBase, ChatCompletionMessageFunctionToolCall } from 'openai/resources/chat/completions'
+import { ChatCompletionCreateParamsBase, ChatCompletionMessageFunctionToolCall, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { Response, ResponseCreateParams, ResponseFunctionToolCall, ResponseInputItem, ResponseOutputMessage, ResponseStreamEvent, ResponseUsage, Tool, ToolChoiceFunction, ToolChoiceOptions } from 'openai/resources/responses/responses'
 import LlmEngine from '../engine'
 import logger from '../logger'
@@ -21,8 +21,7 @@ const defaultBaseUrl = 'https://api.openai.com/v1'
 // https://platform.openai.com/docs/api-reference/introduction
 // 
 
-export type OpenAIStreamingContext = LlmStreamingContext & {
-  thread: any[]  // ChatCompletionMessageParam[]
+export type OpenAIStreamingContext = LlmStreamingContext<ChatCompletionMessageParam> & {
   reasoningContent: string
   responsesApi: boolean
   thinking: boolean
@@ -177,7 +176,7 @@ export default class extends LlmEngine {
     return this.modelRequiresResponsesApi(model) || (opts?.useResponsesApi ?? false) || (this.config.useOpenAIResponsesApi ?? false)
   }
 
-  buildPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+  buildPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): ChatCompletionMessageParam[] {
     
     let payloads = super.buildPayload(model, thread, opts)
     

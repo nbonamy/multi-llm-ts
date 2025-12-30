@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
-import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort, EngineHookName, EngineHookCallback, EngineHookPayloads, NormalizedToolChunk } from './types/llm'
+import { LlmResponse, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, CompletedToolCall, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort, EngineHookName, EngineHookCallback, EngineHookPayloads, NormalizedToolChunk } from './types/llm'
 import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter, PluginExecutionResult } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 import Attachment from './models/attachment'
@@ -565,11 +565,11 @@ export default abstract class LlmEngine {
    */
   protected async *executeToolCallsSequentially<T>(
     toolCalls: LlmToolCall[],
-    context: LlmStreamingContext & { thread: T[] },
+    context: LlmStreamingContext<T>,
     options: {
       formatToolCallForThread: (tc: LlmToolCall, args: any) => T,
       formatToolResultForThread: (result: any, tc: LlmToolCall, args: any) => T,
-      createNewStream: (context: LlmStreamingContext & { thread: T[] }) => Promise<LlmStream>
+      createNewStream: (context: LlmStreamingContext<T>) => Promise<LlmStream>
     }
   ): AsyncGenerator<LlmChunk> {
 
@@ -594,14 +594,14 @@ export default abstract class LlmEngine {
    */
   protected async *executeToolCallsBatched<T>(
     toolCalls: LlmToolCall[],
-    context: LlmStreamingContext & { thread: T[] },
+    context: LlmStreamingContext<T>,
     options: {
-      formatBatchForThread: (completed: Array<{ tc: LlmToolCall, args: any, result: any }>) => T[],
-      createNewStream: (context: LlmStreamingContext & { thread: T[] }) => Promise<LlmStream>
+      formatBatchForThread: (completed: CompletedToolCall[]) => T[],
+      createNewStream: (context: LlmStreamingContext<T>) => Promise<LlmStream>
     }
   ): AsyncGenerator<LlmChunk> {
 
-    const completedTools: Array<{ tc: LlmToolCall, args: any, result: any }> = []
+    const completedTools: CompletedToolCall[] = []
 
     for (const toolCall of toolCalls) {
       const executed = yield* this.executeOneTool(toolCall, context)
@@ -778,8 +778,8 @@ export default abstract class LlmEngine {
    * Finalize tool execution: call hook, sync, and recurse.
    */
   private async *finalizeToolExecution<T>(
-    context: LlmStreamingContext & { thread: T[] },
-    createNewStream: (context: LlmStreamingContext & { thread: T[] }) => Promise<LlmStream>
+    context: LlmStreamingContext<T>,
+    createNewStream: (context: LlmStreamingContext<T>) => Promise<LlmStream>
   ): AsyncGenerator<LlmChunk> {
     // Call hook before continuing
     await this.callHook('beforeToolCallsResponse', context)

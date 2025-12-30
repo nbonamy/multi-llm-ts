@@ -26,8 +26,7 @@ export interface AnthropicComputerToolInfo {
   screenNumber (): number
 }
 
-export type AnthropicStreamingContext = LlmStreamingContext & {
-  thread: MessageParam[]
+export type AnthropicStreamingContext = LlmStreamingContext<MessageParam> & {
   system: string
   requestUsage: LlmUsage
   thinkingBlock?: string
