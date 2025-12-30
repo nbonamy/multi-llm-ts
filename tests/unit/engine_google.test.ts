@@ -170,7 +170,7 @@ test('Google nativeChunkToLlmChunk Text', async () => {
   } as unknown as GenerateContentResponse
   const context: GoogleStreamingContext = {
     model: google.buildModel('model'),
-    content: [],
+    thread: [],
     opts: {},
     toolCalls: [],
     toolHistory: [],
@@ -489,7 +489,7 @@ test('Google streaming validation deny - yields canceled chunk', async () => {
   const chunks: LlmChunk[] = []
   const context: GoogleStreamingContext = {
     model: google.buildModel('model'),
-    content: [],
+    thread: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [{ id: 'plugin2', function: 'plugin2', args: '{}', message: [] }],
     toolHistory: [],
@@ -538,7 +538,7 @@ test('Google streaming validation abort - yields tool_abort chunk', async () => 
   const chunks: LlmChunk[] = []
   const context: GoogleStreamingContext = {
     model: google.buildModel('model'),
-    content: [],
+    thread: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [{ id: 'plugin2', function: 'plugin2', args: '{}', message: [] }],
     toolHistory: [],
@@ -661,14 +661,14 @@ test('Google chat validation abort - throws LlmChunkToolAbort', async () => {
   }
 })
 
-test('Google syncToolHistoryToThread updates content from toolHistory by index order', () => {
+test('Google syncToolHistoryToThread updates thread from toolHistory by index order', () => {
   const google = new Google(config)
 
-  // Google uses content with functionResponse format
+  // Google uses thread with functionResponse format
   // Test with SAME tool name called twice to verify index-based matching preserves order
   const context: GoogleStreamingContext = {
     model: google.buildModel('model'),
-    content: [
+    thread: [
       { role: 'user', parts: [{ text: 'hello' }] },
       { role: 'model', parts: [{ functionCall: { name: 'search', args: {} } }] },
       { role: 'tool', parts: [{ functionResponse: { id: 'search', name: 'search', response: { original: 'first_result' } } }] },
@@ -690,8 +690,8 @@ test('Google syncToolHistoryToThread updates content from toolHistory by index o
   google.syncToolHistoryToThread(context)
 
   // Verify content was updated IN ORDER (first history entry -> first tool response)
-  const toolContent1 = context.content[2] as any
-  const toolContent2 = context.content[4] as any
+  const toolContent1 = context.thread[2] as any
+  const toolContent2 = context.thread[4] as any
 
   expect(toolContent1.parts[0].functionResponse.response).toStrictEqual({ result: 'FIRST_TRUNCATED' })
   expect(toolContent2.parts[0].functionResponse.response).toStrictEqual({ transformed: 'SECOND_TRUNCATED' })
@@ -705,7 +705,7 @@ test('Google addHook and hook execution', async () => {
 
   const context: GoogleStreamingContext = {
     model: google.buildModel('model'),
-    content: [],
+    thread: [],
     opts: {},
     toolCalls: [],
     toolHistory: [{ id: 'call_1', name: 'test', args: {}, result: { data: 'original' }, round: 0 }],
