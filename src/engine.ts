@@ -757,13 +757,13 @@ export default abstract class LlmEngine {
         throw error
       }
 
-      // Handle other errors
+      // Handle other errors - yield error chunk before re-throwing
       yield {
         type: 'tool',
         id: toolCall.id,
         name: toolCall.function,
         state: 'error',
-        status: error.message,
+        status: error instanceof Error ? error.message : 'Tool execution failed',
         done: true,
         call: {
           params: args,
