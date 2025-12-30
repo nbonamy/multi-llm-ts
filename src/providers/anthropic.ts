@@ -9,7 +9,6 @@ import Message from '../models/message'
 import { Plugin } from '../plugin'
 import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCapabilities } from '../types/index'
 import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
-import { PluginExecutionResult } from '../types/plugin'
 import { addUsages, zeroUsage } from '../usage'
 
 //
@@ -579,7 +578,7 @@ export default class extends LlmEngine {
 
       if (chunk.delta.stop_reason == 'tool_use' && context.toolCalls.length) {
 
-        // add thinking block first if present
+        // add thinking block first if present (Anthropic-specific)
         if (context.thinkingBlock) {
           context.thread.push({
             role: 'assistant',
@@ -591,179 +590,61 @@ export default class extends LlmEngine {
           })
         }
 
-        // arrays to accumulate tool uses and results
-        const toolUses: any[] = []
-        const toolResults: any[] = []
-
-        // process all accumulated tool calls
-        for (const toolCall of context.toolCalls) {
-
-          // parse args
-          logger.log(`[anthropic] tool call ${toolCall.function} with ${toolCall.args}`)
-          const args = toolCall.args?.length ? JSON.parse(toolCall.args) : {}
-
-          try {
-            // first notify
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: 'running',
-              status: this.getToolRunningDescription(toolCall.function, args),
-              call: {
-                params: args,
-                result: undefined
-              },
-              done: false
-            }
-
-            // now execute
-            let lastUpdate: PluginExecutionResult|undefined = undefined
-            for await (const update of this.callTool(
-              { model: context.model.id, abortSignal: context.opts?.abortSignal },
-              toolCall.function, args,
-              context.opts?.toolExecutionValidation
-            )) {
-
-              if (update.type === 'status') {
-                yield {
-                  type: 'tool',
-                  id: toolCall.id,
-                  name: toolCall.function,
-                  state: 'running',
-                  status: update.status,
-                  call: {
-                    params: args,
-                    result: undefined
-                  },
-                  done: false
-                }
-
-              } else if (update.type === 'result') {
-                lastUpdate = update
-              }
-
-            }
-
-            // process result
-            const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
-              'anthropic',
-              toolCall.function,
-              args,
-              lastUpdate
-            )
-
-            // done
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: toolCallCanceled ? 'canceled' : 'completed',
-              status: toolCallCanceled
-                ? this.getToolCanceledDescription(toolCall.function, args) || content.error || 'Tool execution was canceled'
-                : this.getToolCompletedDescription(toolCall.function, args, content),
-              done: true,
-              call: {
-                params: args,
-                result: content
-              },
-            }
-
-            // accumulate tool use
-            toolUses.push({
-              type: 'tool_use',
-              id: toolCall.id,
-              name: toolCall.function,
-              input: args,
-            })
-
-            // accumulate tool result
-            if (toolCall.function === 'computer') {
-              toolResults.push({
-                type: 'tool_result',
-                tool_use_id: toolCall.id,
-                ...content,
-              })
-            } else {
-              toolResults.push({
-                type: 'tool_result',
-                tool_use_id: toolCall.id,
-                content: JSON.stringify(content)
-              })
-            }
-
-            // add to tool history
-            context.toolHistory.push({
-              id: toolCall.id,
-              name: toolCall.function,
-              args: args,
-              result: content,
-              round: context.currentRound,
-            })
-
-            // Check if canceled
-            if (context.opts?.abortSignal?.aborted) {
-              return  // Stop processing
-            }
-
-          } catch (error) {
-
-            // Check if this was an abort
-            if (context.opts?.abortSignal?.aborted) {
-              yield {
-                type: 'tool',
-                id: toolCall.id,
-                name: toolCall.function,
-                state: 'canceled',
-                status: this.getToolCanceledDescription(toolCall.function, args),
-                done: true,
-                call: {
-                  params: args,
-                  result: undefined
-                }
-              }
-              return  // Stop processing
-            }
-            throw error  // Re-throw non-abort errors
-          }
-
-        }
-
-        // add all tool uses in one assistant message
-        context.thread.push({
-          role: 'assistant',
-          content: toolUses
-        })
-
-        // add all tool results in one user message
-        context.thread.push({
-          role: 'user',
-          content: toolResults
-        })
-
         // clear force tool call to avoid infinite loop
         if (context.opts.toolChoice?.type === 'tool') {
           delete context.opts.toolChoice
         }
 
-        // add usage
+        // increment round for next iteration
+        context.currentRound++
+
+        // add usage before continuing
         if (context.opts.usage) {
           context.usage = addUsages(context.usage, context.requestUsage)
           context.requestUsage = zeroUsage()
         }
 
-        // call hook and sync tool history
-        await this.callHook('beforeToolCallsResponse', context)
-        this.syncToolHistoryToThread(context)
+        // execute tool calls using base class method
+        yield* this.executeToolCallsBatched(context.toolCalls, context, {
+          formatBatchForThread: (completed) => {
+            // assistant message with all tool uses
+            const toolUses: MessageParam = {
+              role: 'assistant',
+              content: completed.map(({ tc, args }) => ({
+                type: 'tool_use' as const,
+                id: tc.id,
+                name: tc.function,
+                input: args,
+              }))
+            }
 
-        // increment round for next iteration
-        context.currentRound++
+            // user message with all tool results
+            const toolResults: MessageParam = {
+              role: 'user',
+              content: completed.map(({ tc, result }) => {
+                // computer tool spreads content, others stringify
+                if (tc.function === 'computer') {
+                  return {
+                    type: 'tool_result' as const,
+                    tool_use_id: tc.id,
+                    ...result,
+                  }
+                }
+                return {
+                  type: 'tool_result' as const,
+                  tool_use_id: tc.id,
+                  content: JSON.stringify(result)
+                }
+              })
+            }
 
-        // switch to new stream
-        yield {
-          type: 'stream',
-          stream: await this.doStream(context),
-        }
+            return [toolUses, toolResults]
+          },
+          createNewStream: async () => this.doStream(context)
+        })
+
+        // done
+        return
 
       }
 

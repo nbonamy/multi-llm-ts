@@ -47,116 +47,102 @@ interface NormalizedToolChunk {
 - Output: Generator yielding preparation notifications
 - Logic: Accumulate into `context.toolCalls[]`
 
-#### executeToolCalls
+#### executeToolCallsSequentially (OpenAI/Groq/Mistral)
 - Input: accumulated tool calls, context, formatting callbacks
 - Output: AsyncGenerator yielding tool execution events
-- Logic: The entire 150+ line execution loop
-  - Parse arguments
-  - Execute via `callTool()`
-  - Process results
-  - Handle errors/aborts
-  - Update thread
-  - Call hooks
-  - Recurse
+- Format: Per-tool thread updates (one assistant message + one tool result per tool)
+- Callbacks:
+  - `formatToolCallForThread(tc, args)` - format assistant message for ONE tool
+  - `formatToolResultForThread(result, tc, args)` - format tool result for ONE tool
+  - `createNewStream(context)` - create new stream for continuation
 
-### 3. Provider-Specific Methods (each provider implements)
+#### executeToolCallsBatched (Anthropic/Google)
+- Input: accumulated tool calls, context, formatting callbacks
+- Output: AsyncGenerator yielding tool execution events
+- Format: Batched thread updates (one message with ALL tool calls + one message with ALL results)
+- Callbacks:
+  - `formatBatchForThread(completed[])` - format ALL tool calls and results as batch
+  - `createNewStream(context)` - create new stream for continuation
 
-#### normalizeToolChunk(chunk, context): NormalizedToolChunk | null
-Convert native chunk format to normalized format
+#### executeOneTool (shared core logic)
+- Input: toolCall, context
+- Output: AsyncGenerator yielding tool events, returns `{ args, result }` or `null` if aborted
 
-#### shouldExecuteTools(chunk, context): boolean
-Detect finish condition (stop_reason, finishReason, etc)
+#### finalizeToolExecution (shared finalization)
+- Clears tool choice, increments round, creates new stream
 
-#### formatToolCallForThread(toolCall): any
-Format tool call for thread/context (provider-specific structure)
-
-#### formatToolResultForThread(result, toolCallId): any
-Format tool result for thread/context
+### 3. Provider-Specific Implementation
+Each provider passes callbacks to execute methods that handle their native thread format
 
 ## Implementation Plan
 
-### Phase 1: Add Base Types and Methods
+### Phase 1: Add Base Types and Methods ✅
 **Goal**: Add normalized types and base methods without breaking existing code
 
-- [ ] Add `NormalizedToolChunk` interface to `types.ts`
-- [ ] Add `processToolCallChunk()` to `LlmEngine` base class
-- [ ] Add `executeToolCalls()` to `LlmEngine` base class
-- [ ] Run tests to ensure no breakage
-- [ ] Commit: "feat: add tool call normalization base infrastructure"
+- [x] Add `NormalizedToolChunk` interface to `types/llm.ts`
+- [x] Add `processToolCallChunk()` to `LlmEngine` base class
+- [x] Add `executeToolCallsSequentially()` to `LlmEngine` base class
+- [x] Add `executeToolCallsBatched()` to `LlmEngine` base class
+- [x] Add unit tests for base methods
+- [x] Run tests to ensure no breakage
+- [x] Commit: "feat: add tool call normalization base infrastructure"
 
-### Phase 2: Refactor OpenAI Provider
+### Phase 2: Refactor OpenAI Provider ✅
 **Goal**: Migrate first provider to validate approach
 
-- [ ] Add `normalizeToolChunk()` method to OpenAI provider
-- [ ] Add `shouldExecuteTools()` method to OpenAI provider
-- [ ] Add `formatToolCallForThread()` method to OpenAI provider
-- [ ] Add `formatToolResultForThread()` method to OpenAI provider
-- [ ] Update `nativeChunkToLlmChunk()` to use new methods
-- [ ] Run OpenAI provider tests
-- [ ] Test manually with OpenAI model
-- [ ] Commit: "refactor: migrate openai provider to normalized tool calls"
+- [x] Update `nativeChunkToLlmChunk()` to use `executeToolCallsSequentially`
+- [x] Run OpenAI provider tests
+- [x] Commit: "refactor: migrate openai provider to executeToolCallsSequentially"
 
-### Phase 3: Refactor Groq Provider
+### Phase 3: Refactor Groq Provider ✅
 **Goal**: Second OpenAI-style provider
 
-- [ ] Add normalization methods to Groq provider
-- [ ] Update `nativeChunkToLlmChunk()` to use new methods
-- [ ] Run Groq provider tests
-- [ ] Test manually with Groq model
-- [ ] Commit: "refactor: migrate groq provider to normalized tool calls"
+- [x] Update `nativeChunkToLlmChunk()` to use `executeToolCallsSequentially`
+- [x] Run Groq provider tests
+- [x] Commit: "refactor: migrate groq provider to executeToolCallsSequentially"
 
-### Phase 4: Refactor Mistral Provider
+### Phase 4: Refactor Mistral Provider ✅
 **Goal**: Third OpenAI-style provider
 
-- [ ] Add normalization methods to Mistral provider
-- [ ] Update `nativeChunkToLlmChunk()` to use new methods
-- [ ] Run Mistral provider tests
-- [ ] Test manually with Mistral model
-- [ ] Commit: "refactor: migrate mistralai provider to normalized tool calls"
+- [x] Update `nativeChunkToLlmChunk()` to use `executeToolCallsSequentially`
+- [x] Run Mistral provider tests
+- [x] Commit: "refactor: migrate mistralai provider to executeToolCallsSequentially"
 
-### Phase 5: Refactor Anthropic Provider
-**Goal**: Event-based provider (different pattern)
+### Phase 5: Refactor Anthropic Provider 🔄
+**Goal**: Event-based provider (batched pattern)
 
-- [ ] Add `normalizeToolChunk()` for block-based events
-  - Handle `content_block_start` → type='start'
-  - Handle `content_block_delta` → type='delta'
-- [ ] Add thread formatting methods
-- [ ] Update `nativeChunkToLlmChunk()` to use new methods
-- [ ] Handle thinking blocks separately (Anthropic-specific)
+- [ ] Update `nativeChunkToLlmChunk()` to use `executeToolCallsBatched`
+- [ ] Handle thinking blocks (provider-specific, stays in nativeChunkToLlmChunk)
+- [ ] Handle computer tool special result format
 - [ ] Run Anthropic provider tests
-- [ ] Test manually with Claude model
-- [ ] Commit: "refactor: migrate anthropic provider to normalized tool calls"
+- [ ] Commit: "refactor: migrate anthropic provider to executeToolCallsBatched"
 
 ### Phase 6: Refactor Google Provider
-**Goal**: Complete-chunk provider (no incremental args)
+**Goal**: Complete-chunk provider (batched pattern)
 
-- [ ] Add `normalizeToolChunk()` for functionCall parts
-  - Return type='start' with complete args
-- [ ] Add thread formatting methods
-- [ ] Update `nativeChunkToLlmChunk()` to use new methods
+- [ ] Update `nativeChunkToLlmChunk()` to use `executeToolCallsBatched`
 - [ ] Run Google provider tests
-- [ ] Test manually with Gemini model
-- [ ] Commit: "refactor: migrate google provider to normalized tool calls"
+- [ ] Commit: "refactor: migrate google provider to executeToolCallsBatched"
 
-### Phase 7: Cleanup and Validation
+### Phase 7: Refactor Providers to use processToolCallChunk
+**Goal**: Normalize tool call accumulation
+
+- [ ] Update OpenAI to use `processToolCallChunk`
+- [ ] Update Groq to use `processToolCallChunk`
+- [ ] Update Mistral to use `processToolCallChunk`
+- [ ] Update Anthropic to use `processToolCallChunk`
+- [ ] Update Google to use `processToolCallChunk`
+- [ ] Run full test suite
+- [ ] Commit: "refactor: use processToolCallChunk for all providers"
+
+### Phase 8: Cleanup and Final Review
 **Goal**: Remove old code, verify everything works
 
 - [ ] Remove any old commented code
 - [ ] Run full test suite across all providers
-- [ ] Manual testing with each provider
 - [ ] Check for any edge cases
-- [ ] Update documentation if needed
+- [ ] Final code review
 - [ ] Commit: "chore: cleanup after tool call normalization"
-
-### Phase 8: Final Review
-**Goal**: Ensure quality and completeness
-
-- [ ] Code review of all changes
-- [ ] Verify error handling is consistent
-- [ ] Verify abort/cancel handling works
-- [ ] Check performance (shouldn't degrade)
-- [ ] Final full test suite run
-- [ ] Commit: "test: validate tool call normalization refactor"
 
 ## Testing Strategy
 - Run tests after each provider migration
