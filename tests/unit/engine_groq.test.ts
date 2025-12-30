@@ -97,12 +97,12 @@ test('Groq Basic', async () => {
   expect(groq.getName()).toBe('groq')
 })
 
-test('Groq buildPayload with tool calls', async () => {
+test('Groq buildGroqPayload with tool calls', async () => {
   const groq = new Groq(config)
   const message = new Message('assistant', 'text', undefined, [
     { id: 'tool1', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' } }
   ])
-  expect(groq.buildPayload(groq.buildModel('gpt-3.5'), [ message ])).toStrictEqual([
+  expect(groq.buildGroqPayload(groq.buildModel('gpt-3.5'), [ message ])).toStrictEqual([
     { role: 'assistant', content: 'text', tool_calls: [
       { id: 'tool1', type: 'function', function: { name: 'plugin2', arguments: '{"param":"value"}' } }
     ] },
@@ -158,7 +158,7 @@ test('Groq stream', async () => {
   let lastMsg:LlmChunkContent|null  = null
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of groq.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of groq.processNativeChunk(chunk, context)) {
       lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text || ''
       if (msg.type === 'reasoning') reasoning += msg.text || ''
@@ -226,7 +226,7 @@ test('Groq stream tool choice option', async () => {
     tool_choice: { type: 'function', function: { name: 'plugin1' } },
   }))
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  for await (const chunk of stream) { for await (const msg of groq.nativeChunkToLlmChunk(chunk, context)) {/* empty */ } }
+  for await (const chunk of stream) { for await (const msg of groq.processNativeChunk(chunk, context)) {/* empty */ } }
   expect(_Groq.prototype.chat.completions.create).toHaveBeenLastCalledWith(expect.objectContaining({
     tool_choice: 'auto',
   }))
@@ -271,7 +271,7 @@ test('Groq stream without tools', async () => {
   expect(stream).toBeDefined()
 })
 
-test('Groq nativeChunkToLlmChunk Text', async () => {
+test('Groq processNativeChunk Text', async () => {
   const groq = new Groq(config)
   const streamChunk: ChatCompletionChunk = {
     id: '123', model: 'model1', created: 1, object: 'chat.completion.chunk',
@@ -284,12 +284,12 @@ test('Groq nativeChunkToLlmChunk Text', async () => {
     toolCalls: [],
     usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
-  for await (const llmChunk of groq.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of groq.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.choices[0].finish_reason = 'stop'
   streamChunk.choices[0].delta.content = null
-  for await (const llmChunk of groq.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of groq.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
@@ -329,7 +329,7 @@ test('Groq streaming validation deny - yields canceled chunk', async () => {
   // Simulate tool_calls finish_reason
   const toolCallChunk = { choices: [{ finish_reason: 'tool_calls' }] }
   // @ts-expect-error mock
-  for await (const chunk of groq.nativeChunkToLlmChunk(toolCallChunk, context)) {
+  for await (const chunk of groq.processNativeChunk(toolCallChunk, context)) {
     chunks.push(chunk)
   }
 
@@ -370,7 +370,7 @@ test('Groq streaming validation abort - yields tool_abort chunk', async () => {
   const toolCallChunk = { choices: [{ finish_reason: 'tool_calls' }] }
   try {
     // @ts-expect-error mock
-    for await (const chunk of groq.nativeChunkToLlmChunk(toolCallChunk, context)) {
+    for await (const chunk of groq.processNativeChunk(toolCallChunk, context)) {
       chunks.push(chunk)
     }
   } catch (error: any) {
@@ -561,7 +561,7 @@ test('Groq hook modifies tool results before second API call', async () => {
   // Consume the stream to trigger tool execution and second API call
   for await (const chunk of stream) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    for await (const msg of groq.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of groq.processNativeChunk(chunk, context)) {
       // just consume
     }
   }

@@ -6,7 +6,7 @@ import LlmEngine from '../engine'
 import logger from '../logger'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGroq } from '../types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmCompletionPayloadContent, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
+import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { zeroUsage } from '../usage'
 
@@ -14,9 +14,7 @@ import { zeroUsage } from '../usage'
 // https://console.groq.com/docs/api-reference#chat-create
 //
 
-export type GroqStreamingContext = LlmStreamingContext & {
-  thread: any[]  // ChatCompletionMessageParam[]
-}
+export type GroqStreamingContext = LlmStreamingContext<ChatCompletionMessageParam>
 
 export default class extends LlmEngine {
 
@@ -64,23 +62,23 @@ export default class extends LlmEngine {
 
     // filter and transform
     return models.data
-      .filter((model: any) => model.active)
-      .filter((model: any) => !model.id.includes('guard'))
-      .filter((model: any) => !model.id.includes('whisper'))
-      .sort((a: any, b: any) => b.created - a.created)
+      .filter((model: any) => model.active)  // active not in SDK types
+      .filter((model) => !model.id.includes('guard'))
+      .filter((model) => !model.id.includes('whisper'))
+      .sort((a, b) => b.created - a.created)
 
   }
 
-  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: ChatCompletionMessageParam[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
-    
+
     // call
     logger.log(`[groq] prompting model ${model.id}`)
     const response = await this.client.chat.completions.create({
       model: model.id,
-      messages: thread as ChatCompletionMessageParam[],
+      messages: thread,
       ...this.getCompletionOpts(model, opts),
       ...await this.getToolOpts(model, opts),
     });
@@ -136,7 +134,6 @@ export default class extends LlmEngine {
         thread.push({
           role: 'tool',
           tool_call_id: toolCall.id,
-          name: toolCall.function.name,
           content: JSON.stringify(content)
         })
 
@@ -184,7 +181,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
+  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse<GroqStreamingContext>> {
 
     // model: switch to vision if needed
     model = this.selectModel(model, thread, opts)
@@ -192,7 +189,7 @@ export default class extends LlmEngine {
     // context
     const context: GroqStreamingContext = {
       model: model,
-      thread: this.buildPayload(model, thread, opts),
+      thread: this.buildGroqPayload(model, thread, opts),
       opts: opts || {},
       toolCalls: [],
       toolHistory: [],
@@ -274,10 +271,10 @@ export default class extends LlmEngine {
     }
   }
 
-  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: GroqStreamingContext): AsyncGenerator<LlmChunk> {
+  async *processNativeChunk(chunk: ChatCompletionChunk, context: GroqStreamingContext): AsyncGenerator<LlmChunk> {
 
     // debug
-    //logger.log('nativeChunkToLlmChunk', JSON.stringify(chunk))
+    //logger.log('processNativeChunk', JSON.stringify(chunk))
 
     // usage
     if (context.opts?.usage && chunk.x_groq?.usage) {
@@ -286,199 +283,59 @@ export default class extends LlmEngine {
     }
 
 
-    // tool calls
+    // tool calls - normalize and process
     if (chunk.choices[0]?.delta?.tool_calls?.[0].function) {
+      const tool_call = chunk.choices[0].delta.tool_calls[0]
+      const fn = tool_call.function!
+      const hasId = tool_call.id !== null && tool_call.id !== undefined
 
-      // arguments or new tool?
-      if (chunk.choices[0].delta.tool_calls[0].id !== null && chunk.choices[0].delta.tool_calls[0].id !== undefined) {
-
-        // debug
-        //logger.log(`[groq] tool call start:`, chunk)
-
-        // record the tool call
-        const toolCall: LlmToolCall = {
-          id: chunk.choices[0].delta.tool_calls[0].id,
+      if (hasId) {
+        // New tool call - normalize as 'start'
+        yield* this.processToolCallChunk({
+          type: 'start',
+          id: tool_call.id,
+          name: fn.name || '',
+          args: fn.arguments || '',
           message: chunk.choices[0].delta.tool_calls.map((tc: any) => {
             delete tc.index
             return tc
           }),
-          function: chunk.choices[0].delta.tool_calls[0].function.name || '',
-          args: chunk.choices[0].delta.tool_calls[0].function.arguments || '',
-        }
-        context.toolCalls.push(toolCall)
-
-        // first notify
-        yield {
-          type: 'tool',
-          id: toolCall.id,
-          name: toolCall.function,
-          state: 'preparing',
-          status: this.getToolPreparationDescription(toolCall.function),
-          done: false
-        }
-
-        // done
-        //return
-      
+        }, context)
       } else {
-
-        // append arguments
-        const toolCall = context.toolCalls[context.toolCalls.length-1]
-        toolCall.args += chunk.choices[0].delta.tool_calls[0].function.arguments
-        toolCall.message[toolCall.message.length-1].function.arguments = toolCall.args
-
-        // done
-        //return
-
+        // Delta - append to last tool call
+        yield* this.processToolCallChunk({
+          type: 'delta',
+          argumentsDelta: fn.arguments || '',
+        }, context)
       }
-
     }
 
     // now tool calling
     if (['tool_calls', 'function_call', 'stop'].includes(chunk.choices[0]?.finish_reason|| '') && context.toolCalls?.length) {
-
-      // iterate on tools
-      for (const toolCall of context.toolCalls) {
-
-        // log
-        logger.log(`[groq] tool call ${toolCall.function} with ${toolCall.args}`)
-        const args = JSON.parse(toolCall.args)
-
-        try {
-          // first notify
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.function,
-            state: 'running',
-            status: this.getToolRunningDescription(toolCall.function, args),
-            call: {
-              params: args,
-              result: undefined
-            },
-            done: false
-          }
-
-          // now execute
-          let lastUpdate: PluginExecutionResult|undefined = undefined
-          for await (const update of this.callTool({ model: context.model.id, abortSignal: context.opts?.abortSignal }, toolCall.function, args, context.opts?.toolExecutionValidation)) {
-
-            if (update.type === 'status') {
-              yield {
-                type: 'tool',
-                id: toolCall.id,
-                name: toolCall.function,
-                state: 'running',
-                status: update.status,
-                call: {
-                  params: args,
-                  result: undefined
-                },
-                done: false
-              }
-
-            } else if (update.type === 'result') {
-              lastUpdate = update
-            }
-
-          }
-
-          // process result
-          const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
-            'groq',
-            toolCall.function,
-            args,
-            lastUpdate
-          )
-
-          // log
-          logger.log(`[groq] tool call ${toolCall.function} => ${JSON.stringify(content).substring(0, 128)}`)
-
-
-          // done
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.function,
-            state: toolCallCanceled ? 'canceled' : 'completed',
-            status: toolCallCanceled
-              ? this.getToolCanceledDescription(toolCall.function, args) || content.error || 'Tool execution was canceled'
-              : this.getToolCompletedDescription(toolCall.function, args, content),
-            done: true,
-            call: {
-              params: args,
-              result: content
-            }
-          }
-
-          // add tool call message
-          context.thread.push({
-            role: 'assistant',
-            content: '',
-            tool_calls: toolCall.message
-          })
-
-          // add tool response message
-          context.thread.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: toolCall.function,
-            content: JSON.stringify(content)
-          })
-
-          // add to tool history
-          context.toolHistory.push({
-            id: toolCall.id,
-            name: toolCall.function,
-            args: args,
-            result: content,
-            round: context.currentRound,
-          })
-
-          // Check if canceled
-          if (context.opts?.abortSignal?.aborted) {
-            return  // Stop processing
-          }
-
-        } catch (error) {
-          // Check if this was an abort
-          if (context.opts?.abortSignal?.aborted) {
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: 'canceled',
-              status: this.getToolCanceledDescription(toolCall.function, args),
-              done: true,
-              call: {
-                params: args,
-                result: undefined
-              }
-            }
-            return  // Stop processing
-          }
-          throw error  // Re-throw non-abort errors
-        }
-
-      }
 
       // clear force tool call to avoid infinite loop
       if (context.opts.toolChoice?.type === 'tool') {
         delete context.opts.toolChoice
       }
 
-      // call hook and sync tool history
-      await this.callHook('beforeToolCallsResponse', context)
-      this.syncToolHistoryToThread(context)
-
       // increment round for next iteration
       context.currentRound++
 
-      // switch to new stream
-      yield {
-        type: 'stream',
-        stream: await this.doStream(context),
-      }
+      // execute tool calls using base class method
+      yield* this.executeToolCallsSequentially(context.toolCalls, context, {
+        formatToolCallForThread: (tc: LlmToolCall) => ({
+          role: 'assistant' as const,
+          content: '',
+          tool_calls: tc.message
+        }),
+        formatToolResultForThread: (result: any, tc: LlmToolCall) => ({
+          role: 'tool' as const,
+          tool_call_id: tc.id,
+          name: tc.function,
+          content: JSON.stringify(result)
+        }),
+        createNewStream: async () => this.doStream(context)
+      })
 
       // done
       return
@@ -519,16 +376,16 @@ export default class extends LlmEngine {
 
   }
 
-  buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+  buildGroqPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): ChatCompletionMessageParam[] {
 
     // default
-    let payloads: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
+    let payloads = this.buildPayload<ChatCompletionMessageParam>(model, thread, opts)
 
     // when using vision models, we cannot use a system prompt (!!)
     let hasImages = false
     for (const p of payloads) {
       if (Array.isArray(p.content)) {
-        for (const m of p.content) {
+        for (const m of (p.content as any[])) {
           if (m.type == 'image_url') {
             hasImages = true
             break
@@ -543,18 +400,18 @@ export default class extends LlmEngine {
     }
 
     // now return
-    return payloads.map((payload): LLmCompletionPayload => {
+    return payloads.map((payload) => {
       return {
         role: payload.role,
         content: payload.content,
-        ...(payload.role !== 'tool' && payload.tool_calls ? {
-            tool_calls: payload.tool_calls
+        ...((payload as any).tool_calls ? {
+            tool_calls: (payload as any).tool_calls
         } : {}),
-        ...(payload.role === 'tool' &&  payload.name && payload.tool_call_id ? {
-          tool_call_id: payload.tool_call_id,
-          name: payload.name
+        ...(payload.role === 'tool' ? {
+          tool_call_id: (payload as any).tool_call_id,
+          name: (payload as any).name
         } : {})
-      } as LlmCompletionPayloadContent
+      } as ChatCompletionMessageParam
     })
   }
 

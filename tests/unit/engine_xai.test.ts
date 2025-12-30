@@ -121,7 +121,7 @@ test('xAI stream', async () => {
   let response = ''
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of xai.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of xai.processNativeChunk(chunk, context)) {
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
     }

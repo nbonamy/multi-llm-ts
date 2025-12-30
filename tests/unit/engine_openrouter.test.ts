@@ -122,7 +122,7 @@ test('OpenRouter stream', async () => {
   let response = ''
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of openrouter.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of openrouter.processNativeChunk(chunk, context)) {
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
     }

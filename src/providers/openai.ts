@@ -2,13 +2,13 @@ import { minimatch } from 'minimatch'
 import OpenAI, { ClientOptions } from 'openai'
 import { zodResponseFormat } from 'openai/helpers/zod'
 import { CompletionUsage } from 'openai/resources'
-import { ChatCompletionCreateParamsBase, ChatCompletionMessageFunctionToolCall } from 'openai/resources/chat/completions'
+import { ChatCompletionChunk, ChatCompletionCreateParamsBase, ChatCompletionMessageFunctionToolCall, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { Response, ResponseCreateParams, ResponseFunctionToolCall, ResponseInputItem, ResponseOutputMessage, ResponseStreamEvent, ResponseUsage, Tool, ToolChoiceFunction, ToolChoiceOptions } from 'openai/resources/responses/responses'
 import LlmEngine from '../engine'
 import logger from '../logger'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpenAI } from '../types/index'
-import { LLmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmStreamingContext, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
+import { LlmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { zeroUsage } from '../usage'
 import { RequestOptions } from 'openai/internal/request-options'
@@ -21,17 +21,11 @@ const defaultBaseUrl = 'https://api.openai.com/v1'
 // https://platform.openai.com/docs/api-reference/introduction
 // 
 
-export type OpenAIStreamingContext = LlmStreamingContext & {
-  thread: any[]  // ChatCompletionMessageParam[]
+export type OpenAIStreamingContext = LlmStreamingContext<ChatCompletionMessageParam> & {
   reasoningContent: string
   responsesApi: boolean
   thinking: boolean
   done?: boolean
-}
-
-type OpenAIStreamingResponse = {
-  stream: LlmStream
-  context: OpenAIStreamingContext
 }
 
 export default class extends LlmEngine {
@@ -177,32 +171,32 @@ export default class extends LlmEngine {
     return this.modelRequiresResponsesApi(model) || (opts?.useResponsesApi ?? false) || (this.config.useOpenAIResponsesApi ?? false)
   }
 
-  buildPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
-    
-    let payloads = super.buildPayload(model, thread, opts)
-    
+  buildOpenAIPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): ChatCompletionMessageParam[] {
+
+    let payloads = this.buildPayload<ChatCompletionMessageParam>(model, thread, opts)
+
     if (!this.modelAcceptsSystemRole(model.id)) {
-    
-      payloads = payloads.filter((msg: LLmCompletionPayload) => msg.role !== 'system')
-    
+
+      payloads = payloads.filter((msg) => msg.role !== 'system')
+
     } else if (this.systemRole !== 'system') {
-    
-      payloads = payloads.map((msg: LLmCompletionPayload) => {
+
+      payloads = payloads.map((msg) => {
         if (msg.role === 'system') {
-          msg.role = this.systemRole
+          (msg as any).role = this.systemRole
         }
         return msg
       })
     }
-    
+
     return payloads
   }
 
-  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: ChatCompletionMessageParam[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // process with responses api?
     if (this.shouldUseResponsesApi(model, opts)) {
-      return this.responsesChat(model, thread as any, opts)
+      return this.responsesChat(model, thread as LlmCompletionPayload[], opts)
     }
 
     // Fallback to Chat Completions
@@ -278,7 +272,6 @@ export default class extends LlmEngine {
         thread.push({
           role: 'tool',
           tool_call_id: tool_call.id,
-          name: functionToolCall.function.name,
           content: JSON.stringify(content)
         })
 
@@ -326,7 +319,7 @@ export default class extends LlmEngine {
 
   }
 
-  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<OpenAIStreamingResponse> {
+  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse<OpenAIStreamingContext>> {
 
     // process with responses api?
     if (this.shouldUseResponsesApi(model, opts)) {
@@ -342,7 +335,7 @@ export default class extends LlmEngine {
       model: model,
       responsesApi: false,
       reasoningContent: '',
-      thread: this.buildPayload(model, thread, opts),
+      thread: this.buildOpenAIPayload(model, thread, opts),
       opts: opts || {},
       toolCalls: [],
       toolHistory: [],
@@ -443,11 +436,11 @@ export default class extends LlmEngine {
     }
   }
 
-  async *nativeChunkToLlmChunk(chunk: any, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk> {
+  async *processNativeChunk(chunk: ChatCompletionChunk, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk> {
 
     // response api events have already been translated to LLmChunk's
     if (context.responsesApi) {
-      yield chunk as LlmChunk
+      yield chunk as unknown as LlmChunk
       return
     }
 
@@ -464,66 +457,36 @@ export default class extends LlmEngine {
       this.accumulateUsage(context.usage, chunk.usage)
     }
 
-    // tool calls
+    // tool calls - normalize and process
     for (const tool_call of chunk.choices[0]?.delta?.tool_calls || []) {
-
       if (tool_call?.function) {
+        const hasId = tool_call.id !== null && tool_call.id !== undefined && tool_call.id !== ''
+        const existingToolCall = hasId ? context.toolCalls.find(tc => tc.id === tool_call.id) : null
 
-        // arguments or new tool?
-        if (tool_call.id !== null && tool_call.id !== undefined && tool_call.id !== '') {
-
-          // try to find if we already have this tool call
-          const existingToolCall = context.toolCalls.find(tc => tc.id === tool_call.id)
-          if (existingToolCall) {
-
-            // append arguments to existing tool call
-            existingToolCall.args += tool_call.function.arguments
-
-          } else {
-
-            // debug
-            //logger.log(`[${this.getName()}] tool call start:`, chunk)
-
-            // record the tool call
-            const toolCall: LlmToolCall = {
-              id: tool_call.id,
-              message: chunk.choices[0].delta.tool_calls!.map((tc: any) => {
-                delete tc.index
-                return tc
-              }),
-              function: tool_call.function.name || '',
-              args: tool_call.function.arguments || '',
+        if (hasId && !existingToolCall) {
+          // New tool call - normalize as 'start'
+          yield* this.processToolCallChunk({
+            type: 'start',
+            id: tool_call.id,
+            name: tool_call.function.name || '',
+            args: tool_call.function.arguments || '',
+            message: chunk.choices[0].delta.tool_calls!.map((tc: any) => {
+              delete tc.index
+              return tc
+            }),
+            metadata: {
+              // @ts-expect-error reasoning details for some providers
               reasoningDetails: chunk.choices[0]?.delta?.reasoning_details,
             }
-            context.toolCalls.push(toolCall)
-
-            // first notify
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: 'preparing',
-              status: this.getToolPreparationDescription(toolCall.function),
-              done: false
-            }
-
-          }
-
-          // done
-          //return
-
+          }, context)
         } else {
-
-          // append arguments
-          const toolCall = context.toolCalls[context.toolCalls.length - 1]
-          toolCall.args += tool_call.function.arguments
-          toolCall.message[toolCall.message.length - 1].function.arguments = toolCall.args
-
-          // done
-          //return
-
+          // Delta - append to existing tool call (by id if parallel, otherwise last)
+          yield* this.processToolCallChunk({
+            type: 'delta',
+            id: hasId ? tool_call.id : undefined,
+            argumentsDelta: tool_call.function.arguments || '',
+          }, context)
         }
-
       }
     }
 
@@ -535,158 +498,31 @@ export default class extends LlmEngine {
     // now tool calling
     if (['tool_calls', 'function_call', 'stop'].includes(chunk.choices[0]?.finish_reason || '') && context.toolCalls?.length) {
 
-      // iterate on tools
-      for (const toolCall of context.toolCalls) {
-
-        // log
-        logger.log(`[openai] tool call ${toolCall.function} with ${toolCall.args}`)
-
-        // this can error
-        let args = null
-        try {
-          args = JSON.parse(toolCall.args)
-        } catch (err) {
-          throw new Error(`[openai] tool call ${toolCall.function} with invalid JSON args: "${toolCall.args}"`, { cause: err })
-        }
-
-        try {
-          // first notify
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.function,
-            state: 'running',
-            status: this.getToolRunningDescription(toolCall.function, args),
-            ...(toolCall.reasoningDetails ? { reasoningDetails: toolCall.reasoningDetails } : {}),
-            call: {
-              params: args,
-              result: undefined
-            },
-            done: false
-          }
-
-          // now execute
-          let lastUpdate: PluginExecutionResult|undefined = undefined
-          for await (const update of this.callTool(
-            { model: context.model.id, abortSignal: context.opts?.abortSignal },
-            toolCall.function, args,
-            context.opts?.toolExecutionValidation,
-          )) {
-
-            if (update.type === 'status') {
-              yield {
-                type: 'tool',
-                id: toolCall.id,
-                name: toolCall.function,
-                state: 'running',
-                status: update.status,
-                call: {
-                  params: args,
-                  result: undefined
-                },
-                done: false
-              }
-
-            } else if (update.type === 'result') {
-              lastUpdate = update
-            }
-
-          }
-
-          // process result
-          const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
-            'openai',
-            toolCall.function,
-            args,
-            lastUpdate
-          )
-
-          // done
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.function,
-            state: toolCallCanceled ? 'canceled' : 'completed',
-            status: toolCallCanceled
-              ? this.getToolCanceledDescription(toolCall.function, args) || content.error || 'Tool execution was canceled'
-              : this.getToolCompletedDescription(toolCall.function, args, content),
-            done: true,
-            call: {
-              params: args,
-              result: content
-            }
-          }
-
-          // add tool call message
-          context.thread.push({
-            role: 'assistant',
-            content: '',
-            ...(this.requiresReasoningContent() ? { reasoning_content: context.reasoningContent } : {}),
-            ...(toolCall.reasoningDetails ? { reasoning_details: toolCall.reasoningDetails } : {}),
-            tool_calls: toolCall.message
-          })
-
-          // add tool response message
-          context.thread.push({
-            role: 'tool',
-            tool_call_id: toolCall.id,
-            name: toolCall.function,
-            content: JSON.stringify(content),
-          })
-
-          // add to tool history
-          context.toolHistory.push({
-            id: toolCall.id,
-            name: toolCall.function,
-            args: args,
-            result: content,
-            round: context.currentRound,
-          })
-
-          // Check if canceled
-          if (context.opts?.abortSignal?.aborted) {
-            return  // Stop processing
-          }
-
-        } catch (error) {
-          // Check if this was an abort
-          if (context.opts?.abortSignal?.aborted) {
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: 'canceled',
-              status: this.getToolCanceledDescription(toolCall.function, args),
-              done: true,
-              call: {
-                params: args,
-                result: undefined
-              }
-            }
-            return  // Stop processing remaining tools
-          }
-          throw error  // Re-throw non-abort errors
-        }
-
-      }
-
       // clear force tool call to avoid infinite loop
       if (context.opts.toolChoice?.type === 'tool') {
         delete context.opts.toolChoice
       }
 
-      // call hook and sync tool history
-      await this.callHook('beforeToolCallsResponse', context)
-      this.syncToolHistoryToThread(context)
-
       // increment round for next iteration
       context.currentRound++
 
-      // switch to new stream
-      yield {
-        type: 'stream',
-        stream: await this.doStream(context),
-      }
+      // execute tool calls using base class method
+      yield* this.executeToolCallsSequentially(context.toolCalls, context, {
+        formatToolCallForThread: (tc: LlmToolCall) => ({
+          role: 'assistant' as const,
+          content: '',
+          ...(this.requiresReasoningContent() ? { reasoning_content: context.reasoningContent } : {}),
+          ...(tc.reasoningDetails ? { reasoning_details: tc.reasoningDetails } : {}),
+          tool_calls: tc.message
+        }),
+        formatToolResultForThread: (result: any, tc: LlmToolCall) => ({
+          role: 'tool' as const,
+          tool_call_id: tc.id,
+          name: tc.function,
+          content: JSON.stringify(result),
+        }),
+        createNewStream: async () => this.doStream(context)
+      })
 
       // done
       return
@@ -699,12 +535,13 @@ export default class extends LlmEngine {
       context.done = true
     }
 
-    // reasoning chunk
-
+    // @ts-expect-error reasoning content for some providers
     if (chunk.choices?.length && chunk.choices?.[0]?.delta?.reasoning_content) {
+      // @ts-expect-error reasoning content for some providers
       context.reasoningContent += chunk.choices?.[0]?.delta?.reasoning_content
       yield {
         type: 'reasoning',
+        // @ts-expect-error reasoning content for some providers
         text: chunk.choices?.[0]?.delta?.reasoning_content || '',
         done: done,
       }
@@ -760,7 +597,7 @@ export default class extends LlmEngine {
 
   // ---------------------------------------------------------------------------
   // Responses API – via official SDK with automatic tool execution
-  async responsesChat(model: ChatModel, thread: LLmCompletionPayload[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async responsesChat(model: ChatModel, thread: LlmCompletionPayload[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // log
     logger.log(`[${this.getName()}] prompting model ${model.id}`)
@@ -899,7 +736,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async responsesStream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<OpenAIStreamingResponse> {
+  async responsesStream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse<OpenAIStreamingContext>> {
 
     // log
     logger.log(`[${this.getName()}] prompting model ${model.id}`)
@@ -1166,7 +1003,7 @@ export default class extends LlmEngine {
     return this.buildResponsesRequest(model, this.buildPayload(model, thread, opts), opts, stream)
   }
 
-  private async buildResponsesRequest(model: ChatModel, payload: LLmCompletionPayload[], opts: LlmCompletionOpts | undefined, stream: boolean): Promise<ResponseCreateParams> {
+  private async buildResponsesRequest(model: ChatModel, payload: LlmCompletionPayload[], opts: LlmCompletionOpts | undefined, stream: boolean): Promise<ResponseCreateParams> {
     
     // helper to extract text from messages
     function extractText(msg: any): string {

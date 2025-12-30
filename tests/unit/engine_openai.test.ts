@@ -186,7 +186,7 @@ test('OpenAI Basic', async () => {
 
 test('OpenAI system prompt for most models', async () => {
   const openai = new OpenAI(config)
-  const payload = openai.buildPayload(openai.buildModel('model'), [
+  const payload = openai.buildOpenAIPayload(openai.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
@@ -198,7 +198,7 @@ test('OpenAI system prompt for most models', async () => {
 
 test('OpenAI no system prompt for most o1 models', async () => {
   const openai = new OpenAI(config)
-  const payload = openai.buildPayload(openai.buildModel('o1-mini'), [
+  const payload = openai.buildOpenAIPayload(openai.buildModel('o1-mini'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
@@ -207,35 +207,35 @@ test('OpenAI no system prompt for most o1 models', async () => {
   ])
 })
 
-test('OpenAI buildPayload', async () => {
+test('OpenAI buildOpenAIPayload', async () => {
   const openai = new OpenAI(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  expect(openai.buildPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([{ role: 'user', content: [{ type: 'text', text: 'text' }] }])
-  expect(openai.buildPayload(openai.buildModel('gpt-4o'), [ message ])).toStrictEqual([{ role: 'user', content: [
+  expect(openai.buildOpenAIPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([{ role: 'user', content: [{ type: 'text', text: 'text' }] }])
+  expect(openai.buildOpenAIPayload(openai.buildModel('gpt-4o'), [ message ])).toStrictEqual([{ role: 'user', content: [
     { type: 'text', text: 'text' },
     { type: 'image_url', image_url: { url: 'data:image/png;base64,image' } }
   ]}])
 })
 
-test('OpenAI buildPayload in compatibility mode', async () => {
+test('OpenAI buildOpenAIPayload in compatibility mode', async () => {
   const openai = new OpenAI({ baseURL: 'api.unknown.com' })
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
   message.attach(new Attachment('attachment', 'text/plain'))
-  expect(openai.buildPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([{ role: 'user', content: 'text\n\nattachment' }])
-  expect(openai.buildPayload(openai.buildModel('gpt-4o'), [ message ])).toStrictEqual([{ role: 'user', content: [
+  expect(openai.buildOpenAIPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([{ role: 'user', content: 'text\n\nattachment' }])
+  expect(openai.buildOpenAIPayload(openai.buildModel('gpt-4o'), [ message ])).toStrictEqual([{ role: 'user', content: [
     { type: 'text', text: 'text\n\nattachment' },
     { type: 'image_url', image_url: { url: 'data:image/png;base64,image' } }
   ]}])
 })
 
-test('OpenAI buildPayload with tool calls', async () => {
+test('OpenAI buildOpenAIPayload with tool calls', async () => {
   const openai = new OpenAI(config)
   const message = new Message('assistant', 'text', undefined, [
     { id: 'tool1', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' } }
   ])
-  expect(openai.buildPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([
+  expect(openai.buildOpenAIPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([
     { role: 'assistant', content: 'text', tool_calls: [
       { id: 'tool1', type: 'function', function: { name: 'plugin2', arguments: JSON.stringify({ param: 'value' }) } }
     ] },
@@ -264,7 +264,7 @@ test('OpenAI completion', async () => {
   })
 })
 
-test('OpenAI nativeChunkToLlmChunk Text', async () => {
+test('OpenAI processNativeChunk Text', async () => {
   const openai = new OpenAI(config)
   const streamChunk: ChatCompletionChunk = {
     id: 'id',
@@ -285,12 +285,12 @@ test('OpenAI nativeChunkToLlmChunk Text', async () => {
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     thinking: false,
   }
-  for await (const llmChunk of openai.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of openai.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.choices[0].delta.content = null
   streamChunk.choices[0].finish_reason = 'stop'
-  for await (const llmChunk of openai.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of openai.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
@@ -325,7 +325,7 @@ test('OpenAI stream', async () => {
   let lastMsg:LlmChunkContent|null  = null
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of openai.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of openai.processNativeChunk(chunk, context)) {
       lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text || ''
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -395,7 +395,7 @@ test('OpenAI stream tool choice option', async () => {
     tool_choice: { type: 'function', function: { name: 'plugin1' } },
   }), {})
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  for await (const chunk of stream) { for await (const msg of openai.nativeChunkToLlmChunk(chunk, context)) {/* empty */ } }
+  for await (const chunk of stream) { for await (const msg of openai.processNativeChunk(chunk, context)) {/* empty */ } }
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenNthCalledWith(4, expect.objectContaining({
     tool_choice: 'auto',
   }), {})
@@ -550,7 +550,7 @@ test('OpenAI streaming validation deny - yields canceled chunk', async () => {
 
   // Simulate tool_calls finish_reason
   const toolCallChunk = { choices: [{ finish_reason: 'tool_calls' }] }
-  for await (const chunk of openai.nativeChunkToLlmChunk(toolCallChunk, context)) {
+  for await (const chunk of openai.processNativeChunk(toolCallChunk, context)) {
     chunks.push(chunk)
   }
 
@@ -593,7 +593,7 @@ test('OpenAI streaming validation abort - yields tool_abort chunk', async () => 
   // Simulate tool_calls finish_reason - abort throws, so we need to catch it
   const toolCallChunk = { choices: [{ finish_reason: 'tool_calls' }] }
   try {
-    for await (const chunk of openai.nativeChunkToLlmChunk(toolCallChunk, context)) {
+    for await (const chunk of openai.processNativeChunk(toolCallChunk, context)) {
       chunks.push(chunk)
     }
   } catch (error: any) {
@@ -753,7 +753,7 @@ test('OpenAI addHook and hook execution', async () => {
     thinking: false,
   }
 
-  // Call the hook manually (normally done by nativeChunkToLlmChunk)
+  // Call the hook manually (normally done by processNativeChunk)
   // @ts-expect-error accessing protected method for testing
   await openai.callHook('beforeToolCallsResponse', context)
 
@@ -791,7 +791,7 @@ test('OpenAI hook modifies tool results before second API call', async () => {
   // Consume the stream to trigger tool calls and hook
   for await (const chunk of stream) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    for await (const msg of openai.nativeChunkToLlmChunk(chunk, context)) { /* empty */ }
+    for await (const msg of openai.processNativeChunk(chunk, context)) { /* empty */ }
   }
 
   // Verify the second API call has truncated tool results

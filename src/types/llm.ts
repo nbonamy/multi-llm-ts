@@ -40,6 +40,26 @@ export type LlmToolCall = {
   reasoningDetails?: any
 }
 
+export type NormalizedToolChunk = {
+  type: 'start' | 'delta'
+
+  // For 'start': create new tool call
+  id?: string           // tool call ID
+  name?: string         // function name
+  args?: string         // initial args ('' for incremental, complete JSON for Google)
+  message?: any         // Native message format for thread formatting (provider-specific)
+
+  // For 'delta': append to current tool call
+  argumentsDelta?: string
+
+  // Common metadata
+  metadata?: {
+    index?: number              // Anthropic block tracking
+    thoughtSignature?: string   // Google
+    reasoningDetails?: any      // OpenAI
+  }
+}
+
 export type LlmToolResponse = {
   type: 'tools'
   calls: LlmToolCall[]
@@ -67,19 +87,27 @@ export type ToolHistoryEntry = {
   round: number
 }
 
-// Base context without thread - providers add their own thread type
-export type LlmStreamingContext = {
+// Base streaming context - all providers have a thread
+export type LlmStreamingContext<T = any> = {
   model: ChatModel
   opts: LlmCompletionOpts
   usage: LlmUsage
+  thread: T[]
   toolCalls: LlmToolCall[]  // current round's tool calls (reset each round)
   toolHistory: ToolHistoryEntry[]  // all tool calls across all rounds
   currentRound: number
 }
 
-export type LlmStreamingResponse = {
+// Completed tool call info for batched execution
+export type CompletedToolCall = {
+  tc: LlmToolCall
+  args: any
+  result: any
+}
+
+export type LlmStreamingResponse<T extends LlmStreamingContext = LlmStreamingContext> = {
   stream: LlmStream
-  context: LlmStreamingContext
+  context: T
 }
 
 //
@@ -180,7 +208,7 @@ export type LlmCompletionPayloadTool = {
   content: string
 }
 
-export type LLmCompletionPayload = LlmCompletionPayloadContent | LlmCompletionPayloadTool
+export type LlmCompletionPayload = LlmCompletionPayloadContent | LlmCompletionPayloadTool
 
 export type LLmContentPayloadText = {
   type: 'text'

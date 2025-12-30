@@ -113,20 +113,20 @@ test('Ollama Basic', async () => {
   expect(ollama.getName()).toBe('ollama')
 })
 
-test('Ollama buildPayload', async () => {
+test('Ollama buildOllamaPayload', async () => {
   const ollama = new Ollama(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  expect(ollama.buildPayload(ollama.buildModel('llama:latest'), [ message ])).toStrictEqual([ { role: 'user', content: 'text' } ])
-  expect(ollama.buildPayload(ollama.buildModel('llava:latest'), [ message ])).toStrictEqual([ { role: 'user', content: 'text', images: [ 'image' ] }])
+  expect(ollama.buildOllamaPayload(ollama.buildModel('llama:latest'), [ message ])).toStrictEqual([ { role: 'user', content: 'text' } ])
+  expect(ollama.buildOllamaPayload(ollama.buildModel('llava:latest'), [ message ])).toStrictEqual([ { role: 'user', content: 'text', images: [ 'image' ] }])
 })
 
-test('Ollama buildPayload with tool calls', async () => {
+test('Ollama buildOllamaPayload with tool calls', async () => {
   const ollama = new Ollama(config)
   const message = new Message('assistant', 'text', undefined, [
     { id: 'tool1', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' } }
   ])
-  expect(ollama.buildPayload(ollama.buildModel('llama:latest'), [ message ])).toStrictEqual([
+  expect(ollama.buildOllamaPayload(ollama.buildModel('llama:latest'), [ message ])).toStrictEqual([
     { role: 'assistant', content: 'text', tool_calls: [
       { id: 'tool1', function: { index: 0, name: 'plugin2', arguments: { param: "value" } } }
     ] },
@@ -182,7 +182,7 @@ test('Ollama stream without tools', async () => {
   const toolCalls: LlmChunkTool[] = []
   let lastMsg: LlmChunkContent|null = null
   for await (const chunk of stream) {
-    for await (const msg of ollama.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of ollama.processNativeChunk(chunk, context)) {
       lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text || ''
       if (msg.type === 'reasoning') reasoning += msg.text || ''
@@ -223,7 +223,7 @@ test('Ollama stream with tools', async () => {
   const toolCalls: LlmChunkTool[] = []
   let lastMsg: LlmChunkContent|null = null
   for await (const chunk of stream) {
-    for await (const msg of ollama.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of ollama.processNativeChunk(chunk, context)) {
       lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text || ''
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -234,11 +234,11 @@ test('Ollama stream with tools', async () => {
     messages: [
       { role: 'system', content: 'instruction' },
       { role: 'user', content: 'prompt' },
-      { role: 'assistant', content: '', done: false, tool_calls: [
+      { role: 'assistant', content: '', tool_calls: [
         { function: { name: 'plugin1', arguments: [] } },
       ] },
       { role: 'tool', content: '"result1"' },
-      { role: 'assistant', content: '', done: false, tool_calls: [
+      { role: 'assistant', content: '', tool_calls: [
         { function: { name: 'plugin2', arguments: ['arg'] } }
       ] },
       { role: 'tool', content: '"result2"' },
@@ -320,7 +320,7 @@ test('Ollama structured output', async () => {
   })
 })
 
-test('Ollama nativeChunkToLlmChunk Text', async () => {
+test('Ollama processNativeChunk Text', async () => {
   const ollama = new Ollama(config)
   const streamChunk: any = {
     message: { content: 'response'},
@@ -334,12 +334,12 @@ test('Ollama nativeChunkToLlmChunk Text', async () => {
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     thinking: false,
   }
-  for await (const llmChunk of ollama.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of ollama.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.done = true
   streamChunk.message.content = null
-  for await (const llmChunk of ollama.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of ollama.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
@@ -379,7 +379,7 @@ test('Ollama streaming validation deny - yields canceled chunk', async () => {
 
   // Simulate tool_calls - need to pass chunk with tool_calls
   const toolCallChunk = { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'plugin2', arguments: {} } }], done: false } }
-  for await (const chunk of ollama.nativeChunkToLlmChunk(toolCallChunk as unknown as ChatResponse, context)) {
+  for await (const chunk of ollama.processNativeChunk(toolCallChunk as unknown as ChatResponse, context)) {
     chunks.push(chunk)
   }
 
@@ -420,7 +420,7 @@ test('Ollama streaming validation abort - yields tool_abort chunk', async () => 
   // Simulate tool_calls - abort throws, so we need to catch it
   const toolCallChunk = { message: { role: 'assistant', content: '', tool_calls: [{ function: { name: 'plugin2', arguments: {} } }], done: false } }
   try {
-    for await (const chunk of ollama.nativeChunkToLlmChunk(toolCallChunk as unknown as ChatResponse, context)) {
+    for await (const chunk of ollama.processNativeChunk(toolCallChunk as unknown as ChatResponse, context)) {
       chunks.push(chunk)
     }
   } catch (error: any) {
@@ -604,7 +604,7 @@ test('Ollama hook modifies tool results before second API call', async () => {
   // Consume the stream to trigger tool execution and second API call
   for await (const chunk of stream) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    for await (const msg of ollama.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of ollama.processNativeChunk(chunk, context)) {
       // just consume
     }
   }

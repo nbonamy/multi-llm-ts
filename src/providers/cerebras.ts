@@ -71,7 +71,7 @@ export default class extends OpenAI {
     return true
   }
 
-  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk> {
+  async *processNativeChunk(chunk: ChatCompletionChunk, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk> {
 
     // <think/> toggles thinking
     if (Array.isArray(chunk.choices) && chunk.choices.length > 0 && chunk.choices[0].delta) {
@@ -85,7 +85,7 @@ export default class extends OpenAI {
     }
     
     // parent call
-    for await (const c of super.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const c of super.processNativeChunk(chunk, context)) {
       yield c
     }
   }

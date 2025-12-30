@@ -7,7 +7,7 @@ import Attachment from '../models/attachment'
 import Message from '../models/message'
 import { Plugin } from '../plugin'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGoogle } from '../types/index'
-import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LLmContentPayloadText, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
+import { LlmChunk, LlmCompletionOpts, LlmCompletionPayload, LlmCompletionPayloadContent, LLmContentPayloadText, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { addUsages, zeroUsage } from '../usage'
 
@@ -25,10 +25,9 @@ export interface GoogleComputerToolInfo {
   screenNumber(): number
 }
 
-export type GoogleStreamingContext = LlmStreamingContext & {
+export type GoogleStreamingContext = LlmStreamingContext<Content> & {
   opts: GoogleCompletionOpts
   requestUsage: LlmUsage
-  content: Content[]  // Google uses 'content' instead of 'thread'
 }
 
 export default class extends LlmEngine {
@@ -141,7 +140,7 @@ export default class extends LlmEngine {
   }
 
   async complete(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
-    const messages = this.threadToHistory(thread, model, opts)
+    const messages = this.buildGooglePayload(thread, model, opts)
     const instruction = this.getInstructions(model, thread)
     return await this.chat(model, messages, {
       ...opts,
@@ -251,7 +250,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
+  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse<GoogleStreamingContext>> {
 
     // model: switch to vision if needed
     model = this.selectModel(model, thread, opts)
@@ -267,7 +266,7 @@ export default class extends LlmEngine {
     // context
     const context: GoogleStreamingContext = {
       model: model,
-      content: this.threadToHistory(thread, model, opts),
+      thread: this.buildGooglePayload(thread, model, opts),
       opts: {
         ...opts,
         instruction: this.getInstructions(model, thread),
@@ -296,7 +295,7 @@ export default class extends LlmEngine {
     logger.log(`[google] prompting model ${context.model.id}`)
     const response = await this.client.models.generateContentStream({
       model: context.model.id,
-      contents: context.content,
+      contents: context.thread,
       config: await this.getGenerationConfig(context.model, context.opts),
     })
 
@@ -429,7 +428,7 @@ export default class extends LlmEngine {
     else return super.requiresFlatTextPayload(model, msg)
   }
 
-  public threadToHistory(thread: Message[], model: ChatModel, opts?: LlmCompletionOpts): Content[] {
+  public buildGooglePayload(thread: Message[], model: ChatModel, opts?: LlmCompletionOpts): Content[] {
     const supportsInstructions = this.supportsInstructions(model)
     const payload = this.buildPayload(model, thread.filter((m) => supportsInstructions ? m.role !== 'system' : true), opts).map((p) => {
       if (p.role === 'system') p.role = 'user'
@@ -438,7 +437,7 @@ export default class extends LlmEngine {
     return payload.map((message) => this.messageToContent(message))
   }
 
-  private messageToContent(payload: LLmCompletionPayload): Content {
+  private messageToContent(payload: LlmCompletionPayload): Content {
 
     if (payload.role === 'tool') {
 
@@ -532,7 +531,7 @@ export default class extends LlmEngine {
     // Google content format: { role: 'tool', parts: [{ functionResponse: { id, name, response } }] }
     // Google doesn't manage IDs, so we match by name and index position
     let historyIndex = 0
-    for (const msg of context.content) {
+    for (const msg of context.thread) {
       if (msg.role === 'tool' && msg.parts) {
         for (const part of msg.parts as Part[]) {
           const functionResponse = part.functionResponse as FunctionResponse | undefined
@@ -548,7 +547,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async *nativeChunkToLlmChunk(chunk: GenerateContentResponse, context: GoogleStreamingContext): AsyncGenerator<LlmChunk> {
+  async *processNativeChunk(chunk: GenerateContentResponse, context: GoogleStreamingContext): AsyncGenerator<LlmChunk> {
 
     // debug
     //logger.log('[google] chunk', JSON.stringify(chunk))
@@ -561,195 +560,70 @@ export default class extends LlmEngine {
       context.requestUsage.completion_tokens_details!.reasoning_tokens! = chunk.usageMetadata.thoughtsTokenCount ?? 0
     }
 
-    // tool calls - accumulate across chunks
+    // tool calls - normalize and process (Google sends complete args, no deltas)
     const toolParts: Part[] = chunk.candidates?.[0].content?.parts?.filter(p => p.functionCall?.name) || []
-    if (toolParts?.length) {
-
-      // accumulate tool calls (don't overwrite!)
-      for (const part of toolParts) {
-        const tc = part.functionCall!
-        const toolCallId = tc.id || crypto.randomUUID()
-
-        // push
-        const toolCall: LlmToolCall = {
-          id: toolCallId,
-          message: '',
-          function: tc.name!,
-          args: JSON.stringify(tc.args),
-          thoughtSignature: part.thoughtSignature
+    for (const part of toolParts) {
+      const tc = part.functionCall!
+      yield* this.processToolCallChunk({
+        type: 'start',
+        id: tc.id || crypto.randomUUID(),
+        name: tc.name!,
+        args: JSON.stringify(tc.args),
+        metadata: {
+          thoughtSignature: part.thoughtSignature,
         }
-        context.toolCalls.push(toolCall)
-
-        // yield preparation notification immediately
-        yield {
-          type: 'tool',
-          id: toolCallId,
-          name: toolCall.function,
-          state: 'preparing',
-          status: this.getToolPreparationDescription(toolCall.function),
-          ...(toolCall.thoughtSignature ? { thoughtSignature: toolCall.thoughtSignature } : {}),
-          done: false
-        }
-
-      }
+      }, context)
     }
 
     // check for finish reason and accumulated tool calls
     const done = !!chunk.candidates?.[0].finishReason
     if (done && context.toolCalls?.length) {
 
-      // now process all accumulated tool calls
-      const results: FunctionResponse[] = []
-
-      // call
-      for (const toolCall of context.toolCalls) {
-
-        // parse args
-        logger.log(`[google] tool call ${toolCall.function} with ${toolCall.args}`)
-        const args = JSON.parse(toolCall.args)
-
-        try {
-          // first notify
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.function,
-            state: 'running',
-            status: this.getToolRunningDescription(toolCall.function, args),
-            call: {
-              params: args,
-              result: undefined
-            },
-            done: false
-          }
-
-          // now execute
-          let lastUpdate: PluginExecutionResult|undefined = undefined
-          for await (const update of this.callTool({ model: context.model.id, abortSignal: context.opts?.abortSignal }, toolCall.function, args, context.opts?.toolExecutionValidation)) {
-
-            if (update.type === 'status') {
-              yield {
-                type: 'tool',
-                id: toolCall.id,
-                name: toolCall.function,
-                state: 'running',
-                status: update.status,
-                call: {
-                  params: args,
-                  result: undefined
-                },
-                done: false
-              }
-
-            } else if (update.type === 'result') {
-              lastUpdate = update
-            }
-
-          }
-
-          // process result using helper method
-          const { content, canceled: toolCallCanceled } = this.processToolExecutionResult('google', toolCall.function, args, lastUpdate)
-
-          // done
-          yield {
-            type: 'tool',
-            id: toolCall.id,
-            name: toolCall.function,
-            state: toolCallCanceled ? 'canceled' : 'completed',
-            status: toolCallCanceled
-              ? this.getToolCanceledDescription(toolCall.function, args) || content.error || 'Tool execution was canceled'
-              : this.getToolCompletedDescription(toolCall.function, args, content),
-            done: true,
-            call: {
-              params: args,
-              result: content
-            }
-          }
-
-          // send
-          results.push({
-            id: toolCall.function,
-            name: toolCall.function,
-            response: content
-          })
-
-          // add to tool history
-          context.toolHistory.push({
-            id: toolCall.id,
-            name: toolCall.function,
-            args: args,
-            result: content,
-            round: context.currentRound,
-          })
-
-          // Check if canceled
-          if (context.opts?.abortSignal?.aborted) {
-            return  // Stop processing
-          }
-
-        } catch (error) {
-          // Check if this was an abort
-          if (context.opts?.abortSignal?.aborted) {
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: 'canceled',
-              status: this.getToolCanceledDescription(toolCall.function, args),
-              done: true,
-              call: {
-                params: args,
-                result: undefined
-              }
-            }
-            return  // Stop processing
-          }
-          throw error  // Re-throw non-abort errors
-        }
-
-      }
-
-      // function call - reconstruct parts from tool calls
-      context.content.push({
-        role: 'assistant',
-        parts: context.toolCalls.map((tc) => ({
-          functionCall: {
-            name: tc.function,
-            args: JSON.parse(tc.args),
-          },
-          ...(tc.thoughtSignature ? { thoughtSignature: tc.thoughtSignature } : {}),
-        })),
-      })
-
-      // send
-      context.content.push({
-        role: 'tool',
-        parts: results.map((r) => ({ functionResponse: r }) ),
-      })
-
       // clear force tool call to avoid infinite loop
       if (context.opts.toolChoice?.type === 'tool') {
         delete context.opts.toolChoice
       }
 
-      // add usage
+      // increment round for next iteration
+      context.currentRound++
+
+      // add usage before continuing
       if (context.opts.usage) {
         context.usage = addUsages(context.usage, context.requestUsage)
         context.requestUsage = zeroUsage()
       }
 
-      // call hook and sync tool history
-      await this.callHook('beforeToolCallsResponse', context)
-      this.syncToolHistoryToThread(context)
+      // execute tool calls using base class method
+      yield* this.executeToolCallsBatched(context.toolCalls, context, {
+        formatBatchForThread: (completed) => {
+          // assistant message with all function calls
+          const assistantContent: Content = {
+            role: 'assistant',
+            parts: completed.map(({ tc, args }) => ({
+              functionCall: {
+                name: tc.function,
+                args: args,
+              },
+              ...(tc.thoughtSignature ? { thoughtSignature: tc.thoughtSignature } : {}),
+            })),
+          }
 
-      // increment round for next iteration
-      context.currentRound++
+          // tool message with all function responses
+          const toolContent: Content = {
+            role: 'tool',
+            parts: completed.map(({ tc, result }) => ({
+              functionResponse: {
+                id: tc.function,
+                name: tc.function,
+                response: result
+              } as FunctionResponse
+            })),
+          }
 
-      // switch to new stream
-      yield {
-        type: 'stream',
-        stream: await this.doStream(context),
-      }
+          return [assistantContent, toolContent]
+        },
+        createNewStream: async () => this.doStream(context)
+      })
 
       // done
       return

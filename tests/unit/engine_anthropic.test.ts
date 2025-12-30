@@ -120,13 +120,13 @@ test('Anthropic max tokens', async () => {
   expect(anthropic.getMaxTokens('computer-use')).toBe(8192)
 })
 
-test('Anthropic buildPayload text', async () => {
+test('Anthropic buildAnthropicPayload text', async () => {
   const anthropic = new Anthropic(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('document', 'text/plain'))
   message.attachments[0]!.title = 'title'
   message.attachments[0]!.context = 'context'
-  expect(anthropic.buildPayload(anthropic.buildModel('claude'), [ message ])).toStrictEqual([ { role: 'user', content: [
+  expect(anthropic.buildAnthropicPayload(anthropic.buildModel('claude'), [ message ])).toStrictEqual([ { role: 'user', content: [
     { type: 'text', text: 'text' },
     { type: 'document', source: {
       type: 'text',
@@ -136,12 +136,12 @@ test('Anthropic buildPayload text', async () => {
   ]}])
 })
 
-test('Anthropic build payload image', async () => {
+test('Anthropic buildAnthropicPayload image', async () => {
   const anthropic = new Anthropic(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  expect(anthropic.buildPayload(anthropic.buildModel('claude'), [ message ])).toStrictEqual([ { role: 'user', content: [{ type: 'text', text: 'text' }] }])
-  expect(anthropic.buildPayload(anthropic.buildModel('claude-3-5-sonnet-latest'), [ message ])).toStrictEqual([ { role: 'user', content: [
+  expect(anthropic.buildAnthropicPayload(anthropic.buildModel('claude'), [ message ])).toStrictEqual([ { role: 'user', content: [{ type: 'text', text: 'text' }] }])
+  expect(anthropic.buildAnthropicPayload(anthropic.buildModel('claude-3-5-sonnet-latest'), [ message ])).toStrictEqual([ { role: 'user', content: [
     { type: 'text', text: 'text' },
     { type: 'image', source: {
       type: 'base64',
@@ -151,14 +151,14 @@ test('Anthropic build payload image', async () => {
   ]}])
 })
 
-test('Anthropic buildPayload with tool calls', async () => {
+test('Anthropic buildAnthropicPayload with tool calls', async () => {
   const anthropic = new Anthropic(config)
   const user = new Message('user', 'text')
   const assistant = new Message('assistant', 'text', undefined, [
     { id: 'tool1', function: 'plugin1', args: { param: 'value' }, result: { result: 'ok' } },
     { id: 'tool2', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' } }
   ])
-  expect(anthropic.buildPayload(anthropic.buildModel('claude'), [ user, assistant ])).toStrictEqual([
+  expect(anthropic.buildAnthropicPayload(anthropic.buildModel('claude'), [ user, assistant ])).toStrictEqual([
     { role: 'user', content: [{ type: 'text', text: 'text' }] },
     { role: 'assistant', content: [{
       type: 'tool_use',
@@ -204,7 +204,7 @@ test('Anthropic completion', async () => {
   })
 })
 
-test('Anthropic nativeChunkToLlmChunk Text', async () => {
+test('Anthropic processNativeChunk Text', async () => {
   const anthropic = new Anthropic(config)
   const streamChunk: any = {
     index: 0,
@@ -218,15 +218,17 @@ test('Anthropic nativeChunkToLlmChunk Text', async () => {
     toolCalls: [],
     opts: {},
     firstTextBlockStart: true,
+    toolHistory: [],
+    currentRound: 0,
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 }
   }
-  for await (const llmChunk of anthropic.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of anthropic.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.delta.text = null
   streamChunk.type = 'message_stop'
-  for await (const llmChunk of anthropic.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of anthropic.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
@@ -255,7 +257,7 @@ test('Anthropic stream', async () => {
   let lastMsg: LlmChunkContent|null = null
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of anthropic.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of anthropic.processNativeChunk(chunk, context)) {
       lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -326,7 +328,7 @@ test('Anthropic stream tool choice option', async () => {
     tool_choice: { type: 'tool', name: 'plugin1' },
   }))
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  for await (const chunk of stream) { for await (const msg of anthropic.nativeChunkToLlmChunk(chunk, context)) {/* empty */ } }
+  for await (const chunk of stream) { for await (const msg of anthropic.processNativeChunk(chunk, context)) {/* empty */ } }
   expect(_Anthropic.default.prototype.messages.create).toHaveBeenLastCalledWith(expect.objectContaining({
     tool_choice: { type: 'auto' },
   }))
@@ -540,7 +542,7 @@ test('Anthropic streaming validation deny - yields canceled chunk', async () => 
 
   // Simulate tool_use stop
   const toolCallChunk = { type: 'message_delta', delta: { stop_reason: 'tool_use' } }
-  for await (const chunk of anthropic.nativeChunkToLlmChunk(toolCallChunk as any, context)) {
+  for await (const chunk of anthropic.processNativeChunk(toolCallChunk as any, context)) {
     chunks.push(chunk)
   }
 
@@ -583,7 +585,7 @@ test('Anthropic streaming validation abort - yields tool_abort chunk', async () 
   // Simulate tool_use stop - abort throws, so we need to catch it
   const toolCallChunk = { type: 'message_delta', delta: { stop_reason: 'tool_use' } }
   try {
-    for await (const chunk of anthropic.nativeChunkToLlmChunk(toolCallChunk as any, context)) {
+    for await (const chunk of anthropic.processNativeChunk(toolCallChunk as any, context)) {
       chunks.push(chunk)
     }
   } catch (error: any) {
@@ -759,7 +761,7 @@ test('Anthropic hook modifies tool results before second API call', async () => 
   // Consume the stream to trigger tool execution and second API call
   for await (const chunk of stream) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    for await (const msg of anthropic.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of anthropic.processNativeChunk(chunk, context)) {
       // just consume
     }
   }
@@ -777,3 +779,52 @@ test('Anthropic hook modifies tool results before second API call', async () => 
     ])
   }))
 })
+
+test('Anthropic thinking block added to thread before tool uses', async () => {
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new Plugin1())
+
+  const context: AnthropicStreamingContext = {
+    model: anthropic.buildModel('model'),
+    system: 'instruction',
+    thread: [{ role: 'user', content: [{ type: 'text', text: 'prompt' }] }],
+    toolCalls: [{ id: 'tool-1', function: 'plugin1', args: '[]', message: '' }],
+    toolHistory: [],
+    currentRound: 0,
+    opts: {},
+    firstTextBlockStart: true,
+    thinkingBlock: 'This is my reasoning about the tool call',
+    thinkingSignature: 'sig123',
+    usage: { prompt_tokens: 0, completion_tokens: 0 },
+    requestUsage: { prompt_tokens: 0, completion_tokens: 0 }
+  }
+
+  // Simulate tool_use stop
+  const toolCallChunk = { type: 'message_delta', delta: { stop_reason: 'tool_use' } }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  for await (const chunk of anthropic.processNativeChunk(toolCallChunk as any, context)) {
+    // consume
+  }
+
+  // Verify thinking block was added BEFORE tool uses
+  expect(context.thread[1]).toMatchObject({
+    role: 'assistant',
+    content: [{
+      type: 'thinking',
+      thinking: 'This is my reasoning about the tool call',
+      signature: 'sig123'
+    }]
+  })
+
+  // Verify tool uses come after thinking block
+  expect(context.thread[2]).toMatchObject({
+    role: 'assistant',
+    content: expect.arrayContaining([
+      expect.objectContaining({ type: 'tool_use', id: 'tool-1', name: 'plugin1' })
+    ])
+  })
+})
+
+// Note: Computer tool special result format (spreading instead of JSON stringify)
+// is handled in the provider but complex to test due to global mocks.
+// This behavior must be preserved during refactoring (see lines 681-693 in anthropic.ts)

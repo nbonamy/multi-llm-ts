@@ -8,15 +8,19 @@ import Attachment from '../models/attachment'
 import Message from '../models/message'
 import { Plugin } from '../plugin'
 import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCapabilities } from '../types/index'
-import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
-import { PluginExecutionResult } from '../types/plugin'
+import { LlmChunk, LlmCompletionOpts, LlmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import { addUsages, zeroUsage } from '../usage'
+import { PluginExecutionResult } from '../types/plugin'
 
 //
 // https://docs.anthropic.com/en/api/getting-started
 //
 
 type AnthropicTool = Tool|BetaToolUnion
+
+export type AnthropicCompletionOpts = LlmCompletionOpts & {
+  system?: string
+}
 
 const kAnthropicCachedItems = 4
 
@@ -26,8 +30,7 @@ export interface AnthropicComputerToolInfo {
   screenNumber (): number
 }
 
-export type AnthropicStreamingContext = LlmStreamingContext & {
-  thread: MessageParam[]
+export type AnthropicStreamingContext = LlmStreamingContext<MessageParam> & {
   system: string
   requestUsage: LlmUsage
   thinkingBlock?: string
@@ -125,13 +128,13 @@ export default class extends LlmEngine {
   }
 
   async complete(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
-    return await this.chat(model, [
-      thread[0],
-      ...this.buildPayload(model, thread, opts)
-    ], opts)
+    return await this.chat(model, this.buildAnthropicPayload(model, thread, opts), {
+      ...opts,
+      system: thread[0].contentForModel
+    })
   }
 
-  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: MessageParam[], opts?: AnthropicCompletionOpts): Promise<LlmResponse> {
 
     // model
     if (model.id === 'computer-use') {
@@ -140,13 +143,13 @@ export default class extends LlmEngine {
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
-    
+
     // call
     logger.log(`[anthropic] prompting model ${model.id}`)
     const response = await this.client.messages.create(this.cacheRequest(model, opts ?? {}, {
       model: model.id,
-      system: thread[0].contentForModel,
-      messages: thread.slice(1) as MessageParam[],
+      system: opts?.system,
+      messages: thread,
       ...this.getCompletionOpts(model, opts),
       ...await this.getToolOpts(model, opts),
     }));
@@ -186,25 +189,25 @@ export default class extends LlmEngine {
 
       // add all response blocks
       thread.push(...response.content.map((c) => ({
-        role: 'assistant',
+        role: 'assistant' as const,
         content: [c]
       })))
 
       // add tool response message
       if (toolCall!.name === 'computer') {
         thread.push({
-          role: 'user',
+          role: 'user' as const,
           content: [{
-            type: 'tool_result',
+            type: 'tool_result' as const,
             tool_use_id: toolCall.id,
             ...content,
           }]
         })
       } else {
         thread.push({
-          role: 'user',
+          role: 'user' as const,
           content: [{
-            type: 'tool_result',
+            type: 'tool_result' as const,
             tool_use_id: toolCall.id,
             content: JSON.stringify(content)
           }]
@@ -251,7 +254,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
+  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse<AnthropicStreamingContext>> {
 
     // model: switch to vision if needed
     model = this.selectModel(model, thread, opts)
@@ -268,7 +271,7 @@ export default class extends LlmEngine {
     const context: AnthropicStreamingContext = {
       model: model,
       system: thread[0].contentForModel,
-      thread: this.buildPayload(model, thread, opts) as MessageParam[],
+      thread: this.buildAnthropicPayload(model, thread, opts),
       toolCalls: [],
       toolHistory: [],
       currentRound: 0,
@@ -478,7 +481,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async *nativeChunkToLlmChunk(chunk: RawMessageStreamEvent, context: AnthropicStreamingContext): AsyncGenerator<LlmChunk> {
+  async *processNativeChunk(chunk: RawMessageStreamEvent, context: AnthropicStreamingContext): AsyncGenerator<LlmChunk> {
     
     // log
     //console.dir(chunk, { depth: null })
@@ -519,36 +522,26 @@ export default class extends LlmEngine {
       }
 
       if (chunk.content_block.type == 'tool_use') {
-
-        // add the tool call to the array
-        const toolCall: LlmToolCall = {
+        // New tool call - normalize as 'start'
+        yield* this.processToolCallChunk({
+          type: 'start',
           id: chunk.content_block.id,
-          message: '',
-          function: chunk.content_block.name,
-          args: ''
-        }
-        context.toolCalls.push(toolCall)
-
-        // notify
-        yield {
-          type: 'tool',
-          id: toolCall.id,
-          name: toolCall.function,
-          state: 'preparing',
-          status: this.getToolPreparationDescription(toolCall.function),
-          done: false
-        }
+          name: chunk.content_block.name,
+          args: '',
+        }, context)
       }
     }
 
     // block delta
     if (chunk.type == 'content_block_delta') {
 
-      // tool use
+      // tool use - normalize as 'delta'
       if (chunk.delta.type === 'input_json_delta' && context.toolCalls.length) {
         const toolDelta = chunk.delta as InputJSONDelta
-        const currentTool = context.toolCalls[context.toolCalls.length - 1]
-        currentTool.args += toolDelta.partial_json
+        yield* this.processToolCallChunk({
+          type: 'delta',
+          argumentsDelta: toolDelta.partial_json,
+        }, context)
       }
 
       // thinking
@@ -579,7 +572,7 @@ export default class extends LlmEngine {
 
       if (chunk.delta.stop_reason == 'tool_use' && context.toolCalls.length) {
 
-        // add thinking block first if present
+        // add thinking block first if present (Anthropic-specific)
         if (context.thinkingBlock) {
           context.thread.push({
             role: 'assistant',
@@ -591,179 +584,61 @@ export default class extends LlmEngine {
           })
         }
 
-        // arrays to accumulate tool uses and results
-        const toolUses: any[] = []
-        const toolResults: any[] = []
-
-        // process all accumulated tool calls
-        for (const toolCall of context.toolCalls) {
-
-          // parse args
-          logger.log(`[anthropic] tool call ${toolCall.function} with ${toolCall.args}`)
-          const args = toolCall.args?.length ? JSON.parse(toolCall.args) : {}
-
-          try {
-            // first notify
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: 'running',
-              status: this.getToolRunningDescription(toolCall.function, args),
-              call: {
-                params: args,
-                result: undefined
-              },
-              done: false
-            }
-
-            // now execute
-            let lastUpdate: PluginExecutionResult|undefined = undefined
-            for await (const update of this.callTool(
-              { model: context.model.id, abortSignal: context.opts?.abortSignal },
-              toolCall.function, args,
-              context.opts?.toolExecutionValidation
-            )) {
-
-              if (update.type === 'status') {
-                yield {
-                  type: 'tool',
-                  id: toolCall.id,
-                  name: toolCall.function,
-                  state: 'running',
-                  status: update.status,
-                  call: {
-                    params: args,
-                    result: undefined
-                  },
-                  done: false
-                }
-
-              } else if (update.type === 'result') {
-                lastUpdate = update
-              }
-
-            }
-
-            // process result
-            const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
-              'anthropic',
-              toolCall.function,
-              args,
-              lastUpdate
-            )
-
-            // done
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: toolCallCanceled ? 'canceled' : 'completed',
-              status: toolCallCanceled
-                ? this.getToolCanceledDescription(toolCall.function, args) || content.error || 'Tool execution was canceled'
-                : this.getToolCompletedDescription(toolCall.function, args, content),
-              done: true,
-              call: {
-                params: args,
-                result: content
-              },
-            }
-
-            // accumulate tool use
-            toolUses.push({
-              type: 'tool_use',
-              id: toolCall.id,
-              name: toolCall.function,
-              input: args,
-            })
-
-            // accumulate tool result
-            if (toolCall.function === 'computer') {
-              toolResults.push({
-                type: 'tool_result',
-                tool_use_id: toolCall.id,
-                ...content,
-              })
-            } else {
-              toolResults.push({
-                type: 'tool_result',
-                tool_use_id: toolCall.id,
-                content: JSON.stringify(content)
-              })
-            }
-
-            // add to tool history
-            context.toolHistory.push({
-              id: toolCall.id,
-              name: toolCall.function,
-              args: args,
-              result: content,
-              round: context.currentRound,
-            })
-
-            // Check if canceled
-            if (context.opts?.abortSignal?.aborted) {
-              return  // Stop processing
-            }
-
-          } catch (error) {
-
-            // Check if this was an abort
-            if (context.opts?.abortSignal?.aborted) {
-              yield {
-                type: 'tool',
-                id: toolCall.id,
-                name: toolCall.function,
-                state: 'canceled',
-                status: this.getToolCanceledDescription(toolCall.function, args),
-                done: true,
-                call: {
-                  params: args,
-                  result: undefined
-                }
-              }
-              return  // Stop processing
-            }
-            throw error  // Re-throw non-abort errors
-          }
-
-        }
-
-        // add all tool uses in one assistant message
-        context.thread.push({
-          role: 'assistant',
-          content: toolUses
-        })
-
-        // add all tool results in one user message
-        context.thread.push({
-          role: 'user',
-          content: toolResults
-        })
-
         // clear force tool call to avoid infinite loop
         if (context.opts.toolChoice?.type === 'tool') {
           delete context.opts.toolChoice
         }
 
-        // add usage
+        // increment round for next iteration
+        context.currentRound++
+
+        // add usage before continuing
         if (context.opts.usage) {
           context.usage = addUsages(context.usage, context.requestUsage)
           context.requestUsage = zeroUsage()
         }
 
-        // call hook and sync tool history
-        await this.callHook('beforeToolCallsResponse', context)
-        this.syncToolHistoryToThread(context)
+        // execute tool calls using base class method
+        yield* this.executeToolCallsBatched(context.toolCalls, context, {
+          formatBatchForThread: (completed) => {
+            // assistant message with all tool uses
+            const toolUses: MessageParam = {
+              role: 'assistant',
+              content: completed.map(({ tc, args }) => ({
+                type: 'tool_use' as const,
+                id: tc.id,
+                name: tc.function,
+                input: args,
+              }))
+            }
 
-        // increment round for next iteration
-        context.currentRound++
+            // user message with all tool results
+            const toolResults: MessageParam = {
+              role: 'user',
+              content: completed.map(({ tc, result }) => {
+                // computer tool spreads content, others stringify
+                if (tc.function === 'computer') {
+                  return {
+                    type: 'tool_result' as const,
+                    tool_use_id: tc.id,
+                    ...result,
+                  }
+                }
+                return {
+                  type: 'tool_result' as const,
+                  tool_use_id: tc.id,
+                  content: JSON.stringify(result)
+                }
+              })
+            }
 
-        // switch to new stream
-        yield {
-          type: 'stream',
-          stream: await this.doStream(context),
-        }
+            return [toolUses, toolResults]
+          },
+          createNewStream: async () => this.doStream(context)
+        })
+
+        // done
+        return
 
       }
 
@@ -771,7 +646,7 @@ export default class extends LlmEngine {
 
   }
 
-  addTextToPayload(model: ChatModel, message: Message, attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts): void {
+  addTextToPayload(model: ChatModel, message: Message, attachment: Attachment, payload: LlmCompletionPayload, opts?: LlmCompletionOpts): void {
     if (Array.isArray(payload.content)) {
       payload.content.push({
         type: 'document',
@@ -788,7 +663,7 @@ export default class extends LlmEngine {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  addImageToPayload(model: ChatModel, attachment: Attachment, payload: LLmCompletionPayload, opts?: LlmCompletionOpts) {
+  addImageToPayload(model: ChatModel, attachment: Attachment, payload: LlmCompletionPayload, opts?: LlmCompletionOpts) {
     if (Array.isArray(payload.content)) {
       payload.content.push({
         type: 'image',
@@ -801,19 +676,19 @@ export default class extends LlmEngine {
     }
   }
 
-  buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): any[] {
-    
-    const payload: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
+  buildAnthropicPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): MessageParam[] {
 
-    return payload.filter((payload) => payload.role != 'system').reduce((arr: any[], item: LLmCompletionPayload) => {
+    const payload = this.buildPayload(model, thread, opts)
+
+    return payload.filter((p) => p.role != 'system').reduce((arr: MessageParam[], item: any) => {
 
       if (item.role === 'assistant' && item.tool_calls) {
 
-        const message = {
-          role: 'assistant',
-          content: [] as any[]
+        const message: MessageParam = {
+          role: 'assistant' as const,
+          content: [] as ContentBlockParam[]
         }
-        
+
         for (const tc of item.tool_calls) {
 
           let input = tc.function.arguments
@@ -823,8 +698,8 @@ export default class extends LlmEngine {
             // ignore
           }
 
-          message.content.push({
-            type: 'tool_use',
+          (message.content as any[]).push({
+            type: 'tool_use' as const,
             id: tc.id,
             name: tc.function.name,
             input: input || {},
@@ -839,20 +714,20 @@ export default class extends LlmEngine {
       if (item.role === 'tool') {
 
         const content = {
-          type: 'tool_result',
+          type: 'tool_result' as const,
           tool_use_id: item.tool_call_id,
           content: item.content
         }
 
         // append to previous user message if possible
-        if (arr.length > 2 && arr[arr.length - 2]?.role === 'user' && Array.isArray(arr[arr.length - 2].content) && arr[arr.length - 2].content.every((c: any) => c.type === 'tool_result') ) {
+        if (arr.length > 2 && arr[arr.length - 2]?.role === 'user' && Array.isArray(arr[arr.length - 2].content) && (arr[arr.length - 2].content as any[]).every((c: any) => c.type === 'tool_result') ) {
 
-          arr[arr.length - 2].content.push(content)
+          (arr[arr.length - 2].content as any[]).push(content)
 
         } else {
 
-          const message = {
-            role: 'user',
+          const message: MessageParam = {
+            role: 'user' as const,
             content: [ content ]
           }
 

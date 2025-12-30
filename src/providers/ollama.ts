@@ -3,7 +3,7 @@ import logger from '../logger'
 import Attachment from '../models/attachment'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelOllama, ModelsList } from '../types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmCompletionPayloadContent, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
+import { LlmChunk, LlmCompletionOpts, LlmCompletionPayloadContent, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 
 import { minimatch } from 'minimatch'
@@ -11,8 +11,9 @@ import { ChatRequest, ChatResponse, Ollama, ProgressResponse, ShowResponse } fro
 import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.27169772.cjs'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 
-export type OllamaStreamingContext = LlmStreamingContext & {
-  thread: any[]  // ChatRequest['messages']
+export type OllamaMessage = NonNullable<ChatRequest['messages']>[number]
+
+export type OllamaStreamingContext = LlmStreamingContext<OllamaMessage> & {
   thinking: boolean
 }
 
@@ -180,11 +181,11 @@ export default class extends LlmEngine {
     }
   }
 
-  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: OllamaMessage[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
-    
+
     // call
     logger.log(`[ollama] prompting model ${model.id}`)
     const response = await this.client.chat({
@@ -271,7 +272,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
+  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse<OllamaStreamingContext>> {
 
     // model: switch to vision if needed
     model = this.selectModel(model, thread, opts)
@@ -279,7 +280,7 @@ export default class extends LlmEngine {
     // context
     const context: OllamaStreamingContext = {
       model: model,
-      thread: this.buildPayload(model, thread, opts),
+      thread: this.buildOllamaPayload(model, thread, opts),
       opts: opts || {},
       toolCalls: [],
       toolHistory: [],
@@ -318,11 +319,10 @@ export default class extends LlmEngine {
 
   }
 
-  buildChatOptions({ model, messages, opts }: { model: string, messages: LLmCompletionPayload[], opts: LlmCompletionOpts|null }): ChatRequest {
+  buildChatOptions({ model, messages, opts }: { model: string, messages: OllamaMessage[], opts: LlmCompletionOpts|null }): ChatRequest {
 
     const chatOptions: ChatRequest = {
       model,
-      // @ts-expect-error typing
       messages,
       options: {}
     }
@@ -389,7 +389,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async *nativeChunkToLlmChunk(chunk: ChatResponse, context: OllamaStreamingContext): AsyncGenerator<LlmChunk> {
+  async *processNativeChunk(chunk: ChatResponse, context: OllamaStreamingContext): AsyncGenerator<LlmChunk> {
 
     // debug
     // console.dir(chunk, { depth: null })
@@ -494,7 +494,6 @@ export default class extends LlmEngine {
           context.thread.push({
             role: 'assistant',
             content: '',
-            done: false,
             tool_calls: [tool]
           })
 
@@ -611,25 +610,27 @@ export default class extends LlmEngine {
     payload.images.push(attachment!.content)
   }
 
-  buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+  buildOllamaPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): OllamaMessage[] {
 
     // default
-    const payloads: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
+    const payloads = this.buildPayload<OllamaMessage>(model, thread, opts)
 
     // now return
-    return payloads.map((payload): LLmCompletionPayload => {
+    return payloads.map((payload): OllamaMessage => {
 
-      if (payload.role === 'tool') {
+      if ((payload as any).role === 'tool') {
         return {
           role: 'tool',
-          content: payload.content,
-        } as LLmCompletionPayload
+          content: (payload as any).content,
+        }
       }
 
       return {
-        ...payload,
-        ...('tool_calls' in payload ?  {
-            tool_calls: payload.tool_calls!.map((tc, index) => {
+        role: (payload as any).role,
+        content: (payload as any).content,
+        ...((payload as any).images ? { images: (payload as any).images } : {}),
+        ...((payload as any).tool_calls ?  {
+            tool_calls: (payload as any).tool_calls.map((tc: any, index: number) => {
             return {
               id: tc.id,
               function: {
@@ -639,7 +640,7 @@ export default class extends LlmEngine {
               }
             }
           })
-        } : []),
+        } : {}),
       }
     })
   }

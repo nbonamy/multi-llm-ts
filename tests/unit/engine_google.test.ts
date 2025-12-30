@@ -117,12 +117,12 @@ test('Google Basic', async () => {
   expect(google.getName()).toBe('google')
 })
 
-test('Google buildPayload with tool calls', async () => {
+test('Google buildGooglePayload with tool calls', async () => {
   const google = new Google(config)
   const message = new Message('assistant', 'text', undefined, [
     { id: 'uuid', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' }, thoughtSignature: 'abcdef' }
   ])
-  expect(google.threadToHistory([ message ], google.buildModel('llama:latest'), )).toStrictEqual([
+  expect(google.buildGooglePayload([ message ], google.buildModel('llama:latest'), )).toStrictEqual([
     { role: 'model', parts: [{
       thoughtSignature: 'abcdef',
       functionCall: { name: 'plugin2', args: { param: 'value' } },
@@ -157,7 +157,7 @@ test('Google completion', async () => {
   })
 })
 
-test('Google nativeChunkToLlmChunk Text', async () => {
+test('Google processNativeChunk Text', async () => {
   const google = new Google(config)
   const streamChunk: GenerateContentResponse = {
     candidates: [{
@@ -170,7 +170,7 @@ test('Google nativeChunkToLlmChunk Text', async () => {
   } as unknown as GenerateContentResponse
   const context: GoogleStreamingContext = {
     model: google.buildModel('model'),
-    content: [],
+    thread: [],
     opts: {},
     toolCalls: [],
     toolHistory: [],
@@ -178,13 +178,13 @@ test('Google nativeChunkToLlmChunk Text', async () => {
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
-  for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of google.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.candidates![0].finishReason = 'STOP' as FinishReason
   // @ts-expect-error mock
   streamChunk.candidates[0].content.parts[0].text = ''
-  for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of google.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
@@ -304,7 +304,7 @@ test('Google stream', async () => {
   let lastMsg: LlmChunkContent | null = null
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of google.nativeChunkToLlmChunk(chunk, context as GoogleStreamingContext)) {
+    for await (const msg of google.processNativeChunk(chunk, context as GoogleStreamingContext)) {
       lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -381,7 +381,7 @@ test('Google stream tool choice option', async () => {
     })
   }))
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  for await (const chunk of stream) { for await (const msg of google.nativeChunkToLlmChunk(chunk, context as GoogleStreamingContext)) {/* empty */ } }
+  for await (const chunk of stream) { for await (const msg of google.processNativeChunk(chunk, context as GoogleStreamingContext)) {/* empty */ } }
   expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenLastCalledWith(expect.objectContaining({
     config: expect.objectContaining({
       toolConfig: { functionCallingConfig: { mode: 'auto' } },
@@ -489,7 +489,7 @@ test('Google streaming validation deny - yields canceled chunk', async () => {
   const chunks: LlmChunk[] = []
   const context: GoogleStreamingContext = {
     model: google.buildModel('model'),
-    content: [],
+    thread: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [{ id: 'plugin2', function: 'plugin2', args: '{}', message: [] }],
     toolHistory: [],
@@ -509,7 +509,7 @@ test('Google streaming validation deny - yields canceled chunk', async () => {
     }],
   } as unknown as GenerateContentResponse
 
-  for await (const chunk of google.nativeChunkToLlmChunk(toolCallChunk, context)) {
+  for await (const chunk of google.processNativeChunk(toolCallChunk, context)) {
     chunks.push(chunk)
   }
 
@@ -538,7 +538,7 @@ test('Google streaming validation abort - yields tool_abort chunk', async () => 
   const chunks: LlmChunk[] = []
   const context: GoogleStreamingContext = {
     model: google.buildModel('model'),
-    content: [],
+    thread: [],
     opts: { toolExecutionValidation: validator },
     toolCalls: [{ id: 'plugin2', function: 'plugin2', args: '{}', message: [] }],
     toolHistory: [],
@@ -559,7 +559,7 @@ test('Google streaming validation abort - yields tool_abort chunk', async () => 
   } as unknown as GenerateContentResponse
 
   try {
-    for await (const chunk of google.nativeChunkToLlmChunk(toolCallChunk, context)) {
+    for await (const chunk of google.processNativeChunk(toolCallChunk, context)) {
       chunks.push(chunk)
     }
   } catch (error: any) {
@@ -661,14 +661,14 @@ test('Google chat validation abort - throws LlmChunkToolAbort', async () => {
   }
 })
 
-test('Google syncToolHistoryToThread updates content from toolHistory by index order', () => {
+test('Google syncToolHistoryToThread updates thread from toolHistory by index order', () => {
   const google = new Google(config)
 
-  // Google uses content with functionResponse format
+  // Google uses thread with functionResponse format
   // Test with SAME tool name called twice to verify index-based matching preserves order
   const context: GoogleStreamingContext = {
     model: google.buildModel('model'),
-    content: [
+    thread: [
       { role: 'user', parts: [{ text: 'hello' }] },
       { role: 'model', parts: [{ functionCall: { name: 'search', args: {} } }] },
       { role: 'tool', parts: [{ functionResponse: { id: 'search', name: 'search', response: { original: 'first_result' } } }] },
@@ -690,8 +690,8 @@ test('Google syncToolHistoryToThread updates content from toolHistory by index o
   google.syncToolHistoryToThread(context)
 
   // Verify content was updated IN ORDER (first history entry -> first tool response)
-  const toolContent1 = context.content[2] as any
-  const toolContent2 = context.content[4] as any
+  const toolContent1 = context.thread[2] as any
+  const toolContent2 = context.thread[4] as any
 
   expect(toolContent1.parts[0].functionResponse.response).toStrictEqual({ result: 'FIRST_TRUNCATED' })
   expect(toolContent2.parts[0].functionResponse.response).toStrictEqual({ transformed: 'SECOND_TRUNCATED' })
@@ -705,7 +705,7 @@ test('Google addHook and hook execution', async () => {
 
   const context: GoogleStreamingContext = {
     model: google.buildModel('model'),
-    content: [],
+    thread: [],
     opts: {},
     toolCalls: [],
     toolHistory: [{ id: 'call_1', name: 'test', args: {}, result: { data: 'original' }, round: 0 }],
@@ -751,7 +751,7 @@ test('Google hook modifies tool results before second API call', async () => {
   // Consume the stream to trigger tool execution and second API call
   for await (const chunk of stream) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    for await (const msg of google.nativeChunkToLlmChunk(chunk, context as GoogleStreamingContext)) {
+    for await (const msg of google.processNativeChunk(chunk, context as GoogleStreamingContext)) {
       // just consume
     }
   }

@@ -104,7 +104,7 @@ test('Cerebras stream', async () => {
   let response = ''
   let reasoning = ''
   for await (const chunk of stream) {
-    for await (const msg of cerebras.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of cerebras.processNativeChunk(chunk, context)) {
       if (msg.type === 'content') response += msg.text || ''
       if (msg.type === 'reasoning') reasoning += msg.text || ''
     }
