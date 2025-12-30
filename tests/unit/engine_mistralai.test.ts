@@ -94,20 +94,20 @@ test('MistralAI Basic', async () => {
   expect(mistralai.getName()).toBe('mistralai')
 })
 
-test('MistralAI buildPayload', async () => {
+test('MistralAI buildMistralPayload', async () => {
   const mistralai = new MistralAI(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  const payload = mistralai.buildPayload(mistralai.buildModel('mistral-large'), [ message ])
+  const payload = mistralai.buildMistralPayload(mistralai.buildModel('mistral-large'), [ message ])
   expect(payload).toStrictEqual([{ role: 'user', content: [{ type: 'text', text: 'text' }] }])
 })
 
-test('MistralAI buildPayload with tool calls', async () => {
+test('MistralAI buildMistralPayload with tool calls', async () => {
   const mistralai = new MistralAI(config)
   const message = new Message('assistant', 'text', undefined, [
     { id: 'tool1', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' } }
   ])
-  expect(mistralai.buildPayload(mistralai.buildModel('mistral-large'), [ message ])).toStrictEqual([
+  expect(mistralai.buildMistralPayload(mistralai.buildModel('mistral-large'), [ message ])).toStrictEqual([
     { role: 'assistant', prefix: false, toolCalls: [
       { id: 'tool1', index: 0, function: { name: 'plugin2', arguments: '{"param":"value"}' } }
     ] },

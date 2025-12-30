@@ -260,11 +260,11 @@ export default abstract class LlmEngine {
     return false
   }
 
-  buildPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+  buildPayload<T = LLmCompletionPayload>(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): T[] {
 
     if (typeof thread === 'string') {
 
-      return [{ role: 'user', content: [{ type: 'text', text: thread }] }]
+      return [{ role: 'user', content: [{ type: 'text', text: thread }] }] as T[]
 
     } else {
 
@@ -349,8 +349,8 @@ export default abstract class LlmEngine {
       }
 
       // done
-      return payloads
-    
+      return payloads as T[]
+
     }
   }
 

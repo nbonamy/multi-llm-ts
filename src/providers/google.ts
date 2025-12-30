@@ -140,7 +140,7 @@ export default class extends LlmEngine {
   }
 
   async complete(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
-    const messages = this.threadToHistory(thread, model, opts)
+    const messages = this.buildGooglePayload(thread, model, opts)
     const instruction = this.getInstructions(model, thread)
     return await this.chat(model, messages, {
       ...opts,
@@ -266,7 +266,7 @@ export default class extends LlmEngine {
     // context
     const context: GoogleStreamingContext = {
       model: model,
-      thread: this.threadToHistory(thread, model, opts),
+      thread: this.buildGooglePayload(thread, model, opts),
       opts: {
         ...opts,
         instruction: this.getInstructions(model, thread),
@@ -428,7 +428,7 @@ export default class extends LlmEngine {
     else return super.requiresFlatTextPayload(model, msg)
   }
 
-  public threadToHistory(thread: Message[], model: ChatModel, opts?: LlmCompletionOpts): Content[] {
+  public buildGooglePayload(thread: Message[], model: ChatModel, opts?: LlmCompletionOpts): Content[] {
     const supportsInstructions = this.supportsInstructions(model)
     const payload = this.buildPayload(model, thread.filter((m) => supportsInstructions ? m.role !== 'system' : true), opts).map((p) => {
       if (p.role === 'system') p.role = 'user'

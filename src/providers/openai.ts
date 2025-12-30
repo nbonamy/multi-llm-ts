@@ -176,24 +176,24 @@ export default class extends LlmEngine {
     return this.modelRequiresResponsesApi(model) || (opts?.useResponsesApi ?? false) || (this.config.useOpenAIResponsesApi ?? false)
   }
 
-  buildPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): ChatCompletionMessageParam[] {
-    
-    let payloads = super.buildPayload(model, thread, opts)
-    
+  buildOpenAIPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): ChatCompletionMessageParam[] {
+
+    let payloads = this.buildPayload<ChatCompletionMessageParam>(model, thread, opts)
+
     if (!this.modelAcceptsSystemRole(model.id)) {
-    
-      payloads = payloads.filter((msg: LLmCompletionPayload) => msg.role !== 'system')
-    
+
+      payloads = payloads.filter((msg) => msg.role !== 'system')
+
     } else if (this.systemRole !== 'system') {
-    
-      payloads = payloads.map((msg: LLmCompletionPayload) => {
+
+      payloads = payloads.map((msg) => {
         if (msg.role === 'system') {
-          msg.role = this.systemRole
+          (msg as any).role = this.systemRole
         }
         return msg
       })
     }
-    
+
     return payloads
   }
 
@@ -341,7 +341,7 @@ export default class extends LlmEngine {
       model: model,
       responsesApi: false,
       reasoningContent: '',
-      thread: this.buildPayload(model, thread, opts),
+      thread: this.buildOpenAIPayload(model, thread, opts),
       opts: opts || {},
       toolCalls: [],
       toolHistory: [],

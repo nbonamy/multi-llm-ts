@@ -113,20 +113,20 @@ test('Ollama Basic', async () => {
   expect(ollama.getName()).toBe('ollama')
 })
 
-test('Ollama buildPayload', async () => {
+test('Ollama buildOllamaPayload', async () => {
   const ollama = new Ollama(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  expect(ollama.buildPayload(ollama.buildModel('llama:latest'), [ message ])).toStrictEqual([ { role: 'user', content: 'text' } ])
-  expect(ollama.buildPayload(ollama.buildModel('llava:latest'), [ message ])).toStrictEqual([ { role: 'user', content: 'text', images: [ 'image' ] }])
+  expect(ollama.buildOllamaPayload(ollama.buildModel('llama:latest'), [ message ])).toStrictEqual([ { role: 'user', content: 'text' } ])
+  expect(ollama.buildOllamaPayload(ollama.buildModel('llava:latest'), [ message ])).toStrictEqual([ { role: 'user', content: 'text', images: [ 'image' ] }])
 })
 
-test('Ollama buildPayload with tool calls', async () => {
+test('Ollama buildOllamaPayload with tool calls', async () => {
   const ollama = new Ollama(config)
   const message = new Message('assistant', 'text', undefined, [
     { id: 'tool1', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' } }
   ])
-  expect(ollama.buildPayload(ollama.buildModel('llama:latest'), [ message ])).toStrictEqual([
+  expect(ollama.buildOllamaPayload(ollama.buildModel('llama:latest'), [ message ])).toStrictEqual([
     { role: 'assistant', content: 'text', tool_calls: [
       { id: 'tool1', function: { index: 0, name: 'plugin2', arguments: { param: "value" } } }
     ] },
@@ -234,11 +234,11 @@ test('Ollama stream with tools', async () => {
     messages: [
       { role: 'system', content: 'instruction' },
       { role: 'user', content: 'prompt' },
-      { role: 'assistant', content: '', done: false, tool_calls: [
+      { role: 'assistant', content: '', tool_calls: [
         { function: { name: 'plugin1', arguments: [] } },
       ] },
       { role: 'tool', content: '"result1"' },
-      { role: 'assistant', content: '', done: false, tool_calls: [
+      { role: 'assistant', content: '', tool_calls: [
         { function: { name: 'plugin2', arguments: ['arg'] } }
       ] },
       { role: 'tool', content: '"result2"' },

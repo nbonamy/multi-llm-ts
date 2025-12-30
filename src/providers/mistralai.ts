@@ -170,7 +170,7 @@ export default class extends LlmEngine {
     // context
     const context: MistralStreamingContext = {
       model: model,
-      thread: this.buildPayload(model, thread, opts) as MistralMessages,
+      thread: this.buildMistralPayload(model, thread, opts),
       opts: opts || {},
       toolCalls: [],
       toolHistory: [],
@@ -371,16 +371,16 @@ export default class extends LlmEngine {
     }
   }
 
-  buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): any[] {
-    
-    const payload: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
-    return payload.reduce((arr: any[], item: LLmCompletionPayload) => {
+  buildMistralPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): MistralMessages {
+
+    const payload = this.buildPayload(model, thread, opts)
+    return payload.reduce((arr: MistralMessages, item: any) => {
 
       if (item.role === 'assistant' && item.tool_calls) {
         arr.push({
-          role: 'assistant',
+          role: 'assistant' as const,
           prefix: false,
-          toolCalls: item.tool_calls.map((tc, index) => ({
+          toolCalls: item.tool_calls.map((tc: any, index: number) => ({
             id: tc.id,
             index,
             function: {
@@ -393,8 +393,8 @@ export default class extends LlmEngine {
 
       if (item.role === 'tool') {
 
-        const message = {
-          role: 'tool',
+        const message: MistralMessages[number] = {
+          role: 'tool' as const,
           toolCallId: item.tool_call_id!,
           name: item.name!,
           content: item.content
@@ -409,15 +409,15 @@ export default class extends LlmEngine {
 
         return arr
       }
-      
+
       if (typeof item.content == 'string') {
         arr.push({
-          role: item.role as 'user'|'assistant',
+          role: item.role as 'user' | 'assistant' | 'system',
           content: item.content
         })
       } else {
         arr.push({
-          role: item.role as 'user'|'assistant',
+          role: item.role as 'user' | 'assistant' | 'system',
           content: item.content
         })
       }

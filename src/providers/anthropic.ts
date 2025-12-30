@@ -126,7 +126,7 @@ export default class extends LlmEngine {
   async complete(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
     return await this.chat(model, [
       thread[0],
-      ...this.buildPayload(model, thread, opts)
+      ...this.buildAnthropicPayload(model, thread, opts)
     ], opts)
   }
 
@@ -267,7 +267,7 @@ export default class extends LlmEngine {
     const context: AnthropicStreamingContext = {
       model: model,
       system: thread[0].contentForModel,
-      thread: this.buildPayload(model, thread, opts) as MessageParam[],
+      thread: this.buildAnthropicPayload(model, thread, opts),
       toolCalls: [],
       toolHistory: [],
       currentRound: 0,
@@ -672,19 +672,19 @@ export default class extends LlmEngine {
     }
   }
 
-  buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): any[] {
-    
-    const payload: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
+  buildAnthropicPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): MessageParam[] {
 
-    return payload.filter((payload) => payload.role != 'system').reduce((arr: any[], item: LLmCompletionPayload) => {
+    const payload = this.buildPayload(model, thread, opts)
+
+    return payload.filter((p) => p.role != 'system').reduce((arr: MessageParam[], item: any) => {
 
       if (item.role === 'assistant' && item.tool_calls) {
 
-        const message = {
-          role: 'assistant',
-          content: [] as any[]
+        const message: MessageParam = {
+          role: 'assistant' as const,
+          content: [] as ContentBlockParam[]
         }
-        
+
         for (const tc of item.tool_calls) {
 
           let input = tc.function.arguments
@@ -694,7 +694,7 @@ export default class extends LlmEngine {
             // ignore
           }
 
-          message.content.push({
+          (message.content as any[]).push({
             type: 'tool_use',
             id: tc.id,
             name: tc.function.name,
@@ -710,20 +710,20 @@ export default class extends LlmEngine {
       if (item.role === 'tool') {
 
         const content = {
-          type: 'tool_result',
+          type: 'tool_result' as const,
           tool_use_id: item.tool_call_id,
           content: item.content
         }
 
         // append to previous user message if possible
-        if (arr.length > 2 && arr[arr.length - 2]?.role === 'user' && Array.isArray(arr[arr.length - 2].content) && arr[arr.length - 2].content.every((c: any) => c.type === 'tool_result') ) {
+        if (arr.length > 2 && arr[arr.length - 2]?.role === 'user' && Array.isArray(arr[arr.length - 2].content) && (arr[arr.length - 2].content as any[]).every((c: any) => c.type === 'tool_result') ) {
 
-          arr[arr.length - 2].content.push(content)
+          (arr[arr.length - 2].content as any[]).push(content)
 
         } else {
 
-          const message = {
-            role: 'user',
+          const message: MessageParam = {
+            role: 'user' as const,
             content: [ content ]
           }
 

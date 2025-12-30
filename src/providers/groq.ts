@@ -6,7 +6,7 @@ import LlmEngine from '../engine'
 import logger from '../logger'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGroq } from '../types/index'
-import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmCompletionPayloadContent, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
+import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { zeroUsage } from '../usage'
 
@@ -190,7 +190,7 @@ export default class extends LlmEngine {
     // context
     const context: GroqStreamingContext = {
       model: model,
-      thread: this.buildPayload(model, thread, opts),
+      thread: this.buildGroqPayload(model, thread, opts),
       opts: opts || {},
       toolCalls: [],
       toolHistory: [],
@@ -287,6 +287,7 @@ export default class extends LlmEngine {
     // tool calls - normalize and process
     if (chunk.choices[0]?.delta?.tool_calls?.[0].function) {
       const tool_call = chunk.choices[0].delta.tool_calls[0]
+      const fn = tool_call.function!
       const hasId = tool_call.id !== null && tool_call.id !== undefined
 
       if (hasId) {
@@ -294,8 +295,8 @@ export default class extends LlmEngine {
         yield* this.processToolCallChunk({
           type: 'start',
           id: tool_call.id,
-          name: tool_call.function.name || '',
-          args: tool_call.function.arguments || '',
+          name: fn.name || '',
+          args: fn.arguments || '',
           message: chunk.choices[0].delta.tool_calls.map((tc: any) => {
             delete tc.index
             return tc
@@ -305,7 +306,7 @@ export default class extends LlmEngine {
         // Delta - append to last tool call
         yield* this.processToolCallChunk({
           type: 'delta',
-          argumentsDelta: tool_call.function.arguments || '',
+          argumentsDelta: fn.arguments || '',
         }, context)
       }
     }
@@ -376,16 +377,16 @@ export default class extends LlmEngine {
 
   }
 
-  buildPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): LLmCompletionPayload[] {
+  buildGroqPayload(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): ChatCompletionMessageParam[] {
 
     // default
-    let payloads: LLmCompletionPayload[] = super.buildPayload(model, thread, opts)
+    let payloads = this.buildPayload<ChatCompletionMessageParam>(model, thread, opts)
 
     // when using vision models, we cannot use a system prompt (!!)
     let hasImages = false
     for (const p of payloads) {
       if (Array.isArray(p.content)) {
-        for (const m of p.content) {
+        for (const m of (p.content as any[])) {
           if (m.type == 'image_url') {
             hasImages = true
             break
@@ -400,18 +401,18 @@ export default class extends LlmEngine {
     }
 
     // now return
-    return payloads.map((payload): LLmCompletionPayload => {
+    return payloads.map((payload) => {
       return {
         role: payload.role,
         content: payload.content,
-        ...(payload.role !== 'tool' && payload.tool_calls ? {
-            tool_calls: payload.tool_calls
+        ...((payload as any).tool_calls ? {
+            tool_calls: (payload as any).tool_calls
         } : {}),
-        ...(payload.role === 'tool' &&  payload.name && payload.tool_call_id ? {
-          tool_call_id: payload.tool_call_id,
-          name: payload.name
+        ...(payload.role === 'tool' ? {
+          tool_call_id: (payload as any).tool_call_id,
+          name: (payload as any).name
         } : {})
-      } as LlmCompletionPayloadContent
+      } as ChatCompletionMessageParam
     })
   }
 

@@ -120,13 +120,13 @@ test('Anthropic max tokens', async () => {
   expect(anthropic.getMaxTokens('computer-use')).toBe(8192)
 })
 
-test('Anthropic buildPayload text', async () => {
+test('Anthropic buildAnthropicPayload text', async () => {
   const anthropic = new Anthropic(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('document', 'text/plain'))
   message.attachments[0]!.title = 'title'
   message.attachments[0]!.context = 'context'
-  expect(anthropic.buildPayload(anthropic.buildModel('claude'), [ message ])).toStrictEqual([ { role: 'user', content: [
+  expect(anthropic.buildAnthropicPayload(anthropic.buildModel('claude'), [ message ])).toStrictEqual([ { role: 'user', content: [
     { type: 'text', text: 'text' },
     { type: 'document', source: {
       type: 'text',
@@ -136,12 +136,12 @@ test('Anthropic buildPayload text', async () => {
   ]}])
 })
 
-test('Anthropic build payload image', async () => {
+test('Anthropic buildAnthropicPayload image', async () => {
   const anthropic = new Anthropic(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  expect(anthropic.buildPayload(anthropic.buildModel('claude'), [ message ])).toStrictEqual([ { role: 'user', content: [{ type: 'text', text: 'text' }] }])
-  expect(anthropic.buildPayload(anthropic.buildModel('claude-3-5-sonnet-latest'), [ message ])).toStrictEqual([ { role: 'user', content: [
+  expect(anthropic.buildAnthropicPayload(anthropic.buildModel('claude'), [ message ])).toStrictEqual([ { role: 'user', content: [{ type: 'text', text: 'text' }] }])
+  expect(anthropic.buildAnthropicPayload(anthropic.buildModel('claude-3-5-sonnet-latest'), [ message ])).toStrictEqual([ { role: 'user', content: [
     { type: 'text', text: 'text' },
     { type: 'image', source: {
       type: 'base64',
@@ -151,14 +151,14 @@ test('Anthropic build payload image', async () => {
   ]}])
 })
 
-test('Anthropic buildPayload with tool calls', async () => {
+test('Anthropic buildAnthropicPayload with tool calls', async () => {
   const anthropic = new Anthropic(config)
   const user = new Message('user', 'text')
   const assistant = new Message('assistant', 'text', undefined, [
     { id: 'tool1', function: 'plugin1', args: { param: 'value' }, result: { result: 'ok' } },
     { id: 'tool2', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' } }
   ])
-  expect(anthropic.buildPayload(anthropic.buildModel('claude'), [ user, assistant ])).toStrictEqual([
+  expect(anthropic.buildAnthropicPayload(anthropic.buildModel('claude'), [ user, assistant ])).toStrictEqual([
     { role: 'user', content: [{ type: 'text', text: 'text' }] },
     { role: 'assistant', content: [{
       type: 'tool_use',
@@ -218,6 +218,8 @@ test('Anthropic nativeChunkToLlmChunk Text', async () => {
     toolCalls: [],
     opts: {},
     firstTextBlockStart: true,
+    toolHistory: [],
+    currentRound: 0,
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 }
   }

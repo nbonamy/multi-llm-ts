@@ -97,12 +97,12 @@ test('Groq Basic', async () => {
   expect(groq.getName()).toBe('groq')
 })
 
-test('Groq buildPayload with tool calls', async () => {
+test('Groq buildGroqPayload with tool calls', async () => {
   const groq = new Groq(config)
   const message = new Message('assistant', 'text', undefined, [
     { id: 'tool1', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' } }
   ])
-  expect(groq.buildPayload(groq.buildModel('gpt-3.5'), [ message ])).toStrictEqual([
+  expect(groq.buildGroqPayload(groq.buildModel('gpt-3.5'), [ message ])).toStrictEqual([
     { role: 'assistant', content: 'text', tool_calls: [
       { id: 'tool1', type: 'function', function: { name: 'plugin2', arguments: '{"param":"value"}' } }
     ] },

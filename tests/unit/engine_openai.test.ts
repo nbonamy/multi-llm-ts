@@ -186,7 +186,7 @@ test('OpenAI Basic', async () => {
 
 test('OpenAI system prompt for most models', async () => {
   const openai = new OpenAI(config)
-  const payload = openai.buildPayload(openai.buildModel('model'), [
+  const payload = openai.buildOpenAIPayload(openai.buildModel('model'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
@@ -198,7 +198,7 @@ test('OpenAI system prompt for most models', async () => {
 
 test('OpenAI no system prompt for most o1 models', async () => {
   const openai = new OpenAI(config)
-  const payload = openai.buildPayload(openai.buildModel('o1-mini'), [
+  const payload = openai.buildOpenAIPayload(openai.buildModel('o1-mini'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ])
@@ -207,35 +207,35 @@ test('OpenAI no system prompt for most o1 models', async () => {
   ])
 })
 
-test('OpenAI buildPayload', async () => {
+test('OpenAI buildOpenAIPayload', async () => {
   const openai = new OpenAI(config)
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
-  expect(openai.buildPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([{ role: 'user', content: [{ type: 'text', text: 'text' }] }])
-  expect(openai.buildPayload(openai.buildModel('gpt-4o'), [ message ])).toStrictEqual([{ role: 'user', content: [
+  expect(openai.buildOpenAIPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([{ role: 'user', content: [{ type: 'text', text: 'text' }] }])
+  expect(openai.buildOpenAIPayload(openai.buildModel('gpt-4o'), [ message ])).toStrictEqual([{ role: 'user', content: [
     { type: 'text', text: 'text' },
     { type: 'image_url', image_url: { url: 'data:image/png;base64,image' } }
   ]}])
 })
 
-test('OpenAI buildPayload in compatibility mode', async () => {
+test('OpenAI buildOpenAIPayload in compatibility mode', async () => {
   const openai = new OpenAI({ baseURL: 'api.unknown.com' })
   const message = new Message('user', 'text')
   message.attach(new Attachment('image', 'image/png'))
   message.attach(new Attachment('attachment', 'text/plain'))
-  expect(openai.buildPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([{ role: 'user', content: 'text\n\nattachment' }])
-  expect(openai.buildPayload(openai.buildModel('gpt-4o'), [ message ])).toStrictEqual([{ role: 'user', content: [
+  expect(openai.buildOpenAIPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([{ role: 'user', content: 'text\n\nattachment' }])
+  expect(openai.buildOpenAIPayload(openai.buildModel('gpt-4o'), [ message ])).toStrictEqual([{ role: 'user', content: [
     { type: 'text', text: 'text\n\nattachment' },
     { type: 'image_url', image_url: { url: 'data:image/png;base64,image' } }
   ]}])
 })
 
-test('OpenAI buildPayload with tool calls', async () => {
+test('OpenAI buildOpenAIPayload with tool calls', async () => {
   const openai = new OpenAI(config)
   const message = new Message('assistant', 'text', undefined, [
     { id: 'tool1', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' } }
   ])
-  expect(openai.buildPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([
+  expect(openai.buildOpenAIPayload(openai.buildModel('gpt-3.5'), [ message ])).toStrictEqual([
     { role: 'assistant', content: 'text', tool_calls: [
       { id: 'tool1', type: 'function', function: { name: 'plugin2', arguments: JSON.stringify({ param: 'value' }) } }
     ] },

@@ -117,12 +117,12 @@ test('Google Basic', async () => {
   expect(google.getName()).toBe('google')
 })
 
-test('Google buildPayload with tool calls', async () => {
+test('Google buildGooglePayload with tool calls', async () => {
   const google = new Google(config)
   const message = new Message('assistant', 'text', undefined, [
     { id: 'uuid', function: 'plugin2', args: { param: 'value' }, result: { result: 'ok' }, thoughtSignature: 'abcdef' }
   ])
-  expect(google.threadToHistory([ message ], google.buildModel('llama:latest'), )).toStrictEqual([
+  expect(google.buildGooglePayload([ message ], google.buildModel('llama:latest'), )).toStrictEqual([
     { role: 'model', parts: [{
       thoughtSignature: 'abcdef',
       functionCall: { name: 'plugin2', args: { param: 'value' } },
