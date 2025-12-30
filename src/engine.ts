@@ -112,7 +112,7 @@ export default abstract class LlmEngine {
     }
   }
 
-  protected abstract nativeChunkToLlmChunk(chunk: any, context: LlmStreamingContext): AsyncGenerator<LlmChunk>
+  protected abstract processNativeChunk(chunk: any, context: LlmStreamingContext): AsyncGenerator<LlmChunk>
 
   clearPlugins(): void {
     this.plugins = []
@@ -157,7 +157,7 @@ export default abstract class LlmEngine {
 
           // now we convert the native chunk to LlmChunks
           // we may have several llm chunks for one native chunk
-          const llmChunkStream = this.nativeChunkToLlmChunk(chunk, response.context)
+          const llmChunkStream = this.processNativeChunk(chunk, response.context)
 
           try {
             for await (const msg of llmChunkStream) {
@@ -514,6 +514,46 @@ export default abstract class LlmEngine {
     return { content, canceled }
   }
 
+  /**
+   * ============================================================================
+   * Tool Call Normalization and Execution
+   * ============================================================================
+   *
+   * Providers stream tool calls in different formats. This base class provides
+   * shared infrastructure to normalize parsing and execution across all providers.
+   *
+   * ## Flow
+   * 1. Provider parses native chunk → creates NormalizedToolChunk
+   * 2. processToolCallChunk() accumulates into context.toolCalls[]
+   * 3. On finish, provider calls executeToolCalls*() with formatting callbacks
+   * 4. Base class executes tools, provider formats results for its thread format
+   *
+   * ## Two Execution Patterns
+   *
+   * **Sequential (OpenAI/Groq/Mistral)**
+   * - Each tool call/result added to thread immediately after execution
+   * - Thread: [assistant+tool1] [result1] [assistant+tool2] [result2] ...
+   * - Use: executeToolCallsSequentially()
+   *
+   * **Batched (Anthropic/Google)**
+   * - All tools execute first, then all added to thread at once
+   * - Thread: [assistant with ALL tool calls] [user/tool with ALL results]
+   * - Use: executeToolCallsBatched()
+   *
+   * ## Provider Implementation
+   * Providers only need to:
+   * 1. Parse native chunks into NormalizedToolChunk format
+   * 2. Call processToolCallChunk() to accumulate
+   * 3. Provide formatters for their native thread message format
+   * 4. Call the appropriate execute*() method
+   * ============================================================================
+   */
+
+  /**
+   * Normalize and accumulate a tool call chunk.
+   * Handles both 'start' (new tool) and 'delta' (argument append) types.
+   * Yields 'preparing' notification for new tool calls.
+   */
   protected *processToolCallChunk(
     normalized: NormalizedToolChunk,
     context: { toolCalls: LlmToolCall[] }

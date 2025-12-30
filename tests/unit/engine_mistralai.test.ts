@@ -137,7 +137,7 @@ test('MistralAI completion', async () => {
   })
 })
 
-test('MistralAI nativeChunkToLlmChunk Text', async () => {
+test('MistralAI processNativeChunk Text', async () => {
   const mistralai = new MistralAI(config)
   const streamChunk: CompletionEvent = { data: {
     id: '1', model: '',
@@ -152,12 +152,12 @@ test('MistralAI nativeChunkToLlmChunk Text', async () => {
     toolCalls: [],
     usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
-  for await (const llmChunk of mistralai.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of mistralai.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.data.choices[0].delta.content = null
   streamChunk.data.choices[0].finishReason = 'stop'
-  for await (const llmChunk of mistralai.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of mistralai.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
@@ -189,7 +189,7 @@ test('MistralAI stream with tools', async () => {
   let lastMsg: LlmChunkContent|null = null
   const toolCalls: LlmChunkTool[] = []
   for await (const chunk of stream) {
-    for await (const msg of mistralai.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of mistralai.processNativeChunk(chunk, context)) {
       lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -265,7 +265,7 @@ test('MistralAI stream tool choice option', async () => {
     toolChoice: { type: 'function', function: { name: 'plugin1' } },
   }))
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  for await (const chunk of stream) { for await (const msg of mistralai.nativeChunkToLlmChunk(chunk, context)) {/* empty */ } }
+  for await (const chunk of stream) { for await (const msg of mistralai.processNativeChunk(chunk, context)) {/* empty */ } }
   expect(Mistral.prototype.chat.stream).toHaveBeenLastCalledWith(expect.objectContaining({
     toolChoice: 'auto',
   }))
@@ -349,7 +349,7 @@ test('MistralAI streaming validation deny - yields canceled chunk', async () => 
 
   // Simulate tool_calls finish_reason
   const toolCallChunk: CompletionEvent = { data: { id: '1', model: '', choices: [{ index: 0, delta: {}, finishReason: 'tool_calls' }] } }
-  for await (const chunk of mistralai.nativeChunkToLlmChunk(toolCallChunk, context)) {
+  for await (const chunk of mistralai.processNativeChunk(toolCallChunk, context)) {
     chunks.push(chunk)
   }
 
@@ -389,7 +389,7 @@ test('MistralAI streaming validation abort - yields tool_abort chunk', async () 
   // Simulate tool_calls finish_reason - abort throws, so we need to catch it
   const toolCallChunk: CompletionEvent = { data: { id: '1', model: '', choices: [{ index: 0, delta: {}, finishReason: 'tool_calls' }] } }
   try {
-    for await (const chunk of mistralai.nativeChunkToLlmChunk(toolCallChunk, context)) {
+    for await (const chunk of mistralai.processNativeChunk(toolCallChunk, context)) {
       chunks.push(chunk)
     }
   } catch (error: any) {
@@ -580,7 +580,7 @@ test('MistralAI hook modifies tool results before second API call', async () => 
   // Consume the stream to trigger tool execution and second API call
   for await (const chunk of stream) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    for await (const msg of mistralai.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of mistralai.processNativeChunk(chunk, context)) {
       // just consume
     }
   }

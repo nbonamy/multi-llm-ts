@@ -157,7 +157,7 @@ test('Google completion', async () => {
   })
 })
 
-test('Google nativeChunkToLlmChunk Text', async () => {
+test('Google processNativeChunk Text', async () => {
   const google = new Google(config)
   const streamChunk: GenerateContentResponse = {
     candidates: [{
@@ -178,13 +178,13 @@ test('Google nativeChunkToLlmChunk Text', async () => {
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 },
   }
-  for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of google.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.candidates![0].finishReason = 'STOP' as FinishReason
   // @ts-expect-error mock
   streamChunk.candidates[0].content.parts[0].text = ''
-  for await (const llmChunk of google.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of google.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
@@ -304,7 +304,7 @@ test('Google stream', async () => {
   let lastMsg: LlmChunkContent | null = null
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of google.nativeChunkToLlmChunk(chunk, context as GoogleStreamingContext)) {
+    for await (const msg of google.processNativeChunk(chunk, context as GoogleStreamingContext)) {
       lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -381,7 +381,7 @@ test('Google stream tool choice option', async () => {
     })
   }))
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  for await (const chunk of stream) { for await (const msg of google.nativeChunkToLlmChunk(chunk, context as GoogleStreamingContext)) {/* empty */ } }
+  for await (const chunk of stream) { for await (const msg of google.processNativeChunk(chunk, context as GoogleStreamingContext)) {/* empty */ } }
   expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenLastCalledWith(expect.objectContaining({
     config: expect.objectContaining({
       toolConfig: { functionCallingConfig: { mode: 'auto' } },
@@ -509,7 +509,7 @@ test('Google streaming validation deny - yields canceled chunk', async () => {
     }],
   } as unknown as GenerateContentResponse
 
-  for await (const chunk of google.nativeChunkToLlmChunk(toolCallChunk, context)) {
+  for await (const chunk of google.processNativeChunk(toolCallChunk, context)) {
     chunks.push(chunk)
   }
 
@@ -559,7 +559,7 @@ test('Google streaming validation abort - yields tool_abort chunk', async () => 
   } as unknown as GenerateContentResponse
 
   try {
-    for await (const chunk of google.nativeChunkToLlmChunk(toolCallChunk, context)) {
+    for await (const chunk of google.processNativeChunk(toolCallChunk, context)) {
       chunks.push(chunk)
     }
   } catch (error: any) {
@@ -751,7 +751,7 @@ test('Google hook modifies tool results before second API call', async () => {
   // Consume the stream to trigger tool execution and second API call
   for await (const chunk of stream) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    for await (const msg of google.nativeChunkToLlmChunk(chunk, context as GoogleStreamingContext)) {
+    for await (const msg of google.processNativeChunk(chunk, context as GoogleStreamingContext)) {
       // just consume
     }
   }

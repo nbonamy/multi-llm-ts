@@ -264,7 +264,7 @@ test('OpenAI completion', async () => {
   })
 })
 
-test('OpenAI nativeChunkToLlmChunk Text', async () => {
+test('OpenAI processNativeChunk Text', async () => {
   const openai = new OpenAI(config)
   const streamChunk: ChatCompletionChunk = {
     id: 'id',
@@ -285,12 +285,12 @@ test('OpenAI nativeChunkToLlmChunk Text', async () => {
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     thinking: false,
   }
-  for await (const llmChunk of openai.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of openai.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.choices[0].delta.content = null
   streamChunk.choices[0].finish_reason = 'stop'
-  for await (const llmChunk of openai.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of openai.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
@@ -325,7 +325,7 @@ test('OpenAI stream', async () => {
   let lastMsg:LlmChunkContent|null  = null
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of openai.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of openai.processNativeChunk(chunk, context)) {
       lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text || ''
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -395,7 +395,7 @@ test('OpenAI stream tool choice option', async () => {
     tool_choice: { type: 'function', function: { name: 'plugin1' } },
   }), {})
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  for await (const chunk of stream) { for await (const msg of openai.nativeChunkToLlmChunk(chunk, context)) {/* empty */ } }
+  for await (const chunk of stream) { for await (const msg of openai.processNativeChunk(chunk, context)) {/* empty */ } }
   expect(_openai.default.prototype.chat.completions.create).toHaveBeenNthCalledWith(4, expect.objectContaining({
     tool_choice: 'auto',
   }), {})
@@ -550,7 +550,7 @@ test('OpenAI streaming validation deny - yields canceled chunk', async () => {
 
   // Simulate tool_calls finish_reason
   const toolCallChunk = { choices: [{ finish_reason: 'tool_calls' }] }
-  for await (const chunk of openai.nativeChunkToLlmChunk(toolCallChunk, context)) {
+  for await (const chunk of openai.processNativeChunk(toolCallChunk, context)) {
     chunks.push(chunk)
   }
 
@@ -593,7 +593,7 @@ test('OpenAI streaming validation abort - yields tool_abort chunk', async () => 
   // Simulate tool_calls finish_reason - abort throws, so we need to catch it
   const toolCallChunk = { choices: [{ finish_reason: 'tool_calls' }] }
   try {
-    for await (const chunk of openai.nativeChunkToLlmChunk(toolCallChunk, context)) {
+    for await (const chunk of openai.processNativeChunk(toolCallChunk, context)) {
       chunks.push(chunk)
     }
   } catch (error: any) {
@@ -753,7 +753,7 @@ test('OpenAI addHook and hook execution', async () => {
     thinking: false,
   }
 
-  // Call the hook manually (normally done by nativeChunkToLlmChunk)
+  // Call the hook manually (normally done by processNativeChunk)
   // @ts-expect-error accessing protected method for testing
   await openai.callHook('beforeToolCallsResponse', context)
 
@@ -791,7 +791,7 @@ test('OpenAI hook modifies tool results before second API call', async () => {
   // Consume the stream to trigger tool calls and hook
   for await (const chunk of stream) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    for await (const msg of openai.nativeChunkToLlmChunk(chunk, context)) { /* empty */ }
+    for await (const msg of openai.processNativeChunk(chunk, context)) { /* empty */ }
   }
 
   // Verify the second API call has truncated tool results

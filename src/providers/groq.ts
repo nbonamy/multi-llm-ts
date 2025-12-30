@@ -271,10 +271,10 @@ export default class extends LlmEngine {
     }
   }
 
-  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: GroqStreamingContext): AsyncGenerator<LlmChunk> {
+  async *processNativeChunk(chunk: ChatCompletionChunk, context: GroqStreamingContext): AsyncGenerator<LlmChunk> {
 
     // debug
-    //logger.log('nativeChunkToLlmChunk', JSON.stringify(chunk))
+    //logger.log('processNativeChunk', JSON.stringify(chunk))
 
     // usage
     if (context.opts?.usage && chunk.x_groq?.usage) {

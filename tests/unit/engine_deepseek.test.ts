@@ -140,7 +140,7 @@ test('DeepSeek stream', async () => {
   let reasoning = ''
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of deepseek.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of deepseek.processNativeChunk(chunk, context)) {
       if (msg.type === 'reasoning') reasoning += msg.text
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)

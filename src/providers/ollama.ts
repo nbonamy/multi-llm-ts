@@ -389,7 +389,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async *nativeChunkToLlmChunk(chunk: ChatResponse, context: OllamaStreamingContext): AsyncGenerator<LlmChunk> {
+  async *processNativeChunk(chunk: ChatResponse, context: OllamaStreamingContext): AsyncGenerator<LlmChunk> {
 
     // debug
     // console.dir(chunk, { depth: null })

@@ -436,7 +436,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk> {
+  async *processNativeChunk(chunk: ChatCompletionChunk, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk> {
 
     // response api events have already been translated to LLmChunk's
     if (context.responsesApi) {

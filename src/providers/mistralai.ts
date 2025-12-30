@@ -249,7 +249,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async *nativeChunkToLlmChunk(chunk: CompletionEvent, context: MistralStreamingContext): AsyncGenerator<LlmChunk> {
+  async *processNativeChunk(chunk: CompletionEvent, context: MistralStreamingContext): AsyncGenerator<LlmChunk> {
 
     // debug
     //console.dir(chunk, { depth: null })

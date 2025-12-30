@@ -204,7 +204,7 @@ test('Anthropic completion', async () => {
   })
 })
 
-test('Anthropic nativeChunkToLlmChunk Text', async () => {
+test('Anthropic processNativeChunk Text', async () => {
   const anthropic = new Anthropic(config)
   const streamChunk: any = {
     index: 0,
@@ -223,12 +223,12 @@ test('Anthropic nativeChunkToLlmChunk Text', async () => {
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 }
   }
-  for await (const llmChunk of anthropic.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of anthropic.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
   streamChunk.delta.text = null
   streamChunk.type = 'message_stop'
-  for await (const llmChunk of anthropic.nativeChunkToLlmChunk(streamChunk, context)) {
+  for await (const llmChunk of anthropic.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: '', done: true })
   }
 })
@@ -257,7 +257,7 @@ test('Anthropic stream', async () => {
   let lastMsg: LlmChunkContent|null = null
   const toolCalls: LlmChunk[] = []
   for await (const chunk of stream) {
-    for await (const msg of anthropic.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of anthropic.processNativeChunk(chunk, context)) {
       lastMsg = msg as LlmChunkContent
       if (msg.type === 'content') response += msg.text
       if (msg.type === 'tool') toolCalls.push(msg)
@@ -328,7 +328,7 @@ test('Anthropic stream tool choice option', async () => {
     tool_choice: { type: 'tool', name: 'plugin1' },
   }))
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  for await (const chunk of stream) { for await (const msg of anthropic.nativeChunkToLlmChunk(chunk, context)) {/* empty */ } }
+  for await (const chunk of stream) { for await (const msg of anthropic.processNativeChunk(chunk, context)) {/* empty */ } }
   expect(_Anthropic.default.prototype.messages.create).toHaveBeenLastCalledWith(expect.objectContaining({
     tool_choice: { type: 'auto' },
   }))
@@ -542,7 +542,7 @@ test('Anthropic streaming validation deny - yields canceled chunk', async () => 
 
   // Simulate tool_use stop
   const toolCallChunk = { type: 'message_delta', delta: { stop_reason: 'tool_use' } }
-  for await (const chunk of anthropic.nativeChunkToLlmChunk(toolCallChunk as any, context)) {
+  for await (const chunk of anthropic.processNativeChunk(toolCallChunk as any, context)) {
     chunks.push(chunk)
   }
 
@@ -585,7 +585,7 @@ test('Anthropic streaming validation abort - yields tool_abort chunk', async () 
   // Simulate tool_use stop - abort throws, so we need to catch it
   const toolCallChunk = { type: 'message_delta', delta: { stop_reason: 'tool_use' } }
   try {
-    for await (const chunk of anthropic.nativeChunkToLlmChunk(toolCallChunk as any, context)) {
+    for await (const chunk of anthropic.processNativeChunk(toolCallChunk as any, context)) {
       chunks.push(chunk)
     }
   } catch (error: any) {
@@ -761,7 +761,7 @@ test('Anthropic hook modifies tool results before second API call', async () => 
   // Consume the stream to trigger tool execution and second API call
   for await (const chunk of stream) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    for await (const msg of anthropic.nativeChunkToLlmChunk(chunk, context)) {
+    for await (const msg of anthropic.processNativeChunk(chunk, context)) {
       // just consume
     }
   }
@@ -802,7 +802,7 @@ test('Anthropic thinking block added to thread before tool uses', async () => {
   // Simulate tool_use stop
   const toolCallChunk = { type: 'message_delta', delta: { stop_reason: 'tool_use' } }
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  for await (const chunk of anthropic.nativeChunkToLlmChunk(toolCallChunk as any, context)) {
+  for await (const chunk of anthropic.processNativeChunk(toolCallChunk as any, context)) {
     // consume
   }
 

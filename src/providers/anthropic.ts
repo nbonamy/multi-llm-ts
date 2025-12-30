@@ -10,7 +10,7 @@ import { Plugin } from '../plugin'
 import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCapabilities } from '../types/index'
 import { LlmChunk, LlmCompletionOpts, LlmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import { addUsages, zeroUsage } from '../usage'
-import { PluginExecutionResult } from 'types/plugin'
+import { PluginExecutionResult } from '../types/plugin'
 
 //
 // https://docs.anthropic.com/en/api/getting-started
@@ -481,7 +481,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async *nativeChunkToLlmChunk(chunk: RawMessageStreamEvent, context: AnthropicStreamingContext): AsyncGenerator<LlmChunk> {
+  async *processNativeChunk(chunk: RawMessageStreamEvent, context: AnthropicStreamingContext): AsyncGenerator<LlmChunk> {
     
     // log
     //console.dir(chunk, { depth: null })

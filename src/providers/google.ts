@@ -547,7 +547,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async *nativeChunkToLlmChunk(chunk: GenerateContentResponse, context: GoogleStreamingContext): AsyncGenerator<LlmChunk> {
+  async *processNativeChunk(chunk: GenerateContentResponse, context: GoogleStreamingContext): AsyncGenerator<LlmChunk> {
 
     // debug
     //logger.log('[google] chunk', JSON.stringify(chunk))
