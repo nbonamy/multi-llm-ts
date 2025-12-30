@@ -699,7 +699,7 @@ export default class extends LlmEngine {
           }
 
           (message.content as any[]).push({
-            type: 'tool_use',
+            type: 'tool_use' as const,
             id: tc.id,
             name: tc.function.name,
             input: input || {},
