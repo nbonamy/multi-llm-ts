@@ -18,6 +18,10 @@ import { PluginExecutionResult } from 'types/plugin'
 
 type AnthropicTool = Tool|BetaToolUnion
 
+export type AnthropicCompletionOpts = LlmCompletionOpts & {
+  system?: string
+}
+
 const kAnthropicCachedItems = 4
 
 export interface AnthropicComputerToolInfo {
@@ -124,13 +128,13 @@ export default class extends LlmEngine {
   }
 
   async complete(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
-    return await this.chat(model, [
-      thread[0],
-      ...this.buildAnthropicPayload(model, thread, opts)
-    ], opts)
+    return await this.chat(model, this.buildAnthropicPayload(model, thread, opts), {
+      ...opts,
+      system: thread[0].contentForModel
+    })
   }
 
-  async chat(model: ChatModel, thread: any[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+  async chat(model: ChatModel, thread: MessageParam[], opts?: AnthropicCompletionOpts): Promise<LlmResponse> {
 
     // model
     if (model.id === 'computer-use') {
@@ -139,13 +143,13 @@ export default class extends LlmEngine {
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
-    
+
     // call
     logger.log(`[anthropic] prompting model ${model.id}`)
     const response = await this.client.messages.create(this.cacheRequest(model, opts ?? {}, {
       model: model.id,
-      system: thread[0].contentForModel,
-      messages: thread.slice(1) as MessageParam[],
+      system: opts?.system,
+      messages: thread,
       ...this.getCompletionOpts(model, opts),
       ...await this.getToolOpts(model, opts),
     }));
@@ -185,25 +189,25 @@ export default class extends LlmEngine {
 
       // add all response blocks
       thread.push(...response.content.map((c) => ({
-        role: 'assistant',
+        role: 'assistant' as const,
         content: [c]
       })))
 
       // add tool response message
       if (toolCall!.name === 'computer') {
         thread.push({
-          role: 'user',
+          role: 'user' as const,
           content: [{
-            type: 'tool_result',
+            type: 'tool_result' as const,
             tool_use_id: toolCall.id,
             ...content,
           }]
         })
       } else {
         thread.push({
-          role: 'user',
+          role: 'user' as const,
           content: [{
-            type: 'tool_result',
+            type: 'tool_result' as const,
             tool_use_id: toolCall.id,
             content: JSON.stringify(content)
           }]
