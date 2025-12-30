@@ -62,10 +62,10 @@ export default class extends LlmEngine {
 
     // filter and transform
     return models.data
-      .filter((model: any) => model.active)
-      .filter((model: any) => !model.id.includes('guard'))
-      .filter((model: any) => !model.id.includes('whisper'))
-      .sort((a: any, b: any) => b.created - a.created)
+      .filter((model: any) => model.active)  // active not in SDK types
+      .filter((model) => !model.id.includes('guard'))
+      .filter((model) => !model.id.includes('whisper'))
+      .sort((a, b) => b.created - a.created)
 
   }
 

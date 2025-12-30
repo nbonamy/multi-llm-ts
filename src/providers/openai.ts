@@ -2,7 +2,7 @@ import { minimatch } from 'minimatch'
 import OpenAI, { ClientOptions } from 'openai'
 import { zodResponseFormat } from 'openai/helpers/zod'
 import { CompletionUsage } from 'openai/resources'
-import { ChatCompletionCreateParamsBase, ChatCompletionMessageFunctionToolCall, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+import { ChatCompletionChunk, ChatCompletionCreateParamsBase, ChatCompletionMessageFunctionToolCall, ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { Response, ResponseCreateParams, ResponseFunctionToolCall, ResponseInputItem, ResponseOutputMessage, ResponseStreamEvent, ResponseUsage, Tool, ToolChoiceFunction, ToolChoiceOptions } from 'openai/resources/responses/responses'
 import LlmEngine from '../engine'
 import logger from '../logger'
@@ -436,11 +436,11 @@ export default class extends LlmEngine {
     }
   }
 
-  async *nativeChunkToLlmChunk(chunk: any, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk> {
+  async *nativeChunkToLlmChunk(chunk: ChatCompletionChunk, context: OpenAIStreamingContext): AsyncGenerator<LlmChunk> {
 
     // response api events have already been translated to LLmChunk's
     if (context.responsesApi) {
-      yield chunk as LlmChunk
+      yield chunk as unknown as LlmChunk
       return
     }
 
@@ -475,6 +475,7 @@ export default class extends LlmEngine {
               return tc
             }),
             metadata: {
+              // @ts-expect-error reasoning details for some providers
               reasoningDetails: chunk.choices[0]?.delta?.reasoning_details,
             }
           }, context)
@@ -534,12 +535,13 @@ export default class extends LlmEngine {
       context.done = true
     }
 
-    // reasoning chunk
-
+    // @ts-expect-error reasoning content for some providers
     if (chunk.choices?.length && chunk.choices?.[0]?.delta?.reasoning_content) {
+      // @ts-expect-error reasoning content for some providers
       context.reasoningContent += chunk.choices?.[0]?.delta?.reasoning_content
       yield {
         type: 'reasoning',
+        // @ts-expect-error reasoning content for some providers
         text: chunk.choices?.[0]?.delta?.reasoning_content || '',
         done: done,
       }
