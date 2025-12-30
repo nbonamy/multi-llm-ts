@@ -105,9 +105,9 @@ export type CompletedToolCall = {
   result: any
 }
 
-export type LlmStreamingResponse = {
+export type LlmStreamingResponse<T extends LlmStreamingContext = LlmStreamingContext> = {
   stream: LlmStream
-  context: LlmStreamingContext
+  context: T
 }
 
 //

@@ -8,7 +8,7 @@ import LlmEngine from '../engine'
 import logger from '../logger'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpenAI } from '../types/index'
-import { LLmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmStreamingContext, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
+import { LLmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { zeroUsage } from '../usage'
 import { RequestOptions } from 'openai/internal/request-options'
@@ -26,11 +26,6 @@ export type OpenAIStreamingContext = LlmStreamingContext<ChatCompletionMessagePa
   responsesApi: boolean
   thinking: boolean
   done?: boolean
-}
-
-type OpenAIStreamingResponse = {
-  stream: LlmStream
-  context: OpenAIStreamingContext
 }
 
 export default class extends LlmEngine {
@@ -325,7 +320,7 @@ export default class extends LlmEngine {
 
   }
 
-  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<OpenAIStreamingResponse> {
+  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse<OpenAIStreamingContext>> {
 
     // process with responses api?
     if (this.shouldUseResponsesApi(model, opts)) {
@@ -740,7 +735,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async responsesStream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<OpenAIStreamingResponse> {
+  async responsesStream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse<OpenAIStreamingContext>> {
 
     // log
     logger.log(`[${this.getName()}] prompting model ${model.id}`)

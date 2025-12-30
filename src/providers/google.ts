@@ -250,7 +250,7 @@ export default class extends LlmEngine {
     }
   }
 
-  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse> {
+  async stream(model: ChatModel, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmStreamingResponse<GoogleStreamingContext>> {
 
     // model: switch to vision if needed
     model = this.selectModel(model, thread, opts)
