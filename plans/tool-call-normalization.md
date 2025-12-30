@@ -108,21 +108,22 @@ Each provider passes callbacks to execute methods that handle their native threa
 - [x] Run Mistral provider tests
 - [x] Commit: "refactor: migrate mistralai provider to executeToolCallsSequentially"
 
-### Phase 5: Refactor Anthropic Provider 🔄
+### Phase 5: Refactor Anthropic Provider ✅
 **Goal**: Event-based provider (batched pattern)
 
-- [ ] Update `nativeChunkToLlmChunk()` to use `executeToolCallsBatched`
-- [ ] Handle thinking blocks (provider-specific, stays in nativeChunkToLlmChunk)
-- [ ] Handle computer tool special result format
-- [ ] Run Anthropic provider tests
-- [ ] Commit: "refactor: migrate anthropic provider to executeToolCallsBatched"
+- [x] Update `nativeChunkToLlmChunk()` to use `executeToolCallsBatched`
+- [x] Handle thinking blocks (provider-specific, stays in nativeChunkToLlmChunk)
+- [x] Handle computer tool special result format
+- [x] Run Anthropic provider tests
+- [x] Commit: "refactor: migrate anthropic provider to executeToolCallsBatched"
 
-### Phase 6: Refactor Google Provider
+### Phase 6: Refactor Google Provider ✅
 **Goal**: Complete-chunk provider (batched pattern)
 
-- [ ] Update `nativeChunkToLlmChunk()` to use `executeToolCallsBatched`
-- [ ] Run Google provider tests
-- [ ] Commit: "refactor: migrate google provider to executeToolCallsBatched"
+- [x] Update `nativeChunkToLlmChunk()` to use `executeToolCallsBatched`
+- [x] Renamed `content` to `thread` in GoogleStreamingContext for consistency
+- [x] Run Google provider tests
+- [x] Commit: "refactor: migrate google provider to executeToolCallsBatched"
 
 ### Phase 7: Refactor Providers to use processToolCallChunk
 **Goal**: Normalize tool call accumulation

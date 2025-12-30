@@ -525,26 +525,36 @@ export default abstract class LlmEngine {
         id: normalized.id!,
         function: normalized.name!,
         args: normalized.args || '',
-        message: '',
+        message: normalized.message,
         ...normalized.metadata
       }
       context.toolCalls.push(toolCall)
 
-      // Yield preparation notification
+      // Yield preparation notification (include metadata like thoughtSignature)
       yield {
         type: 'tool',
         id: toolCall.id,
         name: toolCall.function,
         state: 'preparing',
         status: this.getToolPreparationDescription(toolCall.function),
+        ...(toolCall.thoughtSignature ? { thoughtSignature: toolCall.thoughtSignature } : {}),
         done: false
       } as LlmChunk
 
     } else if (normalized.type === 'delta') {
-      // Append to last tool call
-      const currentTool = context.toolCalls[context.toolCalls.length - 1]
+      // Find target tool call - by id if provided (parallel tool calls), otherwise last
+      const currentTool = normalized.id
+        ? context.toolCalls.find(tc => tc.id === normalized.id)
+        : context.toolCalls[context.toolCalls.length - 1]
       if (currentTool) {
         currentTool.args += normalized.argumentsDelta || ''
+        // Update message if it has OpenAI/Groq/Mistral format (array with function.arguments)
+        if (Array.isArray(currentTool.message) && currentTool.message.length > 0) {
+          const lastMessage = currentTool.message[currentTool.message.length - 1]
+          if (lastMessage?.function?.arguments !== undefined) {
+            lastMessage.function.arguments = currentTool.args
+          }
+        }
       }
     }
   }

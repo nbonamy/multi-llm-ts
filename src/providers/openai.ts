@@ -464,66 +464,35 @@ export default class extends LlmEngine {
       this.accumulateUsage(context.usage, chunk.usage)
     }
 
-    // tool calls
+    // tool calls - normalize and process
     for (const tool_call of chunk.choices[0]?.delta?.tool_calls || []) {
-
       if (tool_call?.function) {
+        const hasId = tool_call.id !== null && tool_call.id !== undefined && tool_call.id !== ''
+        const existingToolCall = hasId ? context.toolCalls.find(tc => tc.id === tool_call.id) : null
 
-        // arguments or new tool?
-        if (tool_call.id !== null && tool_call.id !== undefined && tool_call.id !== '') {
-
-          // try to find if we already have this tool call
-          const existingToolCall = context.toolCalls.find(tc => tc.id === tool_call.id)
-          if (existingToolCall) {
-
-            // append arguments to existing tool call
-            existingToolCall.args += tool_call.function.arguments
-
-          } else {
-
-            // debug
-            //logger.log(`[${this.getName()}] tool call start:`, chunk)
-
-            // record the tool call
-            const toolCall: LlmToolCall = {
-              id: tool_call.id,
-              message: chunk.choices[0].delta.tool_calls!.map((tc: any) => {
-                delete tc.index
-                return tc
-              }),
-              function: tool_call.function.name || '',
-              args: tool_call.function.arguments || '',
+        if (hasId && !existingToolCall) {
+          // New tool call - normalize as 'start'
+          yield* this.processToolCallChunk({
+            type: 'start',
+            id: tool_call.id,
+            name: tool_call.function.name || '',
+            args: tool_call.function.arguments || '',
+            message: chunk.choices[0].delta.tool_calls!.map((tc: any) => {
+              delete tc.index
+              return tc
+            }),
+            metadata: {
               reasoningDetails: chunk.choices[0]?.delta?.reasoning_details,
             }
-            context.toolCalls.push(toolCall)
-
-            // first notify
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: 'preparing',
-              status: this.getToolPreparationDescription(toolCall.function),
-              done: false
-            }
-
-          }
-
-          // done
-          //return
-
+          }, context)
         } else {
-
-          // append arguments
-          const toolCall = context.toolCalls[context.toolCalls.length - 1]
-          toolCall.args += tool_call.function.arguments
-          toolCall.message[toolCall.message.length - 1].function.arguments = toolCall.args
-
-          // done
-          //return
-
+          // Delta - append to existing tool call (by id if parallel, otherwise last)
+          yield* this.processToolCallChunk({
+            type: 'delta',
+            id: hasId ? tool_call.id : undefined,
+            argumentsDelta: tool_call.function.arguments || '',
+          }, context)
         }
-
       }
     }
 

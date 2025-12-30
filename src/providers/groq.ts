@@ -286,52 +286,30 @@ export default class extends LlmEngine {
     }
 
 
-    // tool calls
+    // tool calls - normalize and process
     if (chunk.choices[0]?.delta?.tool_calls?.[0].function) {
+      const tool_call = chunk.choices[0].delta.tool_calls[0]
+      const hasId = tool_call.id !== null && tool_call.id !== undefined
 
-      // arguments or new tool?
-      if (chunk.choices[0].delta.tool_calls[0].id !== null && chunk.choices[0].delta.tool_calls[0].id !== undefined) {
-
-        // debug
-        //logger.log(`[groq] tool call start:`, chunk)
-
-        // record the tool call
-        const toolCall: LlmToolCall = {
-          id: chunk.choices[0].delta.tool_calls[0].id,
+      if (hasId) {
+        // New tool call - normalize as 'start'
+        yield* this.processToolCallChunk({
+          type: 'start',
+          id: tool_call.id,
+          name: tool_call.function.name || '',
+          args: tool_call.function.arguments || '',
           message: chunk.choices[0].delta.tool_calls.map((tc: any) => {
             delete tc.index
             return tc
           }),
-          function: chunk.choices[0].delta.tool_calls[0].function.name || '',
-          args: chunk.choices[0].delta.tool_calls[0].function.arguments || '',
-        }
-        context.toolCalls.push(toolCall)
-
-        // first notify
-        yield {
-          type: 'tool',
-          id: toolCall.id,
-          name: toolCall.function,
-          state: 'preparing',
-          status: this.getToolPreparationDescription(toolCall.function),
-          done: false
-        }
-
-        // done
-        //return
-      
+        }, context)
       } else {
-
-        // append arguments
-        const toolCall = context.toolCalls[context.toolCalls.length-1]
-        toolCall.args += chunk.choices[0].delta.tool_calls[0].function.arguments
-        toolCall.message[toolCall.message.length-1].function.arguments = toolCall.args
-
-        // done
-        //return
-
+        // Delta - append to last tool call
+        yield* this.processToolCallChunk({
+          type: 'delta',
+          argumentsDelta: tool_call.function.arguments || '',
+        }, context)
       }
-
     }
 
     // now tool calling

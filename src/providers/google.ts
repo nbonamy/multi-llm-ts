@@ -561,37 +561,19 @@ export default class extends LlmEngine {
       context.requestUsage.completion_tokens_details!.reasoning_tokens! = chunk.usageMetadata.thoughtsTokenCount ?? 0
     }
 
-    // tool calls - accumulate across chunks
+    // tool calls - normalize and process (Google sends complete args, no deltas)
     const toolParts: Part[] = chunk.candidates?.[0].content?.parts?.filter(p => p.functionCall?.name) || []
-    if (toolParts?.length) {
-
-      // accumulate tool calls (don't overwrite!)
-      for (const part of toolParts) {
-        const tc = part.functionCall!
-        const toolCallId = tc.id || crypto.randomUUID()
-
-        // push
-        const toolCall: LlmToolCall = {
-          id: toolCallId,
-          message: '',
-          function: tc.name!,
-          args: JSON.stringify(tc.args),
-          thoughtSignature: part.thoughtSignature
+    for (const part of toolParts) {
+      const tc = part.functionCall!
+      yield* this.processToolCallChunk({
+        type: 'start',
+        id: tc.id || crypto.randomUUID(),
+        name: tc.name!,
+        args: JSON.stringify(tc.args),
+        metadata: {
+          thoughtSignature: part.thoughtSignature,
         }
-        context.toolCalls.push(toolCall)
-
-        // yield preparation notification immediately
-        yield {
-          type: 'tool',
-          id: toolCallId,
-          name: toolCall.function,
-          state: 'preparing',
-          status: this.getToolPreparationDescription(toolCall.function),
-          ...(toolCall.thoughtSignature ? { thoughtSignature: toolCall.thoughtSignature } : {}),
-          done: false
-        }
-
-      }
+      }, context)
     }
 
     // check for finish reason and accumulated tool calls

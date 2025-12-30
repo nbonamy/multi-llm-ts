@@ -47,6 +47,7 @@ export type NormalizedToolChunk = {
   id?: string           // tool call ID
   name?: string         // function name
   args?: string         // initial args ('' for incremental, complete JSON for Google)
+  message?: any         // Native message format for thread formatting (provider-specific)
 
   // For 'delta': append to current tool call
   argumentsDelta?: string

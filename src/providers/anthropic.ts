@@ -518,36 +518,26 @@ export default class extends LlmEngine {
       }
 
       if (chunk.content_block.type == 'tool_use') {
-
-        // add the tool call to the array
-        const toolCall: LlmToolCall = {
+        // New tool call - normalize as 'start'
+        yield* this.processToolCallChunk({
+          type: 'start',
           id: chunk.content_block.id,
-          message: '',
-          function: chunk.content_block.name,
-          args: ''
-        }
-        context.toolCalls.push(toolCall)
-
-        // notify
-        yield {
-          type: 'tool',
-          id: toolCall.id,
-          name: toolCall.function,
-          state: 'preparing',
-          status: this.getToolPreparationDescription(toolCall.function),
-          done: false
-        }
+          name: chunk.content_block.name,
+          args: '',
+        }, context)
       }
     }
 
     // block delta
     if (chunk.type == 'content_block_delta') {
 
-      // tool use
+      // tool use - normalize as 'delta'
       if (chunk.delta.type === 'input_json_delta' && context.toolCalls.length) {
         const toolDelta = chunk.delta as InputJSONDelta
-        const currentTool = context.toolCalls[context.toolCalls.length - 1]
-        currentTool.args += toolDelta.partial_json
+        yield* this.processToolCallChunk({
+          type: 'delta',
+          argumentsDelta: toolDelta.partial_json,
+        }, context)
       }
 
       // thinking

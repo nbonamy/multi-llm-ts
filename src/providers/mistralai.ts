@@ -262,45 +262,29 @@ export default class extends LlmEngine {
       context.usage.completion_tokens += chunk.data.usage.completionTokens ?? 0
     }
 
-    // tool calls
+    // tool calls - normalize and process
     if (chunk.data.choices[0]?.delta?.toolCalls) {
+      const tool_call = chunk.data.choices[0].delta.toolCalls[0]
 
-      // arguments or new tool?
-      if (chunk.data.choices[0].delta.toolCalls[0].id) {
-
-        // debug
-        //logger.log('[mistralai] tool call start:', chunk)
-
-        // record the tool call
-        const toolCall: LlmToolCall = {
-          id: chunk.data.choices[0].delta.toolCalls[0].id,
+      if (tool_call.id) {
+        // New tool call - normalize as 'start'
+        yield* this.processToolCallChunk({
+          type: 'start',
+          id: tool_call.id,
+          name: tool_call.function.name,
+          args: tool_call.function.arguments as string,
           message: chunk.data.choices[0].delta.toolCalls.map((tc: any) => {
             delete tc.index
             return tc
           }),
-          function: chunk.data.choices[0].delta.toolCalls[0].function.name,
-          args: chunk.data.choices[0].delta.toolCalls[0].function.arguments as string,
-        }
-        context.toolCalls.push(toolCall)
-
-        // first notify
-        yield {
-          type: 'tool',
-          id: toolCall.id,
-          name: toolCall.function,
-          state: 'preparing',
-          status: this.getToolPreparationDescription(toolCall.function),
-          done: false
-        }
-
+        }, context)
       } else {
-
-        const toolCall = context.toolCalls[context.toolCalls.length-1]
-        toolCall.args += chunk.data.choices[0].delta.toolCalls[0].function.arguments
-        toolCall.message[toolCall.message.length-1].function.arguments = toolCall.args
-
+        // Delta - append to last tool call
+        yield* this.processToolCallChunk({
+          type: 'delta',
+          argumentsDelta: tool_call.function.arguments as string,
+        }, context)
       }
-
     }
 
     // now tool calling
