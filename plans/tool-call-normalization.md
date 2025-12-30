@@ -125,16 +125,19 @@ Each provider passes callbacks to execute methods that handle their native threa
 - [x] Run Google provider tests
 - [x] Commit: "refactor: migrate google provider to executeToolCallsBatched"
 
-### Phase 7: Refactor Providers to use processToolCallChunk
+### Phase 7: Refactor Providers to use processToolCallChunk ✅
 **Goal**: Normalize tool call accumulation
 
-- [ ] Update OpenAI to use `processToolCallChunk`
-- [ ] Update Groq to use `processToolCallChunk`
-- [ ] Update Mistral to use `processToolCallChunk`
-- [ ] Update Anthropic to use `processToolCallChunk`
-- [ ] Update Google to use `processToolCallChunk`
-- [ ] Run full test suite
-- [ ] Commit: "refactor: use processToolCallChunk for all providers"
+- [x] Added `message` field to `NormalizedToolChunk` for native message formats
+- [x] Updated `processToolCallChunk` to handle parallel tool calls (by id)
+- [x] Updated `processToolCallChunk` to update message on deltas
+- [x] Update OpenAI to use `processToolCallChunk`
+- [x] Update Groq to use `processToolCallChunk`
+- [x] Update Mistral to use `processToolCallChunk`
+- [x] Update Anthropic to use `processToolCallChunk`
+- [x] Update Google to use `processToolCallChunk`
+- [x] Run full test suite (275 tests pass)
+- [x] Commit: "refactor: all providers now use processToolCallChunk for normalized tool call parsing"
 
 ### Phase 8: Cleanup and Final Review
 **Goal**: Remove old code, verify everything works

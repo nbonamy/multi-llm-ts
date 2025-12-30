@@ -7,7 +7,7 @@ import Attachment from '../models/attachment'
 import Message from '../models/message'
 import { Plugin } from '../plugin'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGoogle } from '../types/index'
-import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LLmContentPayloadText, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
+import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmCompletionPayloadContent, LLmContentPayloadText, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
 import { addUsages, zeroUsage } from '../usage'
 

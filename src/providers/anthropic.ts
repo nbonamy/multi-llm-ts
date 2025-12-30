@@ -8,8 +8,9 @@ import Attachment from '../models/attachment'
 import Message from '../models/message'
 import { Plugin } from '../plugin'
 import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCapabilities } from '../types/index'
-import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmUsage } from '../types/llm'
+import { LlmChunk, LlmCompletionOpts, LLmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import { addUsages, zeroUsage } from '../usage'
+import { PluginExecutionResult } from 'types/plugin'
 
 //
 // https://docs.anthropic.com/en/api/getting-started
