@@ -236,7 +236,7 @@ describe('processToolCallChunk', () => {
 
 })
 
-describe('executeToolCalls', () => {
+describe('executeToolCallsSequentially', () => {
 
   function createMockContext(): any {
     return {
@@ -265,9 +265,9 @@ describe('executeToolCalls', () => {
     const chunks: LlmChunk[] = []
 
     // @ts-expect-error protected method
-    for await (const chunk of openai.executeToolCalls(toolCalls, context, {
-      formatToolCallForThread: (tc) => ({ role: 'assistant', tool_calls: [tc] }),
-      formatToolResultForThread: (result, tc) => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) }),
+    for await (const chunk of openai.executeToolCallsSequentially(toolCalls, context, {
+      formatToolCallForThread: (tc, _args) => ({ role: 'assistant', tool_calls: [tc] }),
+      formatToolResultForThread: (result, tc, _args) => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) }),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -313,9 +313,9 @@ describe('executeToolCalls', () => {
     const chunks: LlmChunk[] = []
 
     // @ts-expect-error protected method
-    for await (const chunk of openai.executeToolCalls(toolCalls, context, {
-      formatToolCallForThread: (tc) => ({ role: 'assistant', tool_calls: [tc] }),
-      formatToolResultForThread: (result, tc) => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) }),
+    for await (const chunk of openai.executeToolCallsSequentially(toolCalls, context, {
+      formatToolCallForThread: (tc, _args) => ({ role: 'assistant', tool_calls: [tc] }),
+      formatToolResultForThread: (result, tc, _args) => ({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) }),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -350,9 +350,9 @@ describe('executeToolCalls', () => {
     const context = createMockContext()
 
     // @ts-expect-error protected method
-    const generator = openai.executeToolCalls(toolCalls, context, {
-      formatToolCallForThread: () => ({}),
-      formatToolResultForThread: (_result, _tc) => ({}),
+    const generator = openai.executeToolCallsSequentially(toolCalls, context, {
+      formatToolCallForThread: (_tc, _args) => ({}),
+      formatToolResultForThread: (_result, _tc, _args) => ({}),
       createNewStream: async () => ({} as LlmStream)
     })
 
@@ -384,9 +384,9 @@ describe('executeToolCalls', () => {
     const chunks: LlmChunk[] = []
 
     // @ts-expect-error protected method
-    for await (const chunk of openai.executeToolCalls(toolCalls, context, {
-      formatToolCallForThread: () => ({}),
-      formatToolResultForThread: (_result, _tc) => ({}),
+    for await (const chunk of openai.executeToolCallsSequentially(toolCalls, context, {
+      formatToolCallForThread: (_tc, _args) => ({}),
+      formatToolResultForThread: (_result, _tc, _args) => ({}),
       createNewStream: async () => ({} as LlmStream)
     })) {
       chunks.push(chunk)
@@ -420,9 +420,9 @@ describe('executeToolCalls', () => {
     const chunks: LlmChunk[] = []
 
     // @ts-expect-error protected method
-    for await (const chunk of openai.executeToolCalls(toolCalls, context, {
-      formatToolCallForThread: () => ({}),
-      formatToolResultForThread: (_result, _tc) => ({}),
+    for await (const chunk of openai.executeToolCallsSequentially(toolCalls, context, {
+      formatToolCallForThread: (_tc, _args) => ({}),
+      formatToolResultForThread: (_result, _tc, _args) => ({}),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -452,9 +452,9 @@ describe('executeToolCalls', () => {
     const context = createMockContext()
 
     // @ts-expect-error protected method
-    for await (const _chunk of openai.executeToolCalls(toolCalls, context, {
-      formatToolCallForThread: () => ({}),
-      formatToolResultForThread: (_result, _tc) => ({}),
+    for await (const _chunk of openai.executeToolCallsSequentially(toolCalls, context, {
+      formatToolCallForThread: (_tc, _args) => ({}),
+      formatToolResultForThread: (_result, _tc, _args) => ({}),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -469,7 +469,7 @@ describe('executeToolCalls', () => {
     const openai = new OpenAI(config)
     openai.addPlugin(new Plugin2())
 
-    const formatToolCallFn = vi.fn((tc: LlmToolCall) => ({
+    const formatToolCallFn = vi.fn((tc: LlmToolCall, _args: any) => ({
       role: 'assistant',
       custom_tool_format: tc.id
     }))
@@ -484,15 +484,15 @@ describe('executeToolCalls', () => {
     const context = createMockContext()
 
     // @ts-expect-error protected method
-    for await (const _chunk of openai.executeToolCalls(toolCalls, context, {
+    for await (const _chunk of openai.executeToolCallsSequentially(toolCalls, context, {
       formatToolCallForThread: formatToolCallFn,
-      formatToolResultForThread: (_result, tc) => ({ role: 'tool', tool_call_id: tc.id }),
+      formatToolResultForThread: (_result, tc, _args) => ({ role: 'tool', tool_call_id: tc.id }),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
     })) { /* consume */ }
 
-    expect(formatToolCallFn).toHaveBeenCalledWith(expect.objectContaining({ id: 'tool-1' }))
+    expect(formatToolCallFn).toHaveBeenCalledWith(expect.objectContaining({ id: 'tool-1' }), [])
     expect(context.thread[0]).toMatchObject({ custom_tool_format: 'tool-1' })
   })
 
@@ -500,7 +500,7 @@ describe('executeToolCalls', () => {
     const openai = new OpenAI(config)
     openai.addPlugin(new Plugin2())
 
-    const formatResultFn = vi.fn((result: any, tc: LlmToolCall) => ({
+    const formatResultFn = vi.fn((result: any, tc: LlmToolCall, _args: any) => ({
       role: 'tool',
       custom_result: result,
       custom_id: tc.id
@@ -516,15 +516,15 @@ describe('executeToolCalls', () => {
     const context = createMockContext()
 
     // @ts-expect-error protected method
-    for await (const _chunk of openai.executeToolCalls(toolCalls, context, {
-      formatToolCallForThread: () => ({ role: 'assistant' }),
+    for await (const _chunk of openai.executeToolCallsSequentially(toolCalls, context, {
+      formatToolCallForThread: (_tc, _args) => ({ role: 'assistant' }),
       formatToolResultForThread: formatResultFn,
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
     })) { /* consume */ }
 
-    expect(formatResultFn).toHaveBeenCalledWith('result2', expect.objectContaining({ id: 'tool-1' }))
+    expect(formatResultFn).toHaveBeenCalledWith('result2', expect.objectContaining({ id: 'tool-1' }), [])
     expect(context.thread[1]).toMatchObject({ custom_id: 'tool-1' })
   })
 
@@ -549,9 +549,9 @@ describe('executeToolCalls', () => {
     const chunks: LlmChunk[] = []
 
     // @ts-expect-error protected method
-    for await (const chunk of openai.executeToolCalls(toolCalls, context, {
-      formatToolCallForThread: () => ({}),
-      formatToolResultForThread: (_result, _tc) => ({}),
+    for await (const chunk of openai.executeToolCallsSequentially(toolCalls, context, {
+      formatToolCallForThread: (_tc, _args) => ({}),
+      formatToolResultForThread: (_result, _tc, _args) => ({}),
       createNewStream: createStreamFn
     })) {
       chunks.push(chunk)
@@ -576,9 +576,9 @@ describe('executeToolCalls', () => {
     const chunks: LlmChunk[] = []
 
     // @ts-expect-error protected method
-    for await (const chunk of openai.executeToolCalls(toolCalls, context, {
-      formatToolCallForThread: () => ({}),
-      formatToolResultForThread: (_result, _tc) => ({}),
+    for await (const chunk of openai.executeToolCallsSequentially(toolCalls, context, {
+      formatToolCallForThread: (_tc, _args) => ({}),
+      formatToolResultForThread: (_result, _tc, _args) => ({}),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -608,9 +608,9 @@ describe('executeToolCalls', () => {
     const chunks: LlmChunk[] = []
 
     // @ts-expect-error protected method
-    for await (const chunk of openai.executeToolCalls(toolCalls, context, {
-      formatToolCallForThread: () => ({}),
-      formatToolResultForThread: (_result, _tc) => ({}),
+    for await (const chunk of openai.executeToolCallsSequentially(toolCalls, context, {
+      formatToolCallForThread: (_tc, _args) => ({}),
+      formatToolResultForThread: (_result, _tc, _args) => ({}),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream
@@ -643,9 +643,9 @@ describe('executeToolCalls', () => {
     context.currentRound = 5
 
     // @ts-expect-error protected method
-    for await (const _chunk of openai.executeToolCalls(toolCalls, context, {
-      formatToolCallForThread: () => ({}),
-      formatToolResultForThread: (_result, _tc) => ({}),
+    for await (const _chunk of openai.executeToolCallsSequentially(toolCalls, context, {
+      formatToolCallForThread: (_tc, _args) => ({}),
+      formatToolResultForThread: (_result, _tc, _args) => ({}),
       createNewStream: async () => ({
         async *[Symbol.asyncIterator]() { yield { choices: [{ finish_reason: 'stop' }] } }
       }) as unknown as LlmStream

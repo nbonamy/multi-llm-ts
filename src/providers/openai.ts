@@ -544,7 +544,7 @@ export default class extends LlmEngine {
       context.currentRound++
 
       // execute tool calls using base class method
-      yield* this.executeToolCalls(context.toolCalls, context, {
+      yield* this.executeToolCallsSequentially(context.toolCalls, context, {
         formatToolCallForThread: (tc: LlmToolCall) => ({
           role: 'assistant' as const,
           content: '',

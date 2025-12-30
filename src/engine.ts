@@ -549,131 +549,115 @@ export default abstract class LlmEngine {
     }
   }
 
-  protected async *executeToolCalls<T>(
+  /**
+   * Execute tool calls with per-tool thread formatting (OpenAI/Groq/Mistral style).
+   * Each tool call and result is added to thread immediately after execution.
+   */
+  protected async *executeToolCallsSequentially<T>(
     toolCalls: LlmToolCall[],
     context: LlmStreamingContext & { thread: T[] },
     options: {
-      formatToolCallForThread: (tc: LlmToolCall) => T,
-      formatToolResultForThread: (result: any, tc: LlmToolCall) => T,
+      formatToolCallForThread: (tc: LlmToolCall, args: any) => T,
+      formatToolResultForThread: (result: any, tc: LlmToolCall, args: any) => T,
       createNewStream: (context: LlmStreamingContext & { thread: T[] }) => Promise<LlmStream>
     }
   ): AsyncGenerator<LlmChunk> {
 
-    // Iterate through all tool calls
     for (const toolCall of toolCalls) {
+      const executed = yield* this.executeOneTool(toolCall, context)
 
-      // Log the tool call
-      logger.log(`[${this.getName()}] tool call ${toolCall.function} with ${toolCall.args}`)
+      // Stop if aborted
+      if (!executed) return
 
-      // Parse arguments
-      let args = null
-      try {
-        args = JSON.parse(toolCall.args)
-      } catch (err) {
-        throw new Error(`[${this.getName()}] tool call ${toolCall.function} with invalid JSON args: "${toolCall.args}"`, { cause: err })
-      }
+      // Add to thread immediately after each tool
+      context.thread.push(options.formatToolCallForThread(toolCall, executed.args))
+      context.thread.push(options.formatToolResultForThread(executed.result, toolCall, executed.args))
+    }
 
-      try {
-        // Yield running notification
-        yield {
-          type: 'tool',
-          id: toolCall.id,
-          name: toolCall.function,
-          state: 'running',
-          status: this.getToolRunningDescription(toolCall.function, args),
-          ...(toolCall.reasoningDetails ? { reasoningDetails: toolCall.reasoningDetails } : {}),
-          call: {
-            params: args,
-            result: undefined
-          },
-          done: false
-        } as LlmChunk
+    // Finalize: hook, sync, recurse
+    yield* this.finalizeToolExecution(context, options.createNewStream)
+  }
 
-        // Execute tool
-        let lastUpdate: PluginExecutionResult | undefined = undefined
-        for await (const update of this.callTool(
-          { model: context.model.id, abortSignal: context.opts?.abortSignal },
-          toolCall.function,
-          args,
-          context.opts?.toolExecutionValidation
-        )) {
+  /**
+   * Execute tool calls with batched thread formatting (Anthropic/Google style).
+   * All tool calls execute first, then all are added to thread at once.
+   */
+  protected async *executeToolCallsBatched<T>(
+    toolCalls: LlmToolCall[],
+    context: LlmStreamingContext & { thread: T[] },
+    options: {
+      formatBatchForThread: (completed: Array<{ tc: LlmToolCall, args: any, result: any }>) => T[],
+      createNewStream: (context: LlmStreamingContext & { thread: T[] }) => Promise<LlmStream>
+    }
+  ): AsyncGenerator<LlmChunk> {
 
-          // Check for abort
-          if (context.opts?.abortSignal?.aborted) {
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: 'canceled',
-              status: this.getToolCanceledDescription(toolCall.function, args) || 'Tool execution was canceled',
-              done: true,
-              call: {
-                params: args,
-                result: undefined
-              }
-            } as LlmChunk
-            return
-          }
+    const completedTools: Array<{ tc: LlmToolCall, args: any, result: any }> = []
 
-          // Handle status updates
-          if (update.type === 'status') {
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.function,
-              state: 'running',
-              status: update.status,
-              call: {
-                params: args,
-                result: undefined
-              },
-              done: false
-            } as LlmChunk
-          } else if (update.type === 'result') {
-            lastUpdate = update
-          }
-        }
+    for (const toolCall of toolCalls) {
+      const executed = yield* this.executeOneTool(toolCall, context)
 
-        // Process result
-        const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
-          this.getName(),
-          toolCall.function,
-          args,
-          lastUpdate
-        )
+      // Stop if aborted
+      if (!executed) return
 
-        // Yield completed notification
-        yield {
-          type: 'tool',
-          id: toolCall.id,
-          name: toolCall.function,
-          state: toolCallCanceled ? 'canceled' : 'completed',
-          status: toolCallCanceled
-            ? this.getToolCanceledDescription(toolCall.function, args) || content.error || 'Tool execution was canceled'
-            : this.getToolCompletedDescription(toolCall.function, args, content),
-          done: true,
-          call: {
-            params: args,
-            result: content
-          }
-        } as LlmChunk
+      completedTools.push({ tc: toolCall, args: executed.args, result: executed.result })
+    }
 
-        // Add to thread using provider-specific format
-        context.thread.push(options.formatToolCallForThread(toolCall))
-        context.thread.push(options.formatToolResultForThread(content, toolCall))
+    // Add all to thread at once
+    const batchMessages = options.formatBatchForThread(completedTools)
+    for (const msg of batchMessages) {
+      context.thread.push(msg)
+    }
 
-        // Add to tool history
-        context.toolHistory.push({
-          id: toolCall.id,
-          name: toolCall.function,
-          args: args,
-          result: content,
-          round: context.currentRound,
-        })
+    // Finalize: hook, sync, recurse
+    yield* this.finalizeToolExecution(context, options.createNewStream)
+  }
 
-      } catch (error: any) {
+  /**
+   * Execute a single tool call. Shared by both sequential and batched methods.
+   * Returns null if aborted, otherwise returns { args, result }.
+   */
+  private async *executeOneTool(
+    toolCall: LlmToolCall,
+    context: LlmStreamingContext
+  ): AsyncGenerator<LlmChunk, { args: any, result: any } | null> {
 
-        // Handle abort
+    // Log the tool call
+    logger.log(`[${this.getName()}] tool call ${toolCall.function} with ${toolCall.args}`)
+
+    // Parse arguments
+    let args = null
+    try {
+      args = JSON.parse(toolCall.args)
+    } catch (err) {
+      throw new Error(`[${this.getName()}] tool call ${toolCall.function} with invalid JSON args: "${toolCall.args}"`, { cause: err })
+    }
+
+    try {
+      // Yield running notification
+      yield {
+        type: 'tool',
+        id: toolCall.id,
+        name: toolCall.function,
+        state: 'running',
+        status: this.getToolRunningDescription(toolCall.function, args),
+        ...(toolCall.reasoningDetails ? { reasoningDetails: toolCall.reasoningDetails } : {}),
+        call: {
+          params: args,
+          result: undefined
+        },
+        done: false
+      } as LlmChunk
+
+      // Execute tool
+      let lastUpdate: PluginExecutionResult | undefined = undefined
+      for await (const update of this.callTool(
+        { model: context.model.id, abortSignal: context.opts?.abortSignal },
+        toolCall.function,
+        args,
+        context.opts?.toolExecutionValidation
+      )) {
+
+        // Check for abort
         if (context.opts?.abortSignal?.aborted) {
           yield {
             type: 'tool',
@@ -687,16 +671,73 @@ export default abstract class LlmEngine {
               result: undefined
             }
           } as LlmChunk
-          throw error
+          return null
         }
 
-        // Handle other errors
+        // Handle status updates
+        if (update.type === 'status') {
+          yield {
+            type: 'tool',
+            id: toolCall.id,
+            name: toolCall.function,
+            state: 'running',
+            status: update.status,
+            call: {
+              params: args,
+              result: undefined
+            },
+            done: false
+          } as LlmChunk
+        } else if (update.type === 'result') {
+          lastUpdate = update
+        }
+      }
+
+      // Process result
+      const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
+        this.getName(),
+        toolCall.function,
+        args,
+        lastUpdate
+      )
+
+      // Yield completed notification
+      yield {
+        type: 'tool',
+        id: toolCall.id,
+        name: toolCall.function,
+        state: toolCallCanceled ? 'canceled' : 'completed',
+        status: toolCallCanceled
+          ? this.getToolCanceledDescription(toolCall.function, args) || content.error || 'Tool execution was canceled'
+          : this.getToolCompletedDescription(toolCall.function, args, content),
+        done: true,
+        call: {
+          params: args,
+          result: content
+        }
+      } as LlmChunk
+
+      // Add to tool history
+      context.toolHistory.push({
+        id: toolCall.id,
+        name: toolCall.function,
+        args: args,
+        result: content,
+        round: context.currentRound,
+      })
+
+      return { args, result: content }
+
+    } catch (error: any) {
+
+      // Handle abort
+      if (context.opts?.abortSignal?.aborted) {
         yield {
           type: 'tool',
           id: toolCall.id,
           name: toolCall.function,
-          state: 'error',
-          status: error.message,
+          state: 'canceled',
+          status: this.getToolCanceledDescription(toolCall.function, args) || 'Tool execution was canceled',
           done: true,
           call: {
             params: args,
@@ -705,8 +746,31 @@ export default abstract class LlmEngine {
         } as LlmChunk
         throw error
       }
-    }
 
+      // Handle other errors
+      yield {
+        type: 'tool',
+        id: toolCall.id,
+        name: toolCall.function,
+        state: 'error',
+        status: error.message,
+        done: true,
+        call: {
+          params: args,
+          result: undefined
+        }
+      } as LlmChunk
+      throw error
+    }
+  }
+
+  /**
+   * Finalize tool execution: call hook, sync, and recurse.
+   */
+  private async *finalizeToolExecution<T>(
+    context: LlmStreamingContext & { thread: T[] },
+    createNewStream: (context: LlmStreamingContext & { thread: T[] }) => Promise<LlmStream>
+  ): AsyncGenerator<LlmChunk> {
     // Call hook before continuing
     await this.callHook('beforeToolCallsResponse', context)
 
@@ -716,7 +780,7 @@ export default abstract class LlmEngine {
     // Recurse: yield new stream to continue the conversation with tool results
     yield {
       type: 'stream',
-      stream: await options.createNewStream(context)
+      stream: await createNewStream(context)
     } as LlmChunk
   }
 
