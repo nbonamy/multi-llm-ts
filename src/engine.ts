@@ -677,7 +677,11 @@ export default abstract class LlmEngine {
     // Parse arguments
     let args = null
     try {
-      args = JSON.parse(toolCall.args)
+      if (toolCall.args.trim() === '') {
+        args = {}
+      } else {
+        args = JSON.parse(toolCall.args)
+      }
     } catch (err) {
       throw new Error(`[${this.getName()}] tool call ${toolCall.function} with invalid JSON args: "${toolCall.args}"`, { cause: err })
     }
