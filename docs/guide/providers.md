@@ -59,8 +59,32 @@ const config = {
   apiKey: 'YOUR_API_KEY',           // Required for cloud providers
   baseURL: 'https://api.custom.com', // Optional custom endpoint
   timeout: 30000,                    // Optional request timeout (ms)
+  requestCooldown: 2000,             // Optional cooldown between requests (ms)
 }
 
 const models = await loadModels('PROVIDER_ID', config)
 const model = igniteModel('PROVIDER_ID', models.chat[0], config)
 ```
+
+### Request Cooldown
+
+The `requestCooldown` option helps avoid hitting API rate limits during tool execution loops. When the model returns tool calls, executes them locally, and sends results back to the API, rapid successive requests can trigger rate limits—especially on free tiers.
+
+```typescript
+const config = {
+  apiKey: 'YOUR_API_KEY',
+  requestCooldown: 2000,  // Minimum 2 seconds between API request starts
+}
+```
+
+**How it works:**
+- Uses a **start-start** timing model (recommended by OpenAI/Anthropic token bucket algorithms)
+- Records when each API request begins
+- Before the next request, calculates remaining cooldown time
+- Only waits if processing took less than the cooldown period
+
+**Example:** With a 2000ms cooldown:
+- If tool execution takes 500ms → waits 1500ms before next API call
+- If tool execution takes 3000ms → no additional wait needed
+
+This approach maximizes throughput while respecting rate limits.

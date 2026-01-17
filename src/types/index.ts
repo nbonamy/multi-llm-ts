@@ -8,6 +8,7 @@ export type EngineCreateOpts = {
   apiVersion?: string
   useOpenAIResponsesApi?: boolean
   preferResponses?: boolean
+  requestCooldown?: number
 }
 
 export type ModelsList = {

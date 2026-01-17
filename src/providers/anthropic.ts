@@ -143,6 +143,7 @@ export default class extends LlmEngine {
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
+    const startTime = Date.now()
 
     // call
     logger.log(`[anthropic] prompting model ${model.id}`)
@@ -221,6 +222,9 @@ export default class extends LlmEngine {
         result: content
       })
 
+      // apply cooldown before next request
+      await this.applyCooldown(startTime)
+
       // prompt again
       const completion = await this.chat(model, thread, opts)
 
@@ -275,6 +279,7 @@ export default class extends LlmEngine {
       toolCalls: [],
       toolHistory: [],
       currentRound: 0,
+      startTime: 0,
       opts: opts || {},
       usage: zeroUsage(),
       requestUsage: zeroUsage(),
@@ -293,6 +298,7 @@ export default class extends LlmEngine {
 
     // reset
     context.toolCalls = []
+    context.startTime = Date.now()
     context.requestUsage = zeroUsage()
     context.thinkingBlock = undefined
     context.thinkingSignature = ''

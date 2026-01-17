@@ -206,6 +206,7 @@ export default class extends LlmEngine {
 
     // save tool calls
     const toolCallInfo: LlmToolCallInfo[] = []
+    const startTime = Date.now()
 
     // call
     logger.log(`[${this.getName()}] prompting model ${model.id}`)
@@ -284,6 +285,9 @@ export default class extends LlmEngine {
 
       }
 
+      // apply cooldown before next request
+      await this.applyCooldown(startTime)
+
       // prompt again
       const completion = await this.chat(model, thread, opts)
 
@@ -340,6 +344,7 @@ export default class extends LlmEngine {
       toolCalls: [],
       toolHistory: [],
       currentRound: 0,
+      startTime: 0,
       usage: zeroUsage(),
       thinking: false,
       done: false,
@@ -357,6 +362,7 @@ export default class extends LlmEngine {
 
     // reset
     context.toolCalls = []
+    context.startTime = Date.now()
 
     // call
     logger.log(`[${this.getName()}] prompting model ${context.model.id}`)

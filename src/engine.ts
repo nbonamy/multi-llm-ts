@@ -7,6 +7,7 @@ import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 import Attachment from './models/attachment'
 import Message from './models/message'
 import logger from './logger'
+import { start } from 'node:repl'
 
 export default abstract class LlmEngine {
 
@@ -831,11 +832,27 @@ export default abstract class LlmEngine {
     // Sync tool history to thread
     this.syncToolHistoryToThread(context)
 
+    // Apply cooldown before next request
+    await this.applyCooldown(context.startTime)
+
     // Recurse: yield new stream to continue the conversation with tool results
     yield {
       type: 'stream',
       stream: await createNewStream(context)
     } as LlmChunk
+  }
+
+  /**
+   * Apply cooldown delay if configured, based on elapsed time since startTime.
+   */
+  protected async applyCooldown(startTime: number): Promise<void> {
+    if (this.config.requestCooldown && startTime > 0) {
+      const elapsed = Date.now() - startTime
+      const remaining = this.config.requestCooldown - elapsed
+      if (remaining > 0) {
+        await new Promise(resolve => setTimeout(resolve, remaining))
+      }
+    }
   }
 
   protected async *callTool(context: PluginExecutionContext, tool: string, args: any, toolExecutionValidation: LlmToolExecutionValidationCallback|undefined): AsyncGenerator<PluginExecutionUpdate> {

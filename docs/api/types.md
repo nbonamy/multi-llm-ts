@@ -52,10 +52,19 @@ interface EngineConfig {
   apiKey?: string
   baseURL?: string
   timeout?: number
+  requestCooldown?: number
   useOpenAIResponsesApi?: boolean
   customOpts?: Record<string, any>
 }
 ```
+
+**Fields:**
+- `apiKey`: API key for authentication
+- `baseURL`: Custom API endpoint
+- `timeout`: Request timeout in milliseconds
+- `requestCooldown`: Minimum time in ms between API request starts during tool loops (see [Providers Guide](/guide/providers#request-cooldown))
+- `useOpenAIResponsesApi`: Use OpenAI's Responses API format
+- `customOpts`: Provider-specific options
 
 **Example:**
 ```typescript
@@ -63,6 +72,7 @@ const config: EngineConfig = {
   apiKey: 'KEY',
   baseURL: 'https://api.custom.com',
   timeout: 30000,
+  requestCooldown: 2000,
   customOpts: { num_ctx: 8192 }
 }
 ```

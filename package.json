@@ -1,6 +1,6 @@
 {
   "name": "multi-llm-ts",
-  "version": "4.7.0-beta8",
+  "version": "4.7.0-beta9",
   "description": "Library to query multiple LLM providers in a consistent way",
   "repository": {
     "type": "git",
@@ -53,7 +53,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.67.0",
-    "@google/genai": "^1.31.0",
+    "@google/genai": "^1.37.0",
     "@mistralai/mistralai": "^1.10.0",
     "groq-sdk": "^0.34.0",
     "minimatch": "^10.0.3",

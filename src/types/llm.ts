@@ -96,6 +96,7 @@ export type LlmStreamingContext<T = any> = {
   toolCalls: LlmToolCall[]  // current round's tool calls (reset each round)
   toolHistory: ToolHistoryEntry[]  // all tool calls across all rounds
   currentRound: number
+  startTime: number  // when the current LLM request started (for cooldown)
 }
 
 // Completed tool call info for batched execution
