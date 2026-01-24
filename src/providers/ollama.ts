@@ -62,7 +62,11 @@ export default class extends LlmEngine {
       'deepseek-r1',
       'deepseek-v3.1',
       'devstral',
+      'devstral-2',
+      'devstral-small-2',
       'firefunction-v2',
+      'functiongemma',
+      'glm-4.7-flash',
       'gpt-oss',
       'gpt-oss-safeguard',
       'granite3-dense',
@@ -90,20 +94,25 @@ export default class extends LlmEngine {
       'mixtral',
       'nemotron',
       'nemotron-mini',
+      'nemotron-3-nano',
+      'olmo-3.1',
       'phi4-mini',
       'qwen2',
       'qwen2.5',
       'qwen2.5-coder',
       'qwen3',
       'qwen3-coder',
+      'qwen3-next',
       'qwen3-vl',
       'qwq',
+      'rnj-1',
       'smollm2',
     ]
 
     const visionModels = [
       'bakllava',
       'deepseek-ocr',
+      'devstral-small-2',
       'gemma3',
       'granite3.2-vision',
       'llama3.2-vision',
@@ -118,19 +127,24 @@ export default class extends LlmEngine {
       'moondream',
       'qwen2.5vl',
       'qwen3-vl',
+      'translategemma',
     ]
 
     const reasoningModels = [
       'cogito:*',
       'deepseek-r1',
       'deepseek-v3.1',
+      'glm-4.7-flash',
       'gpt-oss',
       'gpt-oss-safeguard',
       'magistral',
+      'nemotron-3-nano',
       'openthinker:*',
       'phi:*',
       'qwq:*',
       'qwen3',
+      'qwen3-next',
+      'qwen3-vl',
     ]
 
     return {
