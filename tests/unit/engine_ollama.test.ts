@@ -618,3 +618,52 @@ test('Ollama hook modifies tool results before second API call', async () => {
     ])
   }))
 })
+
+test('Ollama stream preserves text content before tool calls', async () => {
+  // Override mock to emit text BEFORE tool calls
+  vi.mocked(_ollama.Ollama.prototype.chat).mockImplementationOnce(() => ({
+    async * [Symbol.asyncIterator]() {
+      // First: text content (model explains what it's about to do)
+      yield { message: { role: 'assistant', content: 'Let me search ' }, done: false }
+      yield { message: { role: 'assistant', content: 'for that.' }, done: false }
+
+      // Then: tool calls
+      yield { message: { role: 'assistant', content: '', tool_calls: [
+        { function: { name: 'plugin1', arguments: [] } }
+      ] }, done: false }
+
+      // After tool execution, final response
+      yield { message: { role: 'assistant', content: 'Done!' }, done: true }
+    },
+    controller: { abort: vi.fn() }
+  }) as any)
+
+  const ollama = new Ollama(config)
+  ollama.addPlugin(new Plugin1())
+
+  // Use model name containing 'tool' to enable tools
+  const { stream, context } = await ollama.stream(ollama.buildModel('model-with-tool'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+
+  // Consume the stream
+  for await (const chunk of stream) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const msg of ollama.processNativeChunk(chunk, context)) {
+      // just consume
+    }
+  }
+
+  // Verify the second API call includes text content in the assistant message
+  // Ollama tool call assistant messages should include the accumulated text
+  expect(_ollama.Ollama.prototype.chat).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    messages: expect.arrayContaining([
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Let me search for that.',
+        tool_calls: expect.any(Array)
+      })
+    ])
+  }))
+})

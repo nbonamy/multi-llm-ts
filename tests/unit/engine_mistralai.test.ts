@@ -195,23 +195,23 @@ test('MistralAI stream with tools', async () => {
       if (msg.type === 'tool') toolCalls.push(msg)
     }
   }
-  expect(Mistral.prototype.chat.stream).toHaveBeenNthCalledWith(2, {
+  expect(Mistral.prototype.chat.stream).toHaveBeenNthCalledWith(2, expect.objectContaining({
     model: 'model',
     messages: [
       { role: 'system', content: 'instruction' },
       { role: 'user', content: [{ type: 'text', text: 'prompt' }] },
-      { role: 'assistant', toolCalls: [
+      { role: 'assistant', content: '', toolCalls: [
         { id: '1', function: { name: 'plugin1', arguments: '[]' } },
       ] },
       { role: 'tool', toolCallId: '1', name: 'plugin1', content: '"result1"' },
-      { role: 'assistant', toolCalls: [
+      { role: 'assistant', content: '', toolCalls: [
         { id: '2', function: { name: 'plugin2', arguments: '[ "arg" ]' } }
       ] },
       { role: 'tool', toolCallId: '2', name: 'plugin2', content: '"result2"' }
     ],
     toolChoice: 'auto',
     tools: expect.any(Array),
-  })
+  }))
   expect(lastMsg?.done).toBe(true)
   expect(response).toBe('response')
   expect(Plugin1.prototype.execute).toHaveBeenCalledWith({ model: 'model' }, [])
@@ -591,6 +591,54 @@ test('MistralAI hook modifies tool results before second API call', async () => 
     messages: expect.arrayContaining([
       expect.objectContaining({ role: 'tool', toolCallId: '1', content: '"[truncated]"' }),
       expect.objectContaining({ role: 'tool', toolCallId: '2', content: '"result2"' }),
+    ])
+  }))
+})
+
+test('MistralAI stream preserves text content before tool calls', async () => {
+  // Override mock to emit text BEFORE tool calls
+  vi.mocked(Mistral.prototype.chat.stream).mockImplementationOnce(() => ({
+    async * [Symbol.asyncIterator]() {
+      // First: text content (model explains what it's about to do)
+      yield { data: { choices: [{ delta: { content: 'Let me search ' }, finishReason: null }] } }
+      yield { data: { choices: [{ delta: { content: 'for that.' }, finishReason: null }] } }
+
+      // Then: tool call
+      yield { data: { choices: [{ delta: { toolCalls: [{ id: 'tool-1', function: { name: 'plugin1', arguments: '[]' } }] }, finishReason: null }] } }
+
+      // Finish reason to trigger tool execution
+      yield { data: { choices: [{ finishReason: 'tool_calls' }] } }
+
+      // After tool execution, final response
+      yield { data: { choices: [{ delta: { content: 'Done!' }, finishReason: 'stop' }] } }
+    }
+  }) as any)
+
+  const mistralai = new MistralAI(config)
+  mistralai.addPlugin(new Plugin1())
+
+  const { stream, context } = await mistralai.stream(mistralai.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+
+  // Consume the stream
+  for await (const chunk of stream) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const msg of mistralai.processNativeChunk(chunk, context)) {
+      // just consume
+    }
+  }
+
+  // Verify the second API call includes text content in the assistant message
+  // MistralAI uses camelCase and 'content' field in assistant messages
+  expect(Mistral.prototype.chat.stream).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    messages: expect.arrayContaining([
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Let me search for that.',
+        toolCalls: expect.any(Array)
+      })
     ])
   }))
 })

@@ -23,6 +23,7 @@ const defaultBaseUrl = 'https://api.openai.com/v1'
 
 export type OpenAIStreamingContext = LlmStreamingContext<ChatCompletionMessageParam> & {
   reasoningContent: string
+  textContent: string
   responsesApi: boolean
   thinking: boolean
   done?: boolean
@@ -339,6 +340,7 @@ export default class extends LlmEngine {
       model: model,
       responsesApi: false,
       reasoningContent: '',
+      textContent: '',
       thread: this.buildOpenAIPayload(model, thread, opts),
       opts: opts || {},
       toolCalls: [],
@@ -363,6 +365,7 @@ export default class extends LlmEngine {
     // reset
     context.toolCalls = []
     context.startTime = Date.now()
+    context.textContent = ''
 
     // call
     logger.log(`[${this.getName()}] prompting model ${context.model.id}`)
@@ -516,7 +519,7 @@ export default class extends LlmEngine {
       yield* this.executeToolCallsSequentially(context.toolCalls, context, {
         formatToolCallForThread: (tc: LlmToolCall) => ({
           role: 'assistant' as const,
-          content: '',
+          content: context.textContent || '',
           ...(this.requiresReasoningContent() ? { reasoning_content: context.reasoningContent } : {}),
           ...(tc.reasoningDetails ? { reasoning_details: tc.reasoningDetails } : {}),
           tool_calls: tc.message
@@ -555,9 +558,13 @@ export default class extends LlmEngine {
 
     // text chunk
     if (chunk.choices?.length && (chunk.choices?.[0]?.delta?.content || done)) {
+      const text = chunk.choices?.[0]?.delta?.content || ''
+      if (!context.thinking) {
+        context.textContent += text
+      }
       yield {
         type: context.thinking ? 'reasoning' : 'content',
-        text: chunk.choices?.[0]?.delta?.content || '',
+        text: text,
         done: done
       }
     }

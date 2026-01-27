@@ -15,6 +15,7 @@ export type OllamaMessage = NonNullable<ChatRequest['messages']>[number]
 
 export type OllamaStreamingContext = LlmStreamingContext<OllamaMessage> & {
   thinking: boolean
+  textContent?: string
 }
 
 export type OllamaModelInfo = {
@@ -321,6 +322,7 @@ export default class extends LlmEngine {
     context.toolCalls = []
     context.startTime = Date.now()
     context.thinking = false
+    context.textContent = ''
 
     // call
     logger.log(`[ollama] prompting model ${context.model.id}`)
@@ -513,7 +515,7 @@ export default class extends LlmEngine {
           // add assistant message for this specific tool call
           context.thread.push({
             role: 'assistant',
-            content: '',
+            content: context.textContent || '',
             tool_calls: [tool]
           })
 
@@ -602,9 +604,14 @@ export default class extends LlmEngine {
     
     // content
     if (chunk.message.content?.length || chunk.done) {
+      const text = chunk.message.content || ''
+      // accumulate text content (not thinking/reasoning)
+      if (!context.thinking && text) {
+        context.textContent = (context.textContent || '') + text
+      }
       yield {
         type: context.thinking ? 'reasoning' : 'content',
-        text: chunk.message.content || '',
+        text: text,
         done: chunk.done
       }
     }

@@ -574,3 +574,51 @@ test('Groq hook modifies tool results before second API call', async () => {
     ])
   }))
 })
+
+test('Groq stream preserves text content before tool calls', async () => {
+  // Override mock to emit text BEFORE tool calls
+  vi.mocked(_Groq.prototype.chat.completions.create).mockImplementationOnce(() => ({
+    async * [Symbol.asyncIterator]() {
+      // First: text content (model explains what it's about to do)
+      yield { choices: [{ delta: { content: 'Let me search ' }, finish_reason: null }] }
+      yield { choices: [{ delta: { content: 'for that.' }, finish_reason: null }] }
+
+      // Then: tool call
+      yield { choices: [{ delta: { tool_calls: [{ index: 0, id: 'tool-1', function: { name: 'plugin1', arguments: '[]' } }] }, finish_reason: null }] }
+
+      // Finish reason to trigger tool execution
+      yield { choices: [{ finish_reason: 'tool_calls' }] }
+
+      // After tool execution, final response
+      yield { choices: [{ delta: { content: 'Done!' }, finish_reason: 'stop' }] }
+    },
+    controller: { abort: vi.fn() }
+  }) as any)
+
+  const groq = new Groq(config)
+  groq.addPlugin(new Plugin1())
+
+  const { stream, context } = await groq.stream(groq.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+
+  // Consume the stream
+  for await (const chunk of stream) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const msg of groq.processNativeChunk(chunk, context)) {
+      // just consume
+    }
+  }
+
+  // Verify the second API call includes text content in the assistant message
+  expect(_Groq.prototype.chat.completions.create).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    messages: expect.arrayContaining([
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Let me search for that.',
+        tool_calls: expect.any(Array)
+      })
+    ])
+  }))
+})

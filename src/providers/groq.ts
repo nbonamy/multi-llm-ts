@@ -14,7 +14,9 @@ import { zeroUsage } from '../usage'
 // https://console.groq.com/docs/api-reference#chat-create
 //
 
-export type GroqStreamingContext = LlmStreamingContext<ChatCompletionMessageParam>
+export type GroqStreamingContext = LlmStreamingContext<ChatCompletionMessageParam> & {
+  textContent?: string
+}
 
 export default class extends LlmEngine {
 
@@ -215,6 +217,7 @@ export default class extends LlmEngine {
     // reset
     context.toolCalls = []
     context.startTime = Date.now()
+    context.textContent = ''
 
     // call
     logger.log(`[groq] prompting model ${context.model.id}`)
@@ -331,7 +334,7 @@ export default class extends LlmEngine {
       yield* this.executeToolCallsSequentially(context.toolCalls, context, {
         formatToolCallForThread: (tc: LlmToolCall) => ({
           role: 'assistant' as const,
-          content: '',
+          content: context.textContent || '',
           tool_calls: tc.message
         }),
         formatToolResultForThread: (result: any, tc: LlmToolCall) => ({
@@ -358,10 +361,12 @@ export default class extends LlmEngine {
       }
     
     } else if (chunk.choices[0].delta.content) {
+      const text = chunk.choices[0].delta.content
+      context.textContent = (context.textContent || '') + text
 
       yield {
         type: 'content',
-        text: chunk.choices[0].delta.content,
+        text: text,
         done: false
       }
 

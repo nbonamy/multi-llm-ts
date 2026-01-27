@@ -806,21 +806,25 @@ test('Anthropic thinking block added to thread before tool uses', async () => {
     // consume
   }
 
-  // Verify thinking block was added BEFORE tool uses
+  // Verify thinking block and tool uses are in the SAME assistant message
+  // with thinking coming BEFORE tool uses (this is the correct Anthropic format)
   expect(context.thread[1]).toMatchObject({
     role: 'assistant',
-    content: [{
-      type: 'thinking',
-      thinking: 'This is my reasoning about the tool call',
-      signature: 'sig123'
-    }]
+    content: [
+      {
+        type: 'thinking',
+        thinking: 'This is my reasoning about the tool call',
+        signature: 'sig123'
+      },
+      expect.objectContaining({ type: 'tool_use', id: 'tool-1', name: 'plugin1' })
+    ]
   })
 
-  // Verify tool uses come after thinking block
+  // Tool results should follow in a user message
   expect(context.thread[2]).toMatchObject({
-    role: 'assistant',
+    role: 'user',
     content: expect.arrayContaining([
-      expect.objectContaining({ type: 'tool_use', id: 'tool-1', name: 'plugin1' })
+      expect.objectContaining({ type: 'tool_result', tool_use_id: 'tool-1' })
     ])
   })
 })
@@ -828,3 +832,61 @@ test('Anthropic thinking block added to thread before tool uses', async () => {
 // Note: Computer tool special result format (spreading instead of JSON stringify)
 // is handled in the provider but complex to test due to global mocks.
 // This behavior must be preserved during refactoring (see lines 681-693 in anthropic.ts)
+
+test('Anthropic stream preserves text content before tool calls', async () => {
+  // Override mock to emit text BEFORE tool calls
+  vi.mocked(_Anthropic.default.prototype.messages.create).mockImplementationOnce(() => ({
+    async * [Symbol.asyncIterator]() {
+      // First: text content block (model explains what it's about to do)
+      yield { type: 'content_block_start', content_block: { type: 'text' } }
+      yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Let me search ' } }
+      yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'for that.' } }
+      yield { type: 'content_block_stop' }
+
+      // Then: tool call
+      yield { type: 'content_block_start', content_block: { type: 'tool_use', id: 'tool-1', name: 'plugin1' } }
+      yield { type: 'content_block_delta', delta: { type: 'input_json_delta', partial_json: '[]' } }
+      yield { type: 'content_block_stop' }
+
+      // stop_reason triggers tool execution
+      yield { type: 'message_delta', delta: { stop_reason: 'tool_use' } }
+
+      // After tool execution, final response
+      yield { type: 'content_block_start', content_block: { type: 'text' } }
+      yield { type: 'content_block_delta', delta: { type: 'text_delta', text: 'Done!' } }
+      yield { type: 'message_stop' }
+    },
+    controller: { abort: vi.fn() }
+  }) as any)
+
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new Plugin1())
+
+  const { stream, context } = await anthropic.stream(anthropic.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+
+  // Consume the stream
+  for await (const chunk of stream) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const msg of anthropic.processNativeChunk(chunk, context)) {
+      // just consume
+    }
+  }
+
+  // Verify the second API call includes text content BEFORE tool_use in the assistant message
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    messages: expect.arrayContaining([
+      expect.objectContaining({
+        role: 'assistant',
+        content: expect.arrayContaining([
+          // Text block should come first with the accumulated text
+          expect.objectContaining({ type: 'text', text: 'Let me search for that.' }),
+          // Then the tool use
+          expect.objectContaining({ type: 'tool_use', id: 'tool-1', name: 'plugin1' })
+        ])
+      })
+    ])
+  }))
+})

@@ -28,6 +28,7 @@ export interface GoogleComputerToolInfo {
 export type GoogleStreamingContext = LlmStreamingContext<Content> & {
   opts: GoogleCompletionOpts
   requestUsage: LlmUsage
+  textContentBlock?: string
 }
 
 export default class extends LlmEngine {
@@ -297,6 +298,7 @@ export default class extends LlmEngine {
     context.toolCalls = []
     context.startTime = Date.now()
     context.requestUsage = zeroUsage()
+    context.textContentBlock = undefined
 
     logger.log(`[google] prompting model ${context.model.id}`)
     const response = await this.client.models.generateContentStream({
@@ -602,16 +604,29 @@ export default class extends LlmEngine {
       // execute tool calls using base class method
       yield* this.executeToolCallsBatched(context.toolCalls, context, {
         formatBatchForThread: (completed) => {
-          // assistant message with all function calls
-          const assistantContent: Content = {
-            role: 'assistant',
-            parts: completed.map(({ tc, args }) => ({
+          // build assistant parts: text first (if present), then function calls
+          const assistantParts: Part[] = []
+
+          // add accumulated text content if present
+          if (context.textContentBlock) {
+            assistantParts.push({ text: context.textContentBlock })
+          }
+
+          // add function calls
+          for (const { tc, args } of completed) {
+            assistantParts.push({
               functionCall: {
                 name: tc.function,
                 args: args,
               },
               ...(tc.thoughtSignature ? { thoughtSignature: tc.thoughtSignature } : {}),
-            })),
+            })
+          }
+
+          // assistant message with all content
+          const assistantContent: Content = {
+            role: 'assistant',
+            parts: assistantParts,
           }
 
           // tool message with all function responses
@@ -639,9 +654,14 @@ export default class extends LlmEngine {
     // iterate on candidates (content and reasoning)
     for (const candidate of chunk.candidates || []) {
       for (const part of candidate.content?.parts || []) {
+        const text = part.text || ''
+        // accumulate text content (not thought/reasoning)
+        if (!part.thought && text) {
+          context.textContentBlock = (context.textContentBlock || '') + text
+        }
         yield {
           type: part.thought ? 'reasoning' : 'content',
-          text: part.text || '',
+          text: text,
           ...(part.thoughtSignature ? { thoughtSignature: part.thoughtSignature } : {}),
           done: done
         }

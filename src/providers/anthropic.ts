@@ -35,6 +35,7 @@ export type AnthropicStreamingContext = LlmStreamingContext<MessageParam> & {
   requestUsage: LlmUsage
   thinkingBlock?: string
   thinkingSignature?: string
+  textContentBlock?: string
   firstTextBlockStart: boolean
 }
 
@@ -302,6 +303,7 @@ export default class extends LlmEngine {
     context.requestUsage = zeroUsage()
     context.thinkingBlock = undefined
     context.thinkingSignature = ''
+    context.textContentBlock = undefined
 
     // tools in anthropic format
     const tools: AnthropicTool[] = (await this.getAvailableTools()).map((tool) => {
@@ -568,6 +570,7 @@ export default class extends LlmEngine {
 
       // text
       if (chunk.delta.type === 'text_delta') {
+        context.textContentBlock = (context.textContentBlock || '') + chunk.delta.text
         yield { type: 'content', text: chunk.delta.text, done: false }
       }
 
@@ -577,18 +580,6 @@ export default class extends LlmEngine {
     if (chunk.type == 'message_delta') {
 
       if (chunk.delta.stop_reason == 'tool_use' && context.toolCalls.length) {
-
-        // add thinking block first if present (Anthropic-specific)
-        if (context.thinkingBlock) {
-          context.thread.push({
-            role: 'assistant',
-            content: [{
-              type: 'thinking',
-              thinking: context.thinkingBlock,
-              signature: context.thinkingSignature || ''
-            }]
-          })
-        }
 
         // clear force tool call to avoid infinite loop
         if (context.opts.toolChoice?.type === 'tool') {
@@ -607,15 +598,40 @@ export default class extends LlmEngine {
         // execute tool calls using base class method
         yield* this.executeToolCallsBatched(context.toolCalls, context, {
           formatBatchForThread: (completed) => {
-            // assistant message with all tool uses
-            const toolUses: MessageParam = {
-              role: 'assistant',
-              content: completed.map(({ tc, args }) => ({
+            // build assistant content: thinking + text + tool uses
+            const assistantContent: ContentBlockParam[] = []
+
+            // add thinking block first if present
+            if (context.thinkingBlock) {
+              assistantContent.push({
+                type: 'thinking',
+                thinking: context.thinkingBlock,
+                signature: context.thinkingSignature || ''
+              })
+            }
+
+            // add accumulated text content if present
+            if (context.textContentBlock) {
+              assistantContent.push({
+                type: 'text',
+                text: context.textContentBlock
+              })
+            }
+
+            // add tool uses
+            for (const { tc, args } of completed) {
+              assistantContent.push({
                 type: 'tool_use' as const,
                 id: tc.id,
                 name: tc.function,
                 input: args,
-              }))
+              })
+            }
+
+            // assistant message with all content
+            const toolUses: MessageParam = {
+              role: 'assistant',
+              content: assistantContent
             }
 
             // user message with all tool results

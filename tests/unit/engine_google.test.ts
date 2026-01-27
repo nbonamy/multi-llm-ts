@@ -770,3 +770,54 @@ test('Google hook modifies tool results before second API call', async () => {
     ])
   }))
 })
+
+test('Google stream preserves text content before tool calls', async () => {
+  // Override mock to emit text BEFORE tool calls
+  vi.mocked(_Google.GoogleGenAI.prototype.models.generateContentStream).mockImplementationOnce(() => ({
+    async * [Symbol.asyncIterator]() {
+      // First: text content (model explains what it's about to do)
+      yield { candidates: [{ content: { parts: [{ text: 'Let me search ' }] } }] }
+      yield { candidates: [{ content: { parts: [{ text: 'for that.' }] } }] }
+
+      // Then: tool call with finish reason
+      yield {
+        candidates: [{ content: { parts: [{ functionCall: { name: 'plugin1', args: [] } }] }, finishReason: 'STOP' }],
+        functionCalls: [{ name: 'plugin1', args: [] }]
+      }
+
+      // After tool execution, final response
+      yield { candidates: [{ content: { parts: [{ text: 'Done!' }] }, finishReason: 'STOP' }] }
+    }
+  }) as any)
+
+  const google = new Google(config)
+  google.addPlugin(new Plugin1())
+
+  const { stream, context } = await google.stream(google.buildModel('gemini-1.5'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+
+  // Consume the stream
+  for await (const chunk of stream) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const msg of google.processNativeChunk(chunk, context)) {
+      // just consume
+    }
+  }
+
+  // Verify the second API call includes text content in the assistant message parts
+  expect(_Google.GoogleGenAI.prototype.models.generateContentStream).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    contents: expect.arrayContaining([
+      expect.objectContaining({
+        role: 'assistant',
+        parts: expect.arrayContaining([
+          // Text part should come first
+          expect.objectContaining({ text: 'Let me search for that.' }),
+          // Then the function call
+          expect.objectContaining({ functionCall: expect.objectContaining({ name: 'plugin1' }) })
+        ])
+      })
+    ])
+  }))
+})

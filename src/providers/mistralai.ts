@@ -20,7 +20,9 @@ type MistralMessages = Array<
 // https://docs.mistral.ai/api/
 //
 
-export type MistralStreamingContext = LlmStreamingContext<MistralMessages[number]>
+export type MistralStreamingContext = LlmStreamingContext<MistralMessages[number]> & {
+  textContent?: string
+}
 
 export default class extends LlmEngine {
 
@@ -196,6 +198,7 @@ export default class extends LlmEngine {
     // reset
     context.toolCalls = []
     context.startTime = Date.now()
+    context.textContent = ''
 
     // call
     logger.log(`[mistralai] prompting model ${context.model.id}`)
@@ -306,6 +309,7 @@ export default class extends LlmEngine {
       yield* this.executeToolCallsSequentially(context.toolCalls, context, {
         formatToolCallForThread: (tc: LlmToolCall) => ({
           role: 'assistant' as const,
+          content: context.textContent || '',
           toolCalls: tc.message
         }),
         formatToolResultForThread: (result: any, tc: LlmToolCall) => ({
@@ -343,9 +347,11 @@ export default class extends LlmEngine {
     } else {
 
       // default
+      const text = chunk.data.choices[0].delta.content as string || ''
+      context.textContent = (context.textContent || '') + text
       yield {
         type: 'content',
-        text: chunk.data.choices[0].delta.content as string || '',
+        text: text,
         done: chunk.data.choices[0].finishReason != null
       }
 
