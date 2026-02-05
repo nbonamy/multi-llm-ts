@@ -28,6 +28,7 @@ export type LlmResponse = {
   thoughtSignature?: string
   openAIResponseId?: string
   usage?: LlmUsage
+  logprobs?: LlmLogprob[]
 }
 
 export type LlmToolCall = {
@@ -152,6 +153,8 @@ export type LlmOllamaThink = boolean | 'high' | 'medium' | 'low'
 
 export type LlmOllamaModelOpts = {
   think?: LlmOllamaThink
+  logprobs?: boolean
+  top_logprobs?: number
 }
 
 export type LlmModelOpts = {
@@ -354,4 +357,13 @@ export type LlmUsage = {
     reasoning_tokens?: number
     audio_tokens?: number
   }
+}
+
+export type LlmTokenLogprob = {
+  token: string
+  logprob: number
+}
+
+export type LlmLogprob = LlmTokenLogprob & {
+  top_logprobs?: LlmTokenLogprob[]
 }
