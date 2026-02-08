@@ -4,6 +4,7 @@ import { Plugin1, Plugin2, Plugin3, CustomPlugin, MultiPlugin, PluginUpdate } fr
 import OpenAI from '../../src/providers/openai'
 import { EngineCreateOpts } from '../../src/types/index'
 import { PluginExecutionUpdate } from '../../src/types/plugin'
+import { toOpenAITools } from '../../src/tools'
 
 let config: EngineCreateOpts = {}
 beforeEach(() => {
@@ -88,90 +89,39 @@ test('OpenAI Functions', async () => {
   llm.addPlugin(new Plugin3())
 
   // @ts-expect-error protected
+  // Now returns ToolDefinition[] format (not OpenAI format)
   expect(await llm.getAvailableTools()).toStrictEqual([
     {
-      type: 'function',
-      function: {
-        name: 'plugin1',
-        description: 'Plugin 1',
-        parameters: {
-          type: 'object',
-          properties: { },
-          required: [],
-        },
-      },
+      name: 'plugin1',
+      description: 'Plugin 1',
+      parameters: [],
     },
     {
-      type: 'function',
-      function: {
-        name: 'plugin2',
-        description: 'Plugin 2',
-        parameters: {
+      name: 'plugin2',
+      description: 'Plugin 2',
+      parameters: [
+        { name: 'param1', type: 'string', description: 'Parameter 1', required: true },
+        { name: 'param2', type: 'number', description: 'Parameter 2', required: false },
+        { name: 'param3', type: 'array', description: 'Parameter 3', required: true },
+        { name: 'param4', type: 'array', description: 'Parameter 4', required: false, items: { type: 'string' } },
+        { name: 'param5', type: 'array', description: 'Parameter 5', required: false, items: {
           type: 'object',
-          properties: {
-            param1: {
-              type: 'string',
-              description: 'Parameter 1',
-            },
-            param2: {
-              type: 'number',
-              description: 'Parameter 2',
-            },
-            param3: {
-              type: 'array',
-              description: 'Parameter 3',
-              items: { type: 'string' },
-            },
-            param4: {
-              type: 'array',
-              description: 'Parameter 4',
-              items: { type: 'string' },
-            },
-            param5: {
-              type: 'array',
-              description: 'Parameter 5',
-              items: {
-                type: 'object',
-                properties: {
-                  'key': {
-                    type: 'string',
-                    description: 'Key',
-                  },
-                  'value': {
-                    type: 'number',
-                    description: 'Value',
-                  },
-                },
-                required: ['key'],
-              }
-            },
-            param6: {
-              type: 'string',
-              description: 'Parameter 6',
-            },
-            param7: {
-              type: 'array',
-              description: 'Parameter 7',
-              items: { type: 'string' },
-            },
-            param8: {
-              type: 'array',
-              description: 'Parameter 8',              
-              items: {
-                type: 'object',
-                properties: {
-                  'key': {
-                    type: 'string',
-                    description: 'Key',
-                  },
-                },
-                required: [],
-              }
-            },
-          },
-          required: ['param1', 'param3'],
-        },
-      },
+          properties: [
+            { name: 'key', type: 'string', description: 'Key', required: true },
+            { name: 'value', type: 'number', description: 'Value' },
+          ]
+        }},
+        { name: 'param6', description: 'Parameter 6' },
+        { name: 'param7', description: 'Parameter 7', items: { type: 'string' } },
+        { name: 'param8', description: 'Parameter 8', items: {
+          type: 'object',
+          properties: [
+            { name: 'key', type: 'string', description: 'Key' },
+          ]
+        }},
+        { name: 'param9', type: 'array', description: 'Parameter 9', required: false },
+        { name: 'param10', type: 'array', description: 'Parameter 10', required: false, items: { type: 'object' } },
+      ],
     },
   ])
 })
@@ -181,18 +131,12 @@ test('Custom Tools Plugin', async () => {
   llm.addPlugin(new CustomPlugin())
 
   // @ts-expect-error protected
+  // CustomPlugin returns OpenAI format, but getAvailableTools normalizes to ToolDefinition
   expect(await llm.getAvailableTools()).toStrictEqual([
     {
-      type: 'function',
-      function: {
-        name: 'custom',
-        description: 'Plugin Custom',
-        parameters: {
-          type: 'object',
-          properties: { },
-          required: [],
-        },
-      },
+      name: 'custom',
+      description: 'Plugin Custom',
+      parameters: [],
     },
   ])
 
@@ -204,32 +148,57 @@ test('Multi Tools Plugin', async () => {
   llm.addPlugin(new MultiPlugin())
 
   // @ts-expect-error protected
+  // MultiPlugin returns OpenAI format, but getAvailableTools normalizes to ToolDefinition
   expect(await llm.getAvailableTools()).toStrictEqual([
     {
-      type: 'function',
-      function: {
-        name: 'multi1',
-        description: 'Tool Multi 1',
-        parameters: {
-          type: 'object',
-          properties: { },
-          required: [],
-        },
-      },
+      name: 'multi1',
+      description: 'Tool Multi 1',
+      parameters: [],
     },
     {
-      type: 'function',
-      function: {
-        name: 'multi2',
-        description: 'Tool Multi 2',
-        parameters: {
-          type: 'object',
-          properties: { },
-          required: [],
-        },
-      },
+      name: 'multi2',
+      description: 'Tool Multi 2',
+      parameters: [],
     },
   ])
+
+})
+
+test('toOpenAITools conversion', async () => {
+  const llm = new OpenAI(config)
+  llm.addPlugin(new Plugin2())
+
+  // @ts-expect-error protected
+  const toolDefs = await llm.getAvailableTools()
+  const openaiTools = toOpenAITools(toolDefs)
+  const props = openaiTools[0].function.parameters.properties
+
+  // param3: array with no items — must default to items: { type: 'string' }
+  expect(props.param3.type).toBe('array')
+  expect(props.param3.items).toStrictEqual({ type: 'string' })
+
+  // param5: items.properties must be a Record<string, ...> (not an array)
+  expect(props.param5!.items!.properties).toStrictEqual({
+    key: { type: 'string', description: 'Key' },
+    value: { type: 'number', description: 'Value' },
+  })
+  expect(props.param5!.items!.required).toStrictEqual(['key'])
+
+  // param6: no type, no items — should infer 'string'
+  expect(props.param6.type).toBe('string')
+
+  // param7: no type but has items — should infer 'array'
+  expect(props.param7.type).toBe('array')
+  expect(props.param7.items).toStrictEqual({ type: 'string' })
+
+  // param8: same — items.properties must be a Record
+  expect(props.param8!.items!.properties).toStrictEqual({
+    key: { type: 'string', description: 'Key' },
+  })
+
+  // param9: same edge case
+  expect(props.param9.type).toBe('array')
+  expect(props.param9.items).toStrictEqual({ type: 'string' })
 
 })
 

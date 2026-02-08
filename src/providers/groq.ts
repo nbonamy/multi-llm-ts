@@ -8,6 +8,7 @@ import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGroq } from '../types/index'
 import { LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
+import { toOpenAITools } from '../tools'
 import { zeroUsage } from '../usage'
 
 //
@@ -251,10 +252,11 @@ export default class extends LlmEngine {
       return {}
     }
 
-    // tools
-    const tools = await this.getAvailableTools()
+    // tools - convert ToolDefinition[] to OpenAI format for Groq SDK
+    const toolDefs = await this.getAvailableTools()
+    const tools = toOpenAITools(toolDefs)
     return tools.length ? {
-      tools: tools,
+      tools: tools as any,
       tool_choice: opts?.toolChoice?.type === 'tool' ? {
         type: 'function',
         function: { name: opts.toolChoice.name }

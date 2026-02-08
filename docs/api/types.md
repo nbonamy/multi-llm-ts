@@ -194,6 +194,12 @@ interface LlmChunkToolAbort {
 
 ## Plugin Types
 
+### ToolParameterType
+
+```typescript
+type ToolParameterType = 'string' | 'number' | 'boolean' | 'object' | 'array'
+```
+
 ### PluginParameter
 
 Parameter definition:
@@ -201,11 +207,26 @@ Parameter definition:
 ```typescript
 interface PluginParameter {
   name: string
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array'
+  type: ToolParameterType
   description: string
-  required: boolean
+  required?: boolean
   enum?: string[]
-  default?: any
+  items?: {
+    type: string
+    properties?: PluginParameter[]
+  }
+}
+```
+
+### ToolDefinition
+
+Provider-agnostic tool definition format. This is the recommended format for defining tools in `CustomToolPlugin` and `MultiToolPlugin`:
+
+```typescript
+interface ToolDefinition {
+  name: string
+  description: string
+  parameters: PluginParameter[]
 }
 ```
 

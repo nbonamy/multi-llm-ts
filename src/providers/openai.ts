@@ -8,8 +8,9 @@ import LlmEngine from '../engine'
 import logger from '../logger'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMetadata, ModelOpenAI } from '../types/index'
-import { LlmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmTool, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
+import { LlmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmCompletionOpts, LlmContentPayload, LlmResponse, LlmRole, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo, LlmToolChoice, LlmUsage } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
+import { toOpenAITools } from '../tools'
 import { zeroUsage } from '../usage'
 import { RequestOptions } from 'openai/internal/request-options'
 
@@ -413,13 +414,14 @@ export default class extends LlmEngine {
       return {}
     }
 
-    // tools
-    const tools = await this.getAvailableTools()
+    // tools - convert ToolDefinition[] to OpenAI format
+    const toolDefs = await this.getAvailableTools()
+    const tools = toOpenAITools(toolDefs)
     if (!tools.length) return {}
 
     // default chat-completions style
     return {
-      tools: tools,
+      tools: tools as any,
       tool_choice: opts?.toolChoice?.type === 'tool' ? {
         type: 'function',
         function: { name: opts.toolChoice.name }
@@ -1152,54 +1154,78 @@ export default class extends LlmEngine {
       return []
     }
 
-    // tools
-    const tools = await this.getAvailableTools()
-    if (!tools.length) return []
+    // tools - ToolDefinition[] format
+    const toolDefs = await this.getAvailableTools()
+    if (!toolDefs.length) return []
 
-    // convert schema for Responses API
-    return tools.map((t: LlmTool): Tool => {
+    // convert ToolDefinition[] to Responses API Tool format
+    return toolDefs.map((tool): Tool => {
 
-      // Function tools carry a JSON schema plus name & description.
-      if (t.type === 'function') {
+      // Build properties object from PluginParameter[]
+      const properties: Record<string, any> = {}
 
-        // clone it
-        const parameters = t.function.parameters ? {
-            ...JSON.parse(JSON.stringify(t.function.parameters)),
-            required: Object.keys(t.function.parameters.properties || {}),
-            additionalProperties: false,
-          } : {
-            type: 'object',
-            properties: {},
-            required: [],
-            additionalProperties: false
-          }
-        
-        // now we need to add additionalProperties: false to items properties
-        for (const value of Object.values(parameters.properties) as any) {
-          if (value.type === 'array' && value.items && typeof value.items === 'object' && value.items.type === 'object') {
-            value.items.required = Object.keys(value.items.properties)
-            value.items.additionalProperties = false
-          }
+      for (const param of tool.parameters) {
+        const type = param.type || (param.items ? 'array' : 'string')
+        const prop: any = {
+          type,
+          description: param.description,
+          ...(param.enum ? { enum: param.enum } : {}),
         }
-
-        // done
-        return {
-          type: 'function',
-          name: t.function.name,
-          description: t.function.description,
-          parameters: parameters,
-          strict: true
+        if (type === 'array') {
+          prop.items = this.convertItemsForResponsesAPI(param.items)
         }
-      
-      } else {
-
-        // does not exist yet
-        throw new Error(`[openai] tool type ${t.type} is not supported in Responses API`)
-
+        properties[param.name] = prop
       }
 
+      // Build parameters schema with strict mode requirements
+      // strict mode: required must list ALL property keys
+      const parameters = tool.parameters.length > 0 ? {
+        type: 'object',
+        properties,
+        required: Object.keys(properties),
+        additionalProperties: false,
+      } : {
+        type: 'object',
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      }
+
+      return {
+        type: 'function',
+        name: tool.name,
+        description: tool.description,
+        parameters: parameters,
+        strict: true
+      }
     })
 
+  }
+
+  // Helper to convert items for Responses API strict mode
+  // Responses API strict mode: required must list ALL property keys
+  private convertItemsForResponsesAPI(items?: { type: string; properties?: any[] }): any {
+    if (!items) return { type: 'string' }
+    if (!items.properties) {
+      // strict mode: object types need additionalProperties: false
+      if (items.type === 'object') {
+        return { type: 'object', properties: {}, required: [], additionalProperties: false }
+      }
+      return { type: items.type }
+    }
+    const props: Record<string, any> = {}
+    for (const prop of items.properties) {
+      props[prop.name] = {
+        type: prop.type,
+        description: prop.description,
+      }
+    }
+    return {
+      type: items.type || 'object',
+      properties: props,
+      required: Object.keys(props),
+      additionalProperties: false,
+    }
   }
 
   private getResponsesToolChoice(toolChoice?: LlmToolChoice): ToolChoiceOptions|ToolChoiceFunction {

@@ -1,7 +1,7 @@
 
 import { ZodType } from 'zod'
 import { ChatModel } from './index'
-import { PluginExecutionContext } from './plugin'
+import { PluginExecutionContext, ToolDefinition } from './plugin'
 
 export type LlmRole = 'system'|'developer'|'user'|'assistant'
 
@@ -309,20 +309,23 @@ export type LlmOpenAIMessageId = {
 
 export type LlmChunk = LlmChunkToolAbort | LlmChunkContent | LlmChunkStream | LlmChunkTool | LlmChunkUsage | LlmOpenAIMessageId
 
+export type ToolParameterType = 'string' | 'number' | 'boolean' | 'object' | 'array'
+
 export type LlmToolArrayItem = {
   name: string
-  type: string
+  type: ToolParameterType
   description: string
   required?: boolean
 }
 
 export type LlmToolArrayItems = {
   type: string
+  required?: boolean
   properties?: LlmToolArrayItem[]
 }
 
 export type LlmToolParameterOpenAI = {
-  type: string
+  type: ToolParameterType
   description: string
   enum?: string[]
   items?: LlmToolArrayItems
@@ -341,7 +344,11 @@ export type LlmToolOpenAI = {
   }
 }
 
-export type LlmTool = LlmToolOpenAI
+/**
+ * LlmTool accepts both the new ToolDefinition format and legacy OpenAI format.
+ * Prefer using ToolDefinition for new code.
+ */
+export type LlmTool = ToolDefinition | LlmToolOpenAI
 
 export type LlmUsage = {
   prompt_tokens: number

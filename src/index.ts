@@ -7,6 +7,16 @@ import Message from './models/message'
 
 import { Plugin, CustomToolPlugin, MultiToolPlugin } from './plugin'
 
+import {
+  isToolDefinition,
+  isLegacyOpenAITool,
+  normalizeToToolDefinition,
+  toolDefinitionToOpenAI,
+  toOpenAITool,
+  normalizeTools,
+  toOpenAITools,
+} from './tools'
+
 import { addUsages } from './usage'
 
 import LlmEngine from './engine'
@@ -49,6 +59,13 @@ export {
   Plugin,
   CustomToolPlugin,
   MultiToolPlugin,
+  isToolDefinition,
+  isLegacyOpenAITool,
+  normalizeToToolDefinition,
+  toolDefinitionToOpenAI,
+  toOpenAITool,
+  normalizeTools,
+  toOpenAITools,
   Message,
   Attachment,
   LlmEngine,

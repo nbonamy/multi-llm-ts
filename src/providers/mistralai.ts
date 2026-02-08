@@ -7,6 +7,7 @@ import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMistralAI } from '../types/index'
 import { LlmChunk, LlmCompletionOpts, LlmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from '../types/llm'
 import { PluginExecutionResult } from '../types/plugin'
+import { toOpenAITools } from '../tools'
 import { zeroUsage } from '../usage'
 
 type MistralMessages = Array<
@@ -230,10 +231,11 @@ export default class extends LlmEngine {
       return {}
     }
 
-    // tools
-    const tools = await this.getAvailableTools()
+    // tools - convert ToolDefinition[] to OpenAI format for MistralAI SDK
+    const toolDefs = await this.getAvailableTools()
+    const tools = toOpenAITools(toolDefs)
     return tools.length ? {
-      tools: tools,
+      tools: tools as any,
       toolChoice: opts?.toolChoice?.type === 'tool' ? {
         type: 'function',
         function: { name: opts.toolChoice.name }

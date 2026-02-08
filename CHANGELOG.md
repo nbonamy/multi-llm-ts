@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.1.0] - 2025-02-08
+
+### Added
+- [All] New `ToolDefinition` format for defining tools in `CustomToolPlugin` and `MultiToolPlugin`
+
+### Changed
+- N/A
+
+### Fixed
+- N/A
+
+### Removed
+- N/A
+
+
 ## [5.0.1] - 2025-01-27
 
 ### Fixed
@@ -29,3 +44,6 @@ All notable changes to this project will be documented in this file.
 - [Anthropic] Multi tool calling
 - [Deepseek] Function calling with Deepseek-Reasoner
 - [Mistral] Reasoning tokens
+
+### Removed
+- N/A

@@ -1,4 +1,4 @@
-import { vi, beforeEach, expect, test } from 'vitest'
+import { vi, beforeEach, expect, test, Mock } from 'vitest'
 import { NamedPlugin, Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
@@ -222,7 +222,7 @@ test('Anthropic processNativeChunk Text', async () => {
     currentRound: 0,
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 }
-  }
+  } as any
   for await (const llmChunk of anthropic.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
@@ -299,6 +299,48 @@ test('Anthropic stream', async () => {
   expect(toolCalls[5]).toStrictEqual({ type: 'tool', id: 2, name: 'plugin2', state: 'completed', call: { params: ['arg'], result: 'result2' }, status: undefined, done: true })
   await anthropic.stop(stream)
   expect(stream.controller!.abort).toHaveBeenCalled()
+})
+
+test('Anthropic tool schema conversion', async () => {
+  const anthropic = new Anthropic(config)
+  anthropic.addPlugin(new Plugin2())
+  await anthropic.stream(anthropic.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+  const firstCall = (_Anthropic.default.prototype.messages.create as Mock).mock.calls[0][0]
+  const schema = firstCall.tools[0].input_schema
+  const props = schema.properties
+
+  // param3: array with no items — must default to items: { type: 'string' }
+  expect(props.param3.type).toBe('array')
+  expect(props.param3.items).toStrictEqual({ type: 'string' })
+
+  // param5: items.properties must be a Record (not an array) with required
+  expect(props.param5.items.properties).toStrictEqual({
+    key: { type: 'string', description: 'Key' },
+    value: { type: 'number', description: 'Value' },
+  })
+  expect(props.param5.items.required).toStrictEqual(['key'])
+
+  // param6: no type, no items — should infer 'string'
+  expect(props.param6.type).toBe('string')
+
+  // param7: no type but has items — should infer 'array'
+  expect(props.param7.type).toBe('array')
+  expect(props.param7.items).toStrictEqual({ type: 'string' })
+
+  // param8: same — items.properties must be a Record
+  expect(props.param8.items.properties).toStrictEqual({
+    key: { type: 'string', description: 'Key' },
+  })
+
+  // param9: same edge case
+  expect(props.param9.type).toBe('array')
+  expect(props.param9.items).toStrictEqual({ type: 'string' })
+
+  // only truly required params
+  expect(schema.required).toStrictEqual(['param1', 'param3'])
 })
 
 test('Anthropic stream tool choice option', async () => {
@@ -538,7 +580,7 @@ test('Anthropic streaming validation deny - yields canceled chunk', async () => 
     firstTextBlockStart: true,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 }
-  }
+  } as any
 
   // Simulate tool_use stop
   const toolCallChunk = { type: 'message_delta', delta: { stop_reason: 'tool_use' } }
@@ -580,7 +622,7 @@ test('Anthropic streaming validation abort - yields tool_abort chunk', async () 
     firstTextBlockStart: true,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 }
-  }
+  } as any
 
   // Simulate tool_use stop - abort throws, so we need to catch it
   const toolCallChunk = { type: 'message_delta', delta: { stop_reason: 'tool_use' } }
@@ -692,7 +734,7 @@ test('Anthropic syncToolHistoryToThread updates thread from toolHistory', () => 
     firstTextBlockStart: true,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
-  }
+  } as any
 
   // Call syncToolHistoryToThread
   anthropic.syncToolHistoryToThread(context)
@@ -722,7 +764,7 @@ test('Anthropic addHook and hook execution', async () => {
     firstTextBlockStart: true,
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
-  }
+  } as any
 
   // @ts-expect-error accessing protected method for testing
   await anthropic.callHook('beforeToolCallsResponse', context)
@@ -797,7 +839,7 @@ test('Anthropic thinking block added to thread before tool uses', async () => {
     thinkingSignature: 'sig123',
     usage: { prompt_tokens: 0, completion_tokens: 0 },
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 }
-  }
+  } as any
 
   // Simulate tool_use stop
   const toolCallChunk = { type: 'message_delta', delta: { stop_reason: 'tool_use' } }

@@ -58,10 +58,10 @@ export class WeatherPlugin extends Plugin {
 
 **One plugin = One tool (custom definition)**
 
-Extends `Plugin` to let you build the tool description manually, bypassing the parameter system:
+Extends `Plugin` to let you build the tool description manually using `ToolDefinition`:
 
 ```typescript
-import { CustomToolPlugin, PluginExecutionContext } from 'multi-llm-ts'
+import { CustomToolPlugin, ToolDefinition, PluginExecutionContext } from 'multi-llm-ts'
 
 export class MyCustomPlugin extends CustomToolPlugin {
 
@@ -73,29 +73,17 @@ export class MyCustomPlugin extends CustomToolPlugin {
     return 'My custom tool'
   }
 
-  async getTools(): Promise<any> {
-    // Return tool in OpenAI format
+  async getTools(): Promise<ToolDefinition> {
     return {
-      type: 'function',
-      function: {
-        name: 'my_tool',
-        description: 'Custom tool description',
-        parameters: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: 'Search query'
-            }
-          },
-          required: ['query']
-        }
-      }
+      name: 'my_tool',
+      description: 'Custom tool description',
+      parameters: [
+        { name: 'query', type: 'string', description: 'Search query', required: true }
+      ]
     }
   }
 
   async execute(context: PluginExecutionContext, parameters: any): Promise<any> {
-    // Implementation
     return await performSearch(parameters.query)
   }
 }
@@ -110,7 +98,7 @@ export class MyCustomPlugin extends CustomToolPlugin {
 Extends `CustomToolPlugin` to provide multiple tools from a single plugin. Think of this like an MCP server that provides several related tools:
 
 ```typescript
-import { MultiToolPlugin, PluginExecutionContext } from 'multi-llm-ts'
+import { MultiToolPlugin, ToolDefinition, PluginExecutionContext } from 'multi-llm-ts'
 
 export class FileSystemPlugin extends MultiToolPlugin {
 
@@ -122,36 +110,22 @@ export class FileSystemPlugin extends MultiToolPlugin {
     return 'File system operations'
   }
 
-  async getTools(): Promise<any[]> {
+  async getTools(): Promise<ToolDefinition[]> {
     return [
       {
-        type: 'function',
-        function: {
-          name: 'read_file',
-          description: 'Read file contents',
-          parameters: {
-            type: 'object',
-            properties: {
-              path: { type: 'string', description: 'File path' }
-            },
-            required: ['path']
-          }
-        }
+        name: 'read_file',
+        description: 'Read file contents',
+        parameters: [
+          { name: 'path', type: 'string', description: 'File path', required: true }
+        ]
       },
       {
-        type: 'function',
-        function: {
-          name: 'write_file',
-          description: 'Write file contents',
-          parameters: {
-            type: 'object',
-            properties: {
-              path: { type: 'string', description: 'File path' },
-              content: { type: 'string', description: 'File content' }
-            },
-            required: ['path', 'content']
-          }
-        }
+        name: 'write_file',
+        description: 'Write file contents',
+        parameters: [
+          { name: 'path', type: 'string', description: 'File path', required: true },
+          { name: 'content', type: 'string', description: 'File content', required: true }
+        ]
       }
     ]
   }
@@ -358,6 +332,31 @@ const response = await model.complete([
 3. **Handle abort signals:**
    - Check `context.abortSignal?.aborted` in loops
    - Use `runWithAbort()` for async operations
+
+## Backwards Compatibility (prior to 5.1.0)
+
+Before 5.1.0, `CustomToolPlugin` and `MultiToolPlugin` required `getTools()` to return tools in OpenAI format:
+
+```typescript
+async getTools(): Promise<any> {
+  return {
+    type: 'function',
+    function: {
+      name: 'my_tool',
+      description: 'My tool',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search query' }
+        },
+        required: ['query']
+      }
+    }
+  }
+}
+```
+
+This format is still accepted and automatically normalized to `ToolDefinition` internally. However, it is **deprecated** and will be removed in a future release. Please migrate to the `ToolDefinition` format shown in the examples above.
 
 ## Next Steps
 

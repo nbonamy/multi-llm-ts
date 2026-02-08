@@ -177,7 +177,7 @@ test('Google processNativeChunk Text', async () => {
     currentRound: 0,
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 },
-  }
+  } as any
   for await (const llmChunk of google.processNativeChunk(streamChunk, context)) {
     expect(llmChunk).toStrictEqual({ type: 'content', text: 'response', done: false })
   }
@@ -191,6 +191,7 @@ test('Google processNativeChunk Text', async () => {
 
 test('Google stream', async () => {
 
+  // Updated to match new ToolDefinition format output
   const tools = [
     {
       functionDeclarations: [
@@ -211,6 +212,7 @@ test('Google stream', async () => {
                 type: 'number',
                 description: 'Parameter 2',
               },
+              // param3: array with no items — must default to items: { type: 'string' }
               param3: {
                 type: undefined,
                 description: 'Parameter 3',
@@ -227,10 +229,12 @@ test('Google stream', async () => {
                   type: 'string',
                 },
               },
+              // param5: items.properties must be converted to Record (not left as array)
               param5: {
                 type: undefined,
                 description: 'Parameter 5',
                 items: {
+                  type: 'object',
                   properties: {
                     key: {
                       description: 'Key',
@@ -241,32 +245,50 @@ test('Google stream', async () => {
                       type: 'number',
                     },
                   },
-                  type: 'object',
                 },
               },
+              // param6: no type, no items — should infer 'string'
               param6: {
                 type: 'string',
                 description: 'Parameter 6',
               },
+              // param7: no type but has items — should infer 'array'
               param7: {
-                type: undefined,
+                type: undefined,  // inferred 'array' → Type.ARRAY not in mock → undefined
                 description: 'Parameter 7',
                 items: {
-                  properties: undefined,
                   type: 'string',
                 },
               },
+              // param8: no type but has object items with properties — should infer 'array'
+              // items.properties must be converted to Record
               param8: {
-                type: undefined,
+                type: undefined,  // inferred 'array' → Type.ARRAY not in mock → undefined
                 description: 'Parameter 8',
                 items: {
+                  type: 'object',
                   properties: {
                     key: {
                       description: 'Key',
                       type: 'string',
                     },
                   },
-                  type: 'object',
+                },
+              },
+              // param9: array with no items — must default to items: { type: 'string' }
+              param9: {
+                type: undefined,
+                description: 'Parameter 9',
+                items: {
+                  type: 'string',
+                },
+              },
+              // param10: array with object items but no properties
+              param10: {
+                type: undefined,
+                description: 'Parameter 10',
+                items: {
+                  type: 'string',  // typeToSchemaType('object') with no properties falls to STRING
                 },
               },
             },
@@ -496,7 +518,7 @@ test('Google streaming validation deny - yields canceled chunk', async () => {
     currentRound: 0,
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 },
-  }
+  } as any
 
   // Simulate function call finish_reason
   const toolCallChunk: GenerateContentResponse = {
@@ -545,7 +567,7 @@ test('Google streaming validation abort - yields tool_abort chunk', async () => 
     currentRound: 0,
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 },
-  }
+  } as any
 
   // Simulate function call finish_reason - abort throws, so we need to catch it
   const toolCallChunk: GenerateContentResponse = {
@@ -684,7 +706,7 @@ test('Google syncToolHistoryToThread updates thread from toolHistory by index or
     currentRound: 2,
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 },
-  }
+  } as any
 
   // Call syncToolHistoryToThread
   google.syncToolHistoryToThread(context)
@@ -712,7 +734,7 @@ test('Google addHook and hook execution', async () => {
     currentRound: 1,
     requestUsage: { prompt_tokens: 0, completion_tokens: 0 },
     usage: { prompt_tokens: 0, completion_tokens: 0 },
-  }
+  } as any
 
   // @ts-expect-error accessing protected method for testing
   await google.callHook('beforeToolCallsResponse', context)

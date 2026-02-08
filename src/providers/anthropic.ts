@@ -10,7 +10,7 @@ import { Plugin } from '../plugin'
 import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCapabilities } from '../types/index'
 import { LlmChunk, LlmCompletionOpts, LlmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import { addUsages, zeroUsage } from '../usage'
-import { PluginExecutionResult } from '../types/plugin'
+import { PluginExecutionResult, PluginParameter } from '../types/plugin'
 
 //
 // https://docs.anthropic.com/en/api/getting-started
@@ -52,6 +52,57 @@ export default class extends LlmEngine {
       dangerouslyAllowBrowser: true,
     })
     this.computerInfo = computerInfo
+  }
+
+  // Convert PluginParameter[] to Anthropic input_schema format
+  private toolDefinitionToInputSchema(parameters: PluginParameter[]): Tool['input_schema'] {
+    const properties: Record<string, any> = {}
+    const required: string[] = []
+
+    for (const param of parameters) {
+      const type = param.type || (param.items ? 'array' : 'string')
+      const prop: any = {
+        type,
+        description: param.description,
+        ...(param.enum ? { enum: param.enum } : {}),
+      }
+      if (type === 'array') {
+        prop.items = this.convertItems(param.items)
+      }
+      properties[param.name] = prop
+      if (param.required) {
+        required.push(param.name)
+      }
+    }
+
+    return {
+      type: 'object',
+      properties,
+      required,
+    }
+  }
+
+  private convertItems(items: PluginParameter['items']): any {
+    if (!items) return { type: 'string' }
+    if (!items.properties) {
+      return { type: items.type }
+    }
+    const props: Record<string, any> = {}
+    const required: string[] = []
+    for (const prop of items.properties) {
+      props[prop.name] = {
+        type: prop.type,
+        description: prop.description,
+      }
+      if (prop.required) {
+        required.push(prop.name)
+      }
+    }
+    return {
+      type: items.type || 'object',
+      properties: props,
+      required,
+    }
   }
 
   getId(): string {
@@ -308,13 +359,9 @@ export default class extends LlmEngine {
     // tools in anthropic format
     const tools: AnthropicTool[] = (await this.getAvailableTools()).map((tool) => {
       return {
-        name: tool.function.name,
-        description: tool.function.description,
-        input_schema: {
-          type: 'object',
-          properties: tool.function.parameters.properties,
-          required: tool.function.parameters.required,
-        }
+        name: tool.name,
+        description: tool.description,
+        input_schema: this.toolDefinitionToInputSchema(tool.parameters),
       }
     })
 
@@ -391,13 +438,9 @@ export default class extends LlmEngine {
     // tools in anthropic format
     const tools: AnthropicTool[] = (await this.getAvailableTools()).map((tool) => {
       return {
-        name: tool.function.name,
-        description: tool.function.description,
-        input_schema: {
-          type: 'object',
-          properties: tool.function.parameters.properties,
-          required: tool.function.parameters.required,
-        },
+        name: tool.name,
+        description: tool.description,
+        input_schema: this.toolDefinitionToInputSchema(tool.parameters),
       }
     })
 

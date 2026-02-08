@@ -1,5 +1,5 @@
 
-import { LlmToolExecutionValidationResponse } from './llm'
+import { LlmToolExecutionValidationResponse, ToolParameterType } from './llm'
 
 export interface IPlugin {
 
@@ -17,7 +17,7 @@ export interface IPlugin {
 
 export type PluginParameter = {
   name: string
-  type: string
+  type: ToolParameterType
   description: string
   required?: boolean
   enum?: string[]
@@ -25,6 +25,17 @@ export type PluginParameter = {
     type: string,
     properties?: PluginParameter[]
   }
+}
+
+/**
+ * Provider-agnostic tool definition format.
+ * This is the recommended format for defining tools in plugins.
+ * It will be converted to provider-specific formats internally.
+ */
+export type ToolDefinition = {
+  name: string
+  description: string
+  parameters: PluginParameter[]
 }
 
 export type PluginExecutionContext = {

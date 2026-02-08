@@ -38,12 +38,14 @@ const realApiTest = async (engine: string, apiKey: string|undefined, modelName: 
   llm.addPlugin(new Plugin2())
   llm.addPlugin(new Plugin3())
 
-  // completion with tools
-  const response = await llm.complete(model, [
-    new Message('system', 'instruction'),
-    new Message('user', 'hello'),
-  ])
-  expect(response.content).toBeTruthy()
+  // completion with tools - anthropic does not like non streaming calls
+  if (engine !== 'anthropic') {
+    const response = await llm.complete(model, [
+      new Message('system', 'instruction'),
+      new Message('user', 'hello'),
+    ])
+    expect(response.content).toBeTruthy()
+  }
 
   // with different attachements
   const stream = llm.generate(model, [
@@ -53,10 +55,12 @@ const realApiTest = async (engine: string, apiKey: string|undefined, modelName: 
     new Message('user', 'I need help with this', new Attachment('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABAQMAAAAl21bKAAAAA1BMVEUAAACnej3aAAAAAXRSTlMAQObYZgAAAApJREFUCNdjYAAAAAIAAeIhvDMAAAAASUVORK5CYII=', 'image/png')),
   ], {
     contextWindowSize: 1000,
-    maxTokens: 200,
     temperature: 1.0,
-    top_k: 4,
-    top_p: 0.5,
+    ...(engine !== 'anthropic' ? {
+      maxTokens: 200,
+      top_k: 4,
+      top_p: 0.5,
+    } : {}),
     reasoningEffort: 'low',
     caching: true,
   })
@@ -74,23 +78,23 @@ const realApiTest = async (engine: string, apiKey: string|undefined, modelName: 
 }
 
 test.concurrent('OpenAI real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('openai', process.env.OPENAI_API_KEY, 'gpt-4o-mini')
+  await realApiTest('openai', process.env.OPENAI_API_KEY, 'gpt-5-mini')
 })
 
 test.concurrent('OpenAI Responses real test', { timeout: 1000 * 60 }, async () => {
   await realApiTest('openai', process.env.OPENAI_API_KEY, 'o3-pro')
 })
 
-test.concurrent('Antrophic real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('anthropic', process.env.ANTHROPIC_API_KEY, 'claude-3-5-haiku-latest')
+test.concurrent('Anthropic real test', { timeout: 1000 * 60 }, async () => {
+  await realApiTest('anthropic', process.env.ANTHROPIC_API_KEY, 'claude-haiku-4-5-20251001')
 })
 
 test.concurrent('Google real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('google', process.env.GOOGLE_API_KEY, 'gemini-2.0-flash')
+  await realApiTest('google', process.env.GOOGLE_API_KEY, 'gemini-flash-latest')
 })
 
 test.concurrent('xAI real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('xai', process.env.XAI_API_KEY, 'grok-3-mini-fast-beta')
+  await realApiTest('xai', process.env.XAI_API_KEY, 'grok-4-fast-non-reasoning')
 })
 
 test.concurrent('Meta real test', { timeout: 1000 * 60 }, async () => {
@@ -102,7 +106,7 @@ test.concurrent('DeepSeek real test', { timeout: 1000 * 60 }, async () => {
 })
 
 test.concurrent('MistralAI real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('mistralai', process.env.MISTRALAI_API_KEY, 'mistral-small')
+  await realApiTest('mistralai', process.env.MISTRALAI_API_KEY, 'mistral-small-latest')
 })
 
 test.concurrent('OpenRouter real test', { timeout: 1000 * 60 }, async () => {

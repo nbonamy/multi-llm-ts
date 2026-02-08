@@ -73,74 +73,41 @@ export class Plugin2 extends Plugin {
     return 'run2'
   }
 
+  // Parameters cover a wide range of edge cases to exercise
+  // provider-specific conversion (Google, Anthropic, OpenAI Responses API, etc.)
   getParameters(): PluginParameter[] {
     return [
-      {
-        name: 'param1',
-        type: 'string',
-        description: 'Parameter 1',
-        required: true
-      },
-      {
-        name: 'param2',
-        type: 'number',
-        description: 'Parameter 2',
-        required: false
-      },
-      {
-        name: 'param3',
-        type: 'array',
-        description: 'Parameter 3',
-        required: true
-      },
-      {
-        name: 'param4',
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Parameter 4',
-        required: false
-      },
-      {
-        name: 'param5',
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: [
-            {
-              name: 'key',
-              type: 'string',
-              description: 'Key',
-              required: true
-            },
-            {
-              name: 'value',
-              type: 'number',
-              description: 'Value',
-            },
-          ],
-        },
-        description: 'Parameter 5',
-        required: false
-      },
+      // param1-2: basic primitive types
+      { name: 'param1', type: 'string', description: 'Parameter 1', required: true },
+      { name: 'param2', type: 'number', description: 'Parameter 2', required: false },
+      // param3: array with no items — providers must handle missing items sub-schema
+      { name: 'param3', type: 'array', description: 'Parameter 3', required: true },
+      // param4: array with primitive items
+      { name: 'param4', type: 'array', items: { type: 'string' }, description: 'Parameter 4', required: false },
+      // param5: array with object items that have nested properties
+      { name: 'param5', type: 'array', items: {
+        type: 'object',
+        properties: [
+          { name: 'key', type: 'string', description: 'Key', required: true },
+          { name: 'value', type: 'number', description: 'Value' },
+        ],
+      }, description: 'Parameter 5', required: false },
+      // param6-8: malformed parameters with missing type field
+      // tests provider resilience to plugins that omit required fields
       // @ts-expect-error testing missing type
-      {
-        name: 'param6',
-        description: 'Parameter 6',
-      },
-      // @ts-expect-error testing missing type
-      {
-        name: 'param7',
-        description: 'Parameter 7',
-        items: { type: 'string' },
-      },
-      // @ts-expect-error testing missing type
-      {
-        name: 'param8',
-        description: 'Parameter 8',
-        items: { type: 'object', properties: [
-          { name: 'key', type: 'string', description: 'Key' },
-        ] },
-      }
+      { name: 'param6', description: 'Parameter 6' },
+      // @ts-expect-error testing missing type — has items but no type (should be 'array')
+      { name: 'param7', description: 'Parameter 7', items: { type: 'string' } },
+      // @ts-expect-error testing missing type — has object items with properties but no type
+      { name: 'param8', description: 'Parameter 8', items: { type: 'object', properties: [
+        { name: 'key', type: 'string', description: 'Key' },
+      ] } },
+      // param9: array with no items (well-formed variant of param3 edge case)
+      // tests that providers don't crash when no items sub-schema is provided
+      { name: 'param9', type: 'array', description: 'Parameter 9', required: false },
+      // param10: array with object items but no properties
+      // tests the items conversion path when items.type is object but has no nested schema
+      { name: 'param10', type: 'array', description: 'Parameter 10', required: false, items: { type: 'object' } },
     ]
   }
 
@@ -194,6 +161,9 @@ export class CustomPlugin extends CustomToolPlugin {
   }
 }
 
+// Purposefully uses the old OpenAI format (LlmToolOpenAI) in getTools()
+// to test that normalizeToToolDefinition() correctly converts legacy format
+// to ToolDefinition — validated in engine_plugins_mocked test('Multi Tools Plugin')
 export class MultiPlugin extends MultiToolPlugin {
 
   getName(): string {

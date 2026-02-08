@@ -332,6 +332,26 @@ export default class extends LlmEngine {
     return properties ? Type.OBJECT : Type.STRING
   }
 
+  // Convert PluginParameter items to Google format
+  private convertItemsForGoogle(items?: { type: string; properties?: any[] }): any {
+    if (!items) return { type: this.typeToSchemaType('string') }
+    if (!items.properties) {
+      return { type: this.typeToSchemaType(items.type) }
+    }
+    // Convert array of PluginParameter to Record for Google
+    const props: Record<string, any> = {}
+    for (const prop of items.properties) {
+      props[prop.name] = {
+        type: prop.type,
+        description: prop.description,
+      }
+    }
+    return {
+      type: this.typeToSchemaType(items.type, items.properties),
+      properties: props,
+    }
+  }
+
   protected async getGenerationConfig(model: ChatModel, opts?: GoogleCompletionOpts): Promise<GenerateContentConfig|undefined> {
 
     const config: GenerateContentConfig = {
@@ -380,28 +400,32 @@ export default class extends LlmEngine {
         for (const tool of tools) {
 
           const googleProps: { [k: string]: Schema } = {};
-          for (const name of Object.keys(tool.function.parameters.properties)) {
-            const props = tool.function.parameters.properties[name]
-            googleProps[name] = {
-              type: this.typeToSchemaType(props.type),
-              description: props.description,
-              ...(props.enum ? { enum: props.enum } : {}),
-              ...(props.items ? { items: {
-                  type: this.typeToSchemaType(props.items.type, props.items?.properties),
-                  properties: props.items?.properties
-                }
-              } : {}),
-            } as Schema
+          const required: string[] = [];
+
+          for (const param of tool.parameters) {
+            const type = param.type || (param.items ? 'array' : 'string')
+            const prop: any = {
+              type: this.typeToSchemaType(type),
+              description: param.description,
+              ...(param.enum ? { enum: param.enum } : {}),
+            }
+            if (type === 'array') {
+              prop.items = this.convertItemsForGoogle(param.items)
+            }
+            googleProps[param.name] = prop as Schema
+            if (param.required) {
+              required.push(param.name)
+            }
           }
 
           functionDeclarations.push({
-            name: tool.function.name,
-            description: tool.function.description,
-            ...(Object.keys(tool.function.parameters.properties).length == 0 ? {} : {
+            name: tool.name,
+            description: tool.description,
+            ...(tool.parameters.length == 0 ? {} : {
               parameters: {
                 type: Type.OBJECT,
                 properties: googleProps,
-                required: tool.function.parameters!.required,
+                required: required,
               }
             })
           })

@@ -1,5 +1,5 @@
 import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
-import { vi, beforeEach, expect, test } from 'vitest'
+import { vi, beforeEach, expect, test, Mock } from 'vitest'
 import { Plugin2 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import OpenAI from '../../src/providers/openai'
@@ -243,20 +243,61 @@ test('OpenAI Responses API completion with tools', async () => {
 
   expect(_openai.default.prototype.responses.create).toHaveBeenCalledTimes(2)
   
-  // First call
+  // First call - verify tool schema conversion
+  const firstCall = (_openai.default.prototype.responses.create as Mock).mock.calls[0][0]
+  const toolParams = firstCall.tools[0].parameters
+
+  // Responses API strict mode: required must list ALL property keys
+  expect(toolParams.required).toStrictEqual([
+    'param1', 'param2', 'param3', 'param4', 'param5',
+    'param6', 'param7', 'param8', 'param9', 'param10',
+  ])
+  expect(toolParams.additionalProperties).toBe(false)
+
+  // param3: array with no items — must default to items: { type: 'string' }
+  expect(toolParams.properties.param3.type).toBe('array')
+  expect(toolParams.properties.param3.items).toStrictEqual({ type: 'string' })
+
+  // param5: items.properties must be a Record (not an array)
+  // Responses API strict mode: required must list ALL keys
+  expect(toolParams.properties.param5.items.properties).toStrictEqual({
+    key: { type: 'string', description: 'Key' },
+    value: { type: 'number', description: 'Value' },
+  })
+  expect(toolParams.properties.param5.items.required).toStrictEqual(['key', 'value'])
+  expect(toolParams.properties.param5.items.additionalProperties).toBe(false)
+
+  // param6: no type, no items — should infer 'string'
+  expect(toolParams.properties.param6.type).toBe('string')
+
+  // param7: no type but has items — should infer 'array'
+  expect(toolParams.properties.param7.type).toBe('array')
+  expect(toolParams.properties.param7.items).toStrictEqual({ type: 'string' })
+
+  // param8: same — items.properties must be a Record, all keys required
+  expect(toolParams.properties.param8.items.properties).toStrictEqual({
+    key: { type: 'string', description: 'Key' },
+  })
+  expect(toolParams.properties.param8.items.required).toStrictEqual(['key'])
+  expect(toolParams.properties.param8.items.additionalProperties).toBe(false)
+
+  // param9: same as param3
+  expect(toolParams.properties.param9.type).toBe('array')
+  expect(toolParams.properties.param9.items).toStrictEqual({ type: 'string' })
+
+  // param10: array with object items but no properties
+  // Responses API strict mode: object items need full strict schema
+  expect(toolParams.properties.param10.items).toStrictEqual({
+    type: 'object', properties: {}, required: [], additionalProperties: false,
+  })
+
+  // verify full first call structure
   expect(_openai.default.prototype.responses.create).toHaveBeenNthCalledWith(1, {
     model: 'gpt-4',
     instructions: 'instruction',
     input: [ { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'prompt', }] } ],
     stream: false,
-    tools: expect.arrayContaining([
-      expect.objectContaining({
-        parameters: expect.objectContaining({
-          additionalProperties: false,
-          required: ['param1', 'param2', 'param3', 'param4', 'param5', 'param6', 'param7', 'param8']
-        })
-      }),
-    ]),
+    tools: expect.any(Array),
     tool_choice: 'auto'
   })
 

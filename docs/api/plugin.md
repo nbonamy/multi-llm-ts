@@ -186,13 +186,18 @@ async execute(context, params) {
 ### PluginParameter
 
 ```typescript
+type ToolParameterType = 'string' | 'number' | 'boolean' | 'object' | 'array'
+
 interface PluginParameter {
   name: string
-  type: 'string' | 'number' | 'boolean' | 'object' | 'array'
+  type: ToolParameterType
   description: string
-  required: boolean
+  required?: boolean
   enum?: string[]
-  default?: any
+  items?: {
+    type: string
+    properties?: PluginParameter[]
+  }
 }
 ```
 

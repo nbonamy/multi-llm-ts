@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
-import { LlmResponse, LlmCompletionOpts, LlmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmTool, LlmToolArrayItem, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, CompletedToolCall, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort, EngineHookName, EngineHookCallback, EngineHookPayloads, NormalizedToolChunk } from './types/llm'
-import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter, PluginExecutionResult } from './types/plugin'
+import { LlmResponse, LlmCompletionOpts, LlmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, CompletedToolCall, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort, EngineHookName, EngineHookCallback, EngineHookPayloads, NormalizedToolChunk } from './types/llm'
+import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter, PluginExecutionResult, ToolDefinition } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
+import { normalizeToToolDefinition } from './tools'
 import Attachment from './models/attachment'
 import Message from './models/message'
 import logger from './logger'
@@ -355,9 +356,9 @@ export default abstract class LlmEngine {
     }
   }
 
-  protected async getAvailableTools(): Promise<LlmTool[]> {
+  protected async getAvailableTools(): Promise<ToolDefinition[]> {
 
-    const tools: LlmTool[] = []
+    const tools: ToolDefinition[] = []
     for (const plugin of this.plugins) {
 
       // needs to be enabled
@@ -375,9 +376,10 @@ export default abstract class LlmEngine {
       if ('getTools' in plugin) {
         const pluginAsTool = await (plugin as ICustomPlugin).getTools()
         if (Array.isArray(pluginAsTool)) {
-          tools.push(...pluginAsTool)
+          // Normalize each tool to ToolDefinition format
+          tools.push(...pluginAsTool.map(normalizeToToolDefinition))
         } else if (pluginAsTool) {
-          tools.push(pluginAsTool)
+          tools.push(normalizeToToolDefinition(pluginAsTool))
         }
       } else {
         tools.push(this.getPluginAsTool(plugin as Plugin))
@@ -386,57 +388,13 @@ export default abstract class LlmEngine {
     return tools
   }
 
-  // this is the default implementation as per OpenAI API
-  // it is now almost a de facto standard and other providers
-  // are following it such as MistralAI and others
-  protected getPluginAsTool(plugin: Plugin): LlmTool {
+  // Returns plugin as a ToolDefinition
+  // Standard plugins define parameters via getParameters()
+  protected getPluginAsTool(plugin: Plugin): ToolDefinition {
     return {
-      type: 'function',
-      function: {
-        name: plugin.getName(),
-        description: plugin.getDescription(),
-        parameters: {
-          type: 'object',
-          properties: plugin.getParameters().reduce((obj: any, param: PluginParameter) => {
-
-            // basic stuff
-            obj[param.name] = {
-              type: param.type || (param.items ? 'array' : 'string'),
-              description: param.description,
-            }
-
-            // enum is optional
-            if (param.enum) {
-              obj[param.name].enum = param.enum
-            }
-
-            // array can have no items => object
-            // no properties => just a type
-            // or an object with properties
-            if (obj[param.name].type === 'array') {
-              if (!param.items) {
-                obj[param.name].items = { type: 'string' }
-              } else if (!param.items.properties) {
-                obj[param.name].items = { type: param.items.type }
-              } else {
-                obj[param.name].items = {
-                  type: param.items.type || 'object',
-                  properties: param.items.properties.reduce((obj: any, prop: LlmToolArrayItem) => {
-                    obj[prop.name] = {
-                      type: prop.type,
-                      description: prop.description,
-                    }
-                    return obj
-                  }, {}),
-                  required: param.items.properties.filter((prop: LlmToolArrayItem) => prop.required).map(prop => prop.name),
-                }
-              }
-            }
-            return obj
-          }, {}),
-          required: plugin.getParameters().filter(param => param.required).map(param => param.name),
-        },
-      },
+      name: plugin.getName(),
+      description: plugin.getDescription(),
+      parameters: plugin.getParameters(),
     }
   }
 
