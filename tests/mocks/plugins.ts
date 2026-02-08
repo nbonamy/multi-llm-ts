@@ -163,7 +163,7 @@ export class CustomPlugin extends CustomToolPlugin {
 
 // Purposefully uses the old OpenAI format (LlmToolOpenAI) in getTools()
 // to test that normalizeToToolDefinition() correctly converts legacy format
-// to ToolDefinition — validated in engine_plugins_mocked test('Multi Tools Plugin')
+// to PluginTool — validated in engine_plugins_mocked test('Multi Tools Plugin')
 export class MultiPlugin extends MultiToolPlugin {
 
   getName(): string {

@@ -89,7 +89,7 @@ test('OpenAI Functions', async () => {
   llm.addPlugin(new Plugin3())
 
   // @ts-expect-error protected
-  // Now returns ToolDefinition[] format (not OpenAI format)
+  // Now returns PluginTool[] format (not OpenAI format)
   expect(await llm.getAvailableTools()).toStrictEqual([
     {
       name: 'plugin1',
@@ -131,7 +131,7 @@ test('Custom Tools Plugin', async () => {
   llm.addPlugin(new CustomPlugin())
 
   // @ts-expect-error protected
-  // CustomPlugin returns OpenAI format, but getAvailableTools normalizes to ToolDefinition
+  // CustomPlugin returns OpenAI format, but getAvailableTools normalizes to PluginTool
   expect(await llm.getAvailableTools()).toStrictEqual([
     {
       name: 'custom',
@@ -148,7 +148,7 @@ test('Multi Tools Plugin', async () => {
   llm.addPlugin(new MultiPlugin())
 
   // @ts-expect-error protected
-  // MultiPlugin returns OpenAI format, but getAvailableTools normalizes to ToolDefinition
+  // MultiPlugin returns OpenAI format, but getAvailableTools normalizes to PluginTool
   expect(await llm.getAvailableTools()).toStrictEqual([
     {
       name: 'multi1',

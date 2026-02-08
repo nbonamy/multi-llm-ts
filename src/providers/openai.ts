@@ -414,7 +414,7 @@ export default class extends LlmEngine {
       return {}
     }
 
-    // tools - convert ToolDefinition[] to OpenAI format
+    // tools - convert PluginTool[] to OpenAI format
     const toolDefs = await this.getAvailableTools()
     const tools = toOpenAITools(toolDefs)
     if (!tools.length) return {}
@@ -1154,11 +1154,11 @@ export default class extends LlmEngine {
       return []
     }
 
-    // tools - ToolDefinition[] format
+    // tools - PluginTool[] format
     const toolDefs = await this.getAvailableTools()
     if (!toolDefs.length) return []
 
-    // convert ToolDefinition[] to Responses API Tool format
+    // convert PluginTool[] to Responses API Tool format
     return toolDefs.map((tool): Tool => {
 
       // Build properties object from PluginParameter[]

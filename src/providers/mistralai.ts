@@ -231,7 +231,7 @@ export default class extends LlmEngine {
       return {}
     }
 
-    // tools - convert ToolDefinition[] to OpenAI format for MistralAI SDK
+    // tools - convert PluginTool[] to OpenAI format for MistralAI SDK
     const toolDefs = await this.getAvailableTools()
     const tools = toOpenAITools(toolDefs)
     return tools.length ? {

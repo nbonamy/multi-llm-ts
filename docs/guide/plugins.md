@@ -58,10 +58,10 @@ export class WeatherPlugin extends Plugin {
 
 **One plugin = One tool (custom definition)**
 
-Extends `Plugin` to let you build the tool description manually using `ToolDefinition`:
+Extends `Plugin` to let you build the tool description manually using `PluginTool`:
 
 ```typescript
-import { CustomToolPlugin, ToolDefinition, PluginExecutionContext } from 'multi-llm-ts'
+import { CustomToolPlugin, PluginTool, PluginExecutionContext } from 'multi-llm-ts'
 
 export class MyCustomPlugin extends CustomToolPlugin {
 
@@ -73,7 +73,7 @@ export class MyCustomPlugin extends CustomToolPlugin {
     return 'My custom tool'
   }
 
-  async getTools(): Promise<ToolDefinition> {
+  async getTools(): Promise<PluginTool> {
     return {
       name: 'my_tool',
       description: 'Custom tool description',
@@ -98,7 +98,7 @@ export class MyCustomPlugin extends CustomToolPlugin {
 Extends `CustomToolPlugin` to provide multiple tools from a single plugin. Think of this like an MCP server that provides several related tools:
 
 ```typescript
-import { MultiToolPlugin, ToolDefinition, PluginExecutionContext } from 'multi-llm-ts'
+import { MultiToolPlugin, PluginTool, PluginExecutionContext } from 'multi-llm-ts'
 
 export class FileSystemPlugin extends MultiToolPlugin {
 
@@ -110,7 +110,7 @@ export class FileSystemPlugin extends MultiToolPlugin {
     return 'File system operations'
   }
 
-  async getTools(): Promise<ToolDefinition[]> {
+  async getTools(): Promise<PluginTool[]> {
     return [
       {
         name: 'read_file',
@@ -356,7 +356,7 @@ async getTools(): Promise<any> {
 }
 ```
 
-This format is still accepted and automatically normalized to `ToolDefinition` internally. However, it is **deprecated** and will be removed in a future release. Please migrate to the `ToolDefinition` format shown in the examples above.
+This format is still accepted and automatically normalized to `PluginTool` internally. However, it is **deprecated** and will be removed in a future release. Please migrate to the `PluginTool` format shown in the examples above.
 
 ## Next Steps
 

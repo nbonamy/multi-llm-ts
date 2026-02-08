@@ -1,12 +1,12 @@
-import { PluginParameter, ToolDefinition } from './types/plugin'
+import { PluginParameter, PluginTool } from './types/plugin'
 import { LlmTool, LlmToolArrayItems, LlmToolOpenAI, LlmToolParameterOpenAI } from './types/llm'
 
 /**
- * Type guard to check if a tool is in the new ToolDefinition format.
- * ToolDefinition has parameters as an array, while OpenAI format has nested structure.
+ * Type guard to check if a tool is in the new PluginTool format.
+ * PluginTool has parameters as an array, while OpenAI format has nested structure.
  */
-export function isToolDefinition(tool: LlmTool): tool is ToolDefinition {
-  return Array.isArray((tool as ToolDefinition).parameters)
+export function isToolDefinition(tool: LlmTool): tool is PluginTool {
+  return Array.isArray((tool as PluginTool).parameters)
 }
 
 /**
@@ -17,10 +17,10 @@ export function isLegacyOpenAITool(tool: LlmTool): tool is LlmToolOpenAI {
 }
 
 /**
- * Normalizes any LlmTool format to ToolDefinition.
+ * Normalizes any LlmTool format to PluginTool.
  * Use this to convert legacy OpenAI format tools to the new format.
  */
-export function normalizeToToolDefinition(tool: LlmTool): ToolDefinition {
+export function normalizeToToolDefinition(tool: LlmTool): PluginTool {
   if (isToolDefinition(tool)) {
     return tool
   }
@@ -49,10 +49,10 @@ export function normalizeToToolDefinition(tool: LlmTool): ToolDefinition {
 }
 
 /**
- * Converts a ToolDefinition to OpenAI format.
+ * Converts a PluginTool to OpenAI format.
  * Use this for providers that use OpenAI SDK or expect OpenAI format.
  */
-export function toolDefinitionToOpenAI(tool: ToolDefinition): LlmToolOpenAI {
+export function toolDefinitionToOpenAI(tool: PluginTool): LlmToolOpenAI {
   const properties: Record<string, LlmToolParameterOpenAI> = {}
   const required: string[] = []
 
@@ -99,9 +99,9 @@ export function toOpenAITool(tool: LlmTool): LlmToolOpenAI {
 }
 
 /**
- * Normalizes an array of tools to ToolDefinition format.
+ * Normalizes an array of tools to PluginTool format.
  */
-export function normalizeTools(tools: LlmTool[]): ToolDefinition[] {
+export function normalizeTools(tools: LlmTool[]): PluginTool[] {
   return tools.map(normalizeToToolDefinition)
 }
 

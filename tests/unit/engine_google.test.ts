@@ -191,7 +191,7 @@ test('Google processNativeChunk Text', async () => {
 
 test('Google stream', async () => {
 
-  // Updated to match new ToolDefinition format output
+  // Updated to match new PluginTool format output
   const tools = [
     {
       functionDeclarations: [

@@ -1,7 +1,7 @@
 
 import { ZodType } from 'zod'
 import { ChatModel } from './index'
-import { PluginExecutionContext, ToolDefinition } from './plugin'
+import { PluginExecutionContext, PluginTool } from './plugin'
 
 export type LlmRole = 'system'|'developer'|'user'|'assistant'
 
@@ -345,10 +345,10 @@ export type LlmToolOpenAI = {
 }
 
 /**
- * LlmTool accepts both the new ToolDefinition format and legacy OpenAI format.
- * Prefer using ToolDefinition for new code.
+ * LlmTool accepts both the new PluginTool format and legacy OpenAI format.
+ * Prefer using PluginTool for new code.
  */
-export type LlmTool = ToolDefinition | LlmToolOpenAI
+export type LlmTool = PluginTool | LlmToolOpenAI
 
 export type LlmUsage = {
   prompt_tokens: number

@@ -32,7 +32,7 @@ export type PluginParameter = {
  * This is the recommended format for defining tools in plugins.
  * It will be converted to provider-specific formats internally.
  */
-export type ToolDefinition = {
+export type PluginTool = {
   name: string
   description: string
   parameters: PluginParameter[]

@@ -218,12 +218,12 @@ interface PluginParameter {
 }
 ```
 
-### ToolDefinition
+### PluginTool
 
 Provider-agnostic tool definition format. This is the recommended format for defining tools in `CustomToolPlugin` and `MultiToolPlugin`:
 
 ```typescript
-interface ToolDefinition {
+interface PluginTool {
   name: string
   description: string
   parameters: PluginParameter[]

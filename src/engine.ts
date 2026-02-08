@@ -2,7 +2,7 @@
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
 import { LlmResponse, LlmCompletionOpts, LlmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, CompletedToolCall, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort, EngineHookName, EngineHookCallback, EngineHookPayloads, NormalizedToolChunk } from './types/llm'
-import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter, PluginExecutionResult, ToolDefinition } from './types/plugin'
+import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter, PluginExecutionResult, PluginTool } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 import { normalizeToToolDefinition } from './tools'
 import Attachment from './models/attachment'
@@ -356,9 +356,9 @@ export default abstract class LlmEngine {
     }
   }
 
-  protected async getAvailableTools(): Promise<ToolDefinition[]> {
+  protected async getAvailableTools(): Promise<PluginTool[]> {
 
-    const tools: ToolDefinition[] = []
+    const tools: PluginTool[] = []
     for (const plugin of this.plugins) {
 
       // needs to be enabled
@@ -376,7 +376,7 @@ export default abstract class LlmEngine {
       if ('getTools' in plugin) {
         const pluginAsTool = await (plugin as ICustomPlugin).getTools()
         if (Array.isArray(pluginAsTool)) {
-          // Normalize each tool to ToolDefinition format
+          // Normalize each tool to PluginTool format
           tools.push(...pluginAsTool.map(normalizeToToolDefinition))
         } else if (pluginAsTool) {
           tools.push(normalizeToToolDefinition(pluginAsTool))
@@ -388,9 +388,9 @@ export default abstract class LlmEngine {
     return tools
   }
 
-  // Returns plugin as a ToolDefinition
+  // Returns plugin as a PluginTool
   // Standard plugins define parameters via getParameters()
-  protected getPluginAsTool(plugin: Plugin): ToolDefinition {
+  protected getPluginAsTool(plugin: Plugin): PluginTool {
     return {
       name: plugin.getName(),
       description: plugin.getDescription(),
