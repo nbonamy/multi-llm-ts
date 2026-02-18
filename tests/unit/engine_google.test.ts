@@ -291,6 +291,31 @@ test('Google stream', async () => {
                   type: 'string',  // typeToSchemaType('object') with no properties falls to STRING
                 },
               },
+              // param11: nested array property inside object items must preserve items
+              param11: {
+                type: undefined,
+                description: 'Parameter 11',
+                items: {
+                  type: 'object',
+                  properties: {
+                    name: {
+                      type: 'string',
+                      description: 'Object name',
+                    },
+                    fields: {
+                      type: undefined,  // 'array' → Type.ARRAY not in mock → undefined
+                      description: 'Field names',
+                      items: {
+                        type: 'string',
+                      },
+                    },
+                    limit: {
+                      type: 'number',
+                      description: 'Max results',
+                    },
+                  },
+                },
+              },
             },
             required: ['param1', 'param3'],
             type: 'object',

@@ -8,7 +8,7 @@ import Message from '../models/message'
 import { Plugin } from '../plugin'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGoogle } from '../types/index'
 import { LlmChunk, LlmCompletionOpts, LlmCompletionPayload, LlmCompletionPayloadContent, LLmContentPayloadText, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
-import { PluginExecutionResult } from '../types/plugin'
+import { PluginExecutionResult, PluginParameter } from '../types/plugin'
 import { addUsages, zeroUsage } from '../usage'
 
 //
@@ -332,6 +332,20 @@ export default class extends LlmEngine {
     return properties ? Type.OBJECT : Type.STRING
   }
 
+  // Convert a single PluginParameter to Google schema format
+  private pluginParamToGoogleSchema(param: PluginParameter): any {
+    const type = param.type || (param.items ? 'array' : 'string')
+    const prop: any = {
+      type: this.typeToSchemaType(type),
+      description: param.description,
+      ...(param.enum ? { enum: param.enum } : {}),
+    }
+    if (type === 'array') {
+      prop.items = this.convertItemsForGoogle(param.items)
+    }
+    return prop
+  }
+
   // Convert PluginParameter items to Google format
   private convertItemsForGoogle(items?: { type: string; properties?: any[] }): any {
     if (!items) return { type: this.typeToSchemaType('string') }
@@ -341,10 +355,7 @@ export default class extends LlmEngine {
     // Convert array of PluginParameter to Record for Google
     const props: Record<string, any> = {}
     for (const prop of items.properties) {
-      props[prop.name] = {
-        type: prop.type,
-        description: prop.description,
-      }
+      props[prop.name] = this.pluginParamToGoogleSchema(prop)
     }
     return {
       type: this.typeToSchemaType(items.type, items.properties),

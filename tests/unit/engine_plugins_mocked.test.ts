@@ -121,6 +121,14 @@ test('OpenAI Functions', async () => {
         }},
         { name: 'param9', type: 'array', description: 'Parameter 9', required: false },
         { name: 'param10', type: 'array', description: 'Parameter 10', required: false, items: { type: 'object' } },
+        { name: 'param11', type: 'array', description: 'Parameter 11', required: false, items: {
+          type: 'object',
+          properties: [
+            { name: 'name', type: 'string', description: 'Object name', required: true },
+            { name: 'fields', type: 'array', description: 'Field names', items: { type: 'string' } },
+            { name: 'limit', type: 'number', description: 'Max results' },
+          ]
+        }},
       ],
     },
   ])
@@ -199,6 +207,13 @@ test('toOpenAITools conversion', async () => {
   // param9: same edge case
   expect(props.param9.type).toBe('array')
   expect(props.param9.items).toStrictEqual({ type: 'string' })
+
+  // param11: nested array property inside object items must preserve items
+  const param11Items = props.param11!.items!
+  expect(param11Items.properties.fields.type).toBe('array')
+  expect(param11Items.properties.fields.items).toStrictEqual({ type: 'string' })
+  expect(param11Items.properties.name.type).toBe('string')
+  expect(param11Items.properties.limit.type).toBe('number')
 
 })
 

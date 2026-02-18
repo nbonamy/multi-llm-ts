@@ -339,6 +339,13 @@ test('Anthropic tool schema conversion', async () => {
   expect(props.param9.type).toBe('array')
   expect(props.param9.items).toStrictEqual({ type: 'string' })
 
+  // param11: nested array property inside object items must preserve items
+  const param11Items = props.param11.items
+  expect(param11Items.properties.fields.type).toBe('array')
+  expect(param11Items.properties.fields.items).toStrictEqual({ type: 'string' })
+  expect(param11Items.properties.name.type).toBe('string')
+  expect(param11Items.properties.limit.type).toBe('number')
+
   // only truly required params
   expect(schema.required).toStrictEqual(['param1', 'param3'])
 })

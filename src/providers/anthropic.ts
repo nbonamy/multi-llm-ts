@@ -10,6 +10,7 @@ import { Plugin } from '../plugin'
 import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCapabilities } from '../types/index'
 import { LlmChunk, LlmCompletionOpts, LlmCompletionPayload, LlmResponse, LlmStream, LlmStreamingContext, LlmStreamingResponse, LlmToolCallInfo, LlmUsage } from '../types/llm'
 import { addUsages, zeroUsage } from '../usage'
+import { pluginParamToJsonSchema } from '../tools'
 import { PluginExecutionResult, PluginParameter } from '../types/plugin'
 
 //
@@ -90,10 +91,7 @@ export default class extends LlmEngine {
     const props: Record<string, any> = {}
     const required: string[] = []
     for (const prop of items.properties) {
-      props[prop.name] = {
-        type: prop.type,
-        description: prop.description,
-      }
+      props[prop.name] = pluginParamToJsonSchema(prop)
       if (prop.required) {
         required.push(prop.name)
       }

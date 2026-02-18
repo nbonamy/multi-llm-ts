@@ -108,6 +108,16 @@ export class Plugin2 extends Plugin {
       // param10: array with object items but no properties
       // tests the items conversion path when items.type is object but has no nested schema
       { name: 'param10', type: 'array', description: 'Parameter 10', required: false, items: { type: 'object' } },
+      // param11: array of objects where a nested property is itself an array
+      // reproduces the Salesforce salesforce_search_all bug where nested array items are dropped
+      { name: 'param11', type: 'array', items: {
+        type: 'object',
+        properties: [
+          { name: 'name', type: 'string', description: 'Object name', required: true },
+          { name: 'fields', type: 'array', description: 'Field names', items: { type: 'string' } },
+          { name: 'limit', type: 'number', description: 'Max results' },
+        ],
+      }, description: 'Parameter 11', required: false },
     ]
   }
 

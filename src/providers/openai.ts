@@ -1202,6 +1202,20 @@ export default class extends LlmEngine {
 
   }
 
+  // Convert a single PluginParameter to Responses API strict mode schema
+  private pluginParamToResponsesSchema(param: any): any {
+    const type = param.type || (param.items ? 'array' : 'string')
+    const prop: any = {
+      type,
+      description: param.description,
+      ...(param.enum ? { enum: param.enum } : {}),
+    }
+    if (type === 'array') {
+      prop.items = this.convertItemsForResponsesAPI(param.items)
+    }
+    return prop
+  }
+
   // Helper to convert items for Responses API strict mode
   // Responses API strict mode: required must list ALL property keys
   private convertItemsForResponsesAPI(items?: { type: string; properties?: any[] }): any {
@@ -1215,10 +1229,7 @@ export default class extends LlmEngine {
     }
     const props: Record<string, any> = {}
     for (const prop of items.properties) {
-      props[prop.name] = {
-        type: prop.type,
-        description: prop.description,
-      }
+      props[prop.name] = this.pluginParamToResponsesSchema(prop)
     }
     return {
       type: items.type || 'object',

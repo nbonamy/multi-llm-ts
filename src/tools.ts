@@ -65,7 +65,7 @@ export function toolDefinitionToOpenAI(tool: PluginTool): LlmToolOpenAI {
     }
     // arrays must have items — default to string if missing
     if (type === 'array') {
-      prop.items = convertToOpenAIItems(param.items)
+      prop.items = convertItemsToJsonSchema(param.items)
     }
     properties[param.name] = prop
     if (param.required) {
@@ -132,9 +132,23 @@ function convertOpenAIItems(items: LlmToolArrayItems): PluginParameter['items'] 
   }
 }
 
-// Helper to convert PluginParameter items to OpenAI JSON Schema items format
+// Helper to convert a single PluginParameter to a JSON Schema property
+export function pluginParamToJsonSchema(param: PluginParameter): any {
+  const type = param.type || (param.items ? 'array' : 'string')
+  const prop: any = {
+    type,
+    description: param.description,
+    ...(param.enum ? { enum: param.enum } : {}),
+  }
+  if (type === 'array') {
+    prop.items = convertItemsToJsonSchema(param.items)
+  }
+  return prop
+}
+
+// Helper to convert PluginParameter items to JSON Schema items format
 // Returns a proper JSON Schema object with properties as Record<string, ...>
-function convertToOpenAIItems(items: PluginParameter['items']): any {
+function convertItemsToJsonSchema(items: PluginParameter['items']): any {
   if (!items) return { type: 'string' }
   if (!items.properties) {
     return { type: items.type }
@@ -144,10 +158,7 @@ function convertToOpenAIItems(items: PluginParameter['items']): any {
   const props: Record<string, any> = {}
   const required: string[] = []
   for (const param of items.properties) {
-    props[param.name] = {
-      type: param.type,
-      description: param.description,
-    }
+    props[param.name] = pluginParamToJsonSchema(param)
     if (param.required) {
       required.push(param.name)
     }
