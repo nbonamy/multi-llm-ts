@@ -151,6 +151,10 @@ export function pluginParamToJsonSchema(param: PluginParameter): any {
 function convertItemsToJsonSchema(items: PluginParameter['items']): any {
   if (!items) return { type: 'string' }
   if (!items.properties) {
+    // array-of-arrays: propagate nested items
+    if (items.type === 'array' && items.items) {
+      return { type: 'array', items: { type: items.items.type || 'string' } }
+    }
     return { type: items.type }
   }
 

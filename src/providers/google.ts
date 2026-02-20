@@ -347,9 +347,12 @@ export default class extends LlmEngine {
   }
 
   // Convert PluginParameter items to Google format
-  private convertItemsForGoogle(items?: { type: string; properties?: any[] }): any {
+  private convertItemsForGoogle(items?: { type: string; properties?: any[]; items?: { type: string } }): any {
     if (!items) return { type: this.typeToSchemaType('string') }
     if (!items.properties) {
+      if (items.type === 'array' && items.items) {
+        return { type: this.typeToSchemaType('array'), items: { type: this.typeToSchemaType(items.items.type || 'string') } }
+      }
       return { type: this.typeToSchemaType(items.type) }
     }
     // Convert array of PluginParameter to Record for Google

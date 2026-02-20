@@ -1225,6 +1225,9 @@ export default class extends LlmEngine {
       if (items.type === 'object') {
         return { type: 'object', properties: {}, required: [], additionalProperties: false }
       }
+      if (items.type === 'array' && (items as any).items) {
+        return { type: 'array', items: { type: (items as any).items.type || 'string' } }
+      }
       return { type: items.type }
     }
     const props: Record<string, any> = {}

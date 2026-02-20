@@ -316,6 +316,30 @@ test('Google stream', async () => {
                   },
                 },
               },
+              // param12: array-of-arrays (2D) must preserve inner items
+              param12: {
+                type: undefined,
+                description: 'Parameter 12',
+                items: {
+                  type: 'object',
+                  properties: {
+                    range: {
+                      type: 'string',
+                      description: 'Cell range',
+                    },
+                    values: {
+                      type: undefined,  // 'array' → Type.ARRAY not in mock → undefined
+                      description: '2D array of values',
+                      items: {
+                        type: undefined,  // 'array' → Type.ARRAY not in mock → undefined
+                        items: {
+                          type: 'string',
+                        },
+                      },
+                    },
+                  },
+                },
+              },
             },
             required: ['param1', 'param3'],
             type: 'object',

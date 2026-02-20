@@ -129,6 +129,13 @@ test('OpenAI Functions', async () => {
             { name: 'limit', type: 'number', description: 'Max results' },
           ]
         }},
+        { name: 'param12', type: 'array', description: 'Parameter 12', required: false, items: {
+          type: 'object',
+          properties: [
+            { name: 'range', type: 'string', description: 'Cell range', required: true },
+            { name: 'values', type: 'array', description: '2D array of values', items: { type: 'array', items: { type: 'string' } } },
+          ]
+        }},
       ],
     },
   ])
@@ -214,6 +221,11 @@ test('toOpenAITools conversion', async () => {
   expect(param11Items.properties.fields.items).toStrictEqual({ type: 'string' })
   expect(param11Items.properties.name.type).toBe('string')
   expect(param11Items.properties.limit.type).toBe('number')
+
+  // param12: array-of-arrays (2D) must preserve inner items
+  const param12Items = props.param12!.items!
+  expect(param12Items.properties.values.type).toBe('array')
+  expect(param12Items.properties.values.items).toStrictEqual({ type: 'array', items: { type: 'string' } })
 
 })
 

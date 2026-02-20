@@ -346,6 +346,11 @@ test('Anthropic tool schema conversion', async () => {
   expect(param11Items.properties.name.type).toBe('string')
   expect(param11Items.properties.limit.type).toBe('number')
 
+  // param12: array-of-arrays (2D) must preserve inner items
+  const param12Items = props.param12.items
+  expect(param12Items.properties.values.type).toBe('array')
+  expect(param12Items.properties.values.items).toStrictEqual({ type: 'array', items: { type: 'string' } })
+
   // only truly required params
   expect(schema.required).toStrictEqual(['param1', 'param3'])
 })

@@ -250,7 +250,7 @@ test('OpenAI Responses API completion with tools', async () => {
   // Responses API strict mode: required must list ALL property keys
   expect(toolParams.required).toStrictEqual([
     'param1', 'param2', 'param3', 'param4', 'param5',
-    'param6', 'param7', 'param8', 'param9', 'param10', 'param11',
+    'param6', 'param7', 'param8', 'param9', 'param10', 'param11', 'param12',
   ])
   expect(toolParams.additionalProperties).toBe(false)
 
@@ -300,6 +300,11 @@ test('OpenAI Responses API completion with tools', async () => {
   // Responses API strict mode: required must list ALL keys, additionalProperties: false
   expect(param11Items.required).toStrictEqual(['name', 'fields', 'limit'])
   expect(param11Items.additionalProperties).toBe(false)
+
+  // param12: array-of-arrays (2D) must preserve inner items
+  const param12Items = toolParams.properties.param12.items
+  expect(param12Items.properties.values.type).toBe('array')
+  expect(param12Items.properties.values.items).toStrictEqual({ type: 'array', items: { type: 'string' } })
 
   // verify full first call structure
   expect(_openai.default.prototype.responses.create).toHaveBeenNthCalledWith(1, {

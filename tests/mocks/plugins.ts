@@ -118,6 +118,16 @@ export class Plugin2 extends Plugin {
           { name: 'limit', type: 'number', description: 'Max results' },
         ],
       }, description: 'Parameter 11', required: false },
+      // param12: array of objects where a nested property is an array-of-arrays (2D)
+      // reproduces the gsheets_update_cells bug where values: array<array<string>> loses inner items
+      { name: 'param12', type: 'array', items: {
+        type: 'object',
+        properties: [
+          { name: 'range', type: 'string', description: 'Cell range', required: true },
+          // @ts-expect-error items.items not yet in type
+          { name: 'values', type: 'array', description: '2D array of values', items: { type: 'array', items: { type: 'string' } } },
+        ],
+      }, description: 'Parameter 12', required: false },
     ]
   }
 

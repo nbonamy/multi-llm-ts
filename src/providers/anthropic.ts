@@ -86,6 +86,9 @@ export default class extends LlmEngine {
   private convertItems(items: PluginParameter['items']): any {
     if (!items) return { type: 'string' }
     if (!items.properties) {
+      if (items.type === 'array' && items.items) {
+        return { type: 'array', items: { type: items.items.type || 'string' } }
+      }
       return { type: items.type }
     }
     const props: Record<string, any> = {}

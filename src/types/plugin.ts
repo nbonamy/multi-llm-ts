@@ -24,6 +24,7 @@ export type PluginParameter = {
   items?: {
     type: string,
     properties?: PluginParameter[]
+    items?: { type: string }
   }
 }
 
