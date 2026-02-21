@@ -330,8 +330,26 @@ const response = await model.complete(messages)
 5. **Be efficient**: Minimize execution time
 6. **Document well**: Clear descriptions help the model
 
+## ToolExecutionDelegate
+
+For dynamic, per-request tools without creating plugin classes:
+
+```typescript
+type ToolExecutionDelegate = {
+  getTools(): Promise<PluginTool[]> | PluginTool[]
+  execute(
+    context: PluginExecutionContext,
+    tool: string,
+    args: any
+  ): Promise<any>
+}
+```
+
+See the [Tool Execution Delegate](/guide/tool-delegate) guide for full documentation.
+
 ## Next Steps
 
 - Learn about [Function Calling](/guide/function-calling)
+- Use [Tool Execution Delegate](/guide/tool-delegate) for dynamic external tools
 - Review [Tool Validation](/guide/tool-validation)
 - Handle [Abort Operations](/guide/abort)

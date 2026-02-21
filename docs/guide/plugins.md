@@ -361,6 +361,7 @@ This format is still accepted and automatically normalized to `PluginTool` inter
 ## Next Steps
 
 - Learn about [Function Calling](/guide/function-calling) to see plugins in action
+- Use [Tool Execution Delegate](/guide/tool-delegate) for dynamic external tools
 - Implement [Tool Validation](/guide/tool-validation) for security
 - Handle [Abort Operations](/guide/abort) properly
 - Review [Plugin API](/api/plugin) for complete reference

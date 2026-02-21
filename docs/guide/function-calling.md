@@ -4,11 +4,25 @@ Enable models to call functions and use tools during generation.
 
 ## Overview
 
-Function calling (also called tool use) allows models to invoke external functions to perform actions or retrieve information. multi-llm-ts handles tool orchestration automatically through [plugins](/guide/plugins).
+Function calling (also called tool use) allows models to invoke external functions to perform actions or retrieve information. multi-llm-ts handles tool orchestration automatically across all supported providers (OpenAI, Anthropic, Google, Ollama, Groq, Mistral AI, and more).
 
-**Supported providers**: OpenAI, Anthropic, Google, Ollama, Groq, Mistral AI, and more.
+There are two ways to provide tools to a model: **plugins** and **delegates**.
 
-## Basic Usage
+## Plugins vs Delegates
+
+| | Plugins | Delegates |
+|--|---------|-----------|
+| **Registration** | Global on engine via `addPlugin()` | Per-request via `toolExecutionDelegate` option |
+| **Definition** | Class-based (`Plugin`, `CustomToolPlugin`, `MultiToolPlugin`) | Plain object with `getTools()` and `execute()` |
+| **Tool set** | Fixed once registered | Can change on every request |
+| **Status updates** | Built-in via `get*Description()` methods | Not supported |
+| **Streaming progress** | `executeWithUpdates()` for fine-grained progress | Not supported |
+| **Priority** | Higher — checked first when resolving a tool call | Lower — used as fallback |
+| **Best for** | Static, well-known tools with rich UX | Dynamic, external, or per-user tools |
+
+Both approaches can be combined: register your core tools as plugins and inject context-specific tools via a delegate on each request. When a plugin and a delegate provide a tool with the same name, the plugin takes priority.
+
+## Using Plugins
 
 Add plugins to your model and they're invoked automatically when needed:
 
@@ -19,27 +33,11 @@ import { WeatherPlugin, SearchPlugin } from './plugins'
 const models = await loadModels('openai', config)
 const model = igniteModel('openai', models.chat[0], config)
 
-// Add plugins
+// Register tools as plugins
 model.addPlugin(new WeatherPlugin())
 model.addPlugin(new SearchPlugin())
 
 // Model will call tools as needed
-const messages = [
-  new Message('user', 'What is the weather in Paris?')
-]
-
-const response = await model.complete(messages)
-console.log(response.content)
-// Output: "The weather in Paris is currently 18°C and partly cloudy."
-```
-
-## With Completion
-
-Tools execute transparently with `complete()`:
-
-```typescript
-model.addPlugin(new WeatherPlugin())
-
 const response = await model.complete([
   new Message('user', 'What is the weather in Paris?')
 ])
@@ -51,23 +49,56 @@ const response = await model.complete([
 // 4. Model generates natural language response
 ```
 
-## With Streaming
+See the [Plugins](/guide/plugins) guide for how to create `Plugin`, `CustomToolPlugin`, and `MultiToolPlugin` classes.
 
-Tool execution is visible during streaming:
+## Using Delegates
+
+For dynamic tools that don't need plugin classes, pass a `toolExecutionDelegate` in the options:
 
 ```typescript
-model.addPlugin(new WeatherPlugin())
+import { igniteModel, loadModels, Message, ToolExecutionDelegate } from 'multi-llm-ts'
 
+const models = await loadModels('openai', config)
+const model = igniteModel('openai', models.chat[0], config)
+
+const delegate: ToolExecutionDelegate = {
+  getTools() {
+    return [
+      {
+        name: 'lookup_user',
+        description: 'Look up a user by email',
+        parameters: [
+          { name: 'email', type: 'string', description: 'User email', required: true }
+        ]
+      }
+    ]
+  },
+  async execute(context, tool, args) {
+    const user = await db.users.findByEmail(args.email)
+    return { name: user.name, role: user.role }
+  }
+}
+
+const response = await model.complete(messages, {
+  toolExecutionDelegate: delegate
+})
+```
+
+`getTools()` can also be async — useful when tool definitions are loaded from an API or database. See the [Tool Execution Delegate](/guide/tool-delegate) guide for advanced patterns like per-user tool sets, agent framework integration, and dynamic discovery.
+
+## With Streaming
+
+Tool execution is visible during streaming regardless of which approach you use:
+
+```typescript
 const stream = model.generate([
   new Message('user', 'What is the weather in Paris?')
 ])
 
 for await (const chunk of stream) {
   if (chunk.type === 'content') {
-    // Model's text response
     console.log('Text:', chunk.text)
   } else if (chunk.type === 'tool') {
-    // Tool execution status
     console.log(`Tool: ${chunk.name} [${chunk.state}]`)
     console.log(`Status: ${chunk.status}`)
   }
@@ -226,6 +257,7 @@ console.log(response2.content)
 ## Next Steps
 
 - Create custom [Plugins](/guide/plugins) for your use case
+- Use [Tool Execution Delegate](/guide/tool-delegate) for dynamic external tools
 - Implement [Tool Validation](/guide/tool-validation) for security
 - Learn about [Abort Operations](/guide/abort) for cancellation
 - Review [Streaming](/guide/streaming) for real-time updates

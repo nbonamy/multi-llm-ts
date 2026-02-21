@@ -91,6 +91,7 @@ interface LlmCompletionOpts {
   stop?: string[]
   schema?: ZodSchema
   abortSignal?: AbortSignal
+  toolExecutionDelegate?: ToolExecutionDelegate
   toolExecutionValidation?: ValidationCallback
   useOpenAIResponsesApi?: boolean
   [key: string]: any
@@ -238,6 +239,21 @@ Execution context for plugins:
 interface PluginExecutionContext {
   modelId: string
   abortSignal?: AbortSignal
+}
+```
+
+### ToolExecutionDelegate
+
+Delegate for external tool execution (see [Tool Execution Delegate](/guide/tool-delegate)):
+
+```typescript
+type ToolExecutionDelegate = {
+  getTools(): Promise<PluginTool[]> | PluginTool[]
+  execute(
+    context: PluginExecutionContext,
+    tool: string,
+    args: any
+  ): Promise<any>
 }
 ```
 

@@ -2,7 +2,7 @@
 
 import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
 import { LlmResponse, LlmCompletionOpts, LlmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, CompletedToolCall, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort, EngineHookName, EngineHookCallback, EngineHookPayloads, NormalizedToolChunk } from './types/llm'
-import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter, PluginExecutionResult, PluginTool } from './types/plugin'
+import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter, PluginExecutionResult, PluginTool, ToolExecutionDelegate } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
 import { normalizeToToolDefinition } from './tools'
 import Attachment from './models/attachment'
@@ -356,8 +356,9 @@ export default abstract class LlmEngine {
     }
   }
 
-  protected async getAvailableTools(): Promise<PluginTool[]> {
+  protected async getAvailableTools(delegate?: ToolExecutionDelegate): Promise<PluginTool[]> {
 
+    // plugin tools first — they take priority in execution
     const tools: PluginTool[] = []
     for (const plugin of this.plugins) {
 
@@ -385,6 +386,14 @@ export default abstract class LlmEngine {
         tools.push(this.getPluginAsTool(plugin as Plugin))
       }
     }
+
+    // append delegate tools, skipping names already claimed by plugins
+    if (delegate?.getTools) {
+      const pluginNames = new Set(tools.map(t => t.name))
+      const delegateTools = await delegate.getTools()
+      tools.push(...delegateTools.filter(t => !pluginNames.has(t.name)))
+    }
+
     return tools
   }
 
@@ -667,7 +676,8 @@ export default abstract class LlmEngine {
         { model: context.model.id, abortSignal: context.opts?.abortSignal },
         toolCall.function,
         args,
-        context.opts?.toolExecutionValidation
+        context.opts?.toolExecutionDelegate,
+        context.opts?.toolExecutionValidation,
       )) {
 
         // Check for abort
@@ -813,7 +823,7 @@ export default abstract class LlmEngine {
     }
   }
 
-  protected async *callTool(context: PluginExecutionContext, tool: string, args: any, toolExecutionValidation: LlmToolExecutionValidationCallback|undefined): AsyncGenerator<PluginExecutionUpdate> {
+  protected async *callTool(context: PluginExecutionContext, tool: string, args: any, delegate?: ToolExecutionDelegate, toolExecutionValidation?: LlmToolExecutionValidationCallback): AsyncGenerator<PluginExecutionUpdate> {
 
     // get the plugin
     let payload = args
@@ -832,15 +842,6 @@ export default abstract class LlmEngine {
         }
       }
 
-    }
-
-    // check
-    if (!toolOwner) {
-      yield {
-        type: 'result',
-        result: { error: `Tool ${tool} does not exist. Check the tool list and try again.` }
-      }
-      return
     }
 
     // Check abort before calling tool
@@ -866,6 +867,39 @@ export default abstract class LlmEngine {
         }
         return
       }
+    }
+
+    // try delegate if no plugin owns this tool
+    if (!toolOwner && delegate) {
+      try {
+        const result = await delegate.execute(context, tool, args)
+        yield {
+          type: 'result',
+          result: result,
+          ...(validation !== undefined ? { validation } : {}),
+        }
+      } catch (error) {
+        if (context.abortSignal?.aborted || (error instanceof Error && error.message === 'Operation cancelled')) {
+          yield {
+            type: 'result',
+            result: { error: 'Operation cancelled' },
+            canceled: true,
+          ...(validation !== undefined ? { validation } : {}),
+          }
+        } else {
+          throw error
+        }
+      }
+      return
+    }
+
+    // check
+    if (!toolOwner) {
+      yield {
+        type: 'result',
+        result: { error: `Tool ${tool} does not exist. Check the tool list and try again.` }
+      }
+      return
     }
 
     // now we can run depending on plugin implementation

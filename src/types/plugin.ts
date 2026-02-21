@@ -57,3 +57,14 @@ export type PluginExecutionResult = {
 }
 
 export type PluginExecutionUpdate = PluginExecutionStatusUpdate | PluginExecutionResult
+
+/**
+ * Delegate for external tool execution.
+ * Allows callers to inject tool definitions and handle execution externally
+ * without creating plugin classes. Tools from the delegate are per-request,
+ * not registered globally on the engine.
+ */
+export type ToolExecutionDelegate = {
+  getTools(): Promise<PluginTool[]> | PluginTool[]
+  execute(context: PluginExecutionContext, tool: string, args: any): Promise<any>
+}

@@ -1,5 +1,6 @@
 
 import { LlmChunk } from '../../src/types/llm'
+import { ToolExecutionDelegate } from '../../src/types/plugin'
 import { vi, expect, test, beforeEach } from 'vitest'
 import { Plugin1, Plugin2 } from '../mocks/plugins'
 import Message from '../../src/models/message'
@@ -321,7 +322,7 @@ test('Tool execution validation - allow', async () => {
 
   const chunks: any[] = []
   // @ts-expect-error protected
-  for await (const update of openai.callTool({ model: 'model' }, 'plugin2', { param: 'value' }, validator)) {
+  for await (const update of openai.callTool({ model: 'model' }, 'plugin2', { param: 'value' }, undefined, validator)) {
     chunks.push(update)
   }
 
@@ -349,7 +350,7 @@ test('Tool execution validation - deny', async () => {
 
   const chunks: any[] = []
   // @ts-expect-error protected
-  for await (const update of openai.callTool({ model: 'model' }, 'plugin2', { param: 'value' }, validator)) {
+  for await (const update of openai.callTool({ model: 'model' }, 'plugin2', { param: 'value' }, undefined, validator)) {
     chunks.push(update)
   }
 
@@ -378,7 +379,7 @@ test('Tool execution validation - abort', async () => {
 
   const chunks: any[] = []
   // @ts-expect-error protected
-  for await (const update of openai.callTool({ model: 'model' }, 'plugin2', { param: 'value' }, validator)) {
+  for await (const update of openai.callTool({ model: 'model' }, 'plugin2', { param: 'value' }, undefined, validator)) {
     chunks.push(update)
   }
 
@@ -410,4 +411,213 @@ test('Tool execution validation - no validator', async () => {
   expect(chunks[0].type).toBe('result')
   expect(chunks[0].result).toBe('result2') // Plugin2 mock returns 'result2'
   expect(chunks[0].validation).toBeUndefined()
+})
+
+// Tool execution delegate tests
+
+test('Tool execution delegate - executes delegate tool', async () => {
+  const openai = new OpenAI(config)
+
+  const delegate: ToolExecutionDelegate = {
+    getTools: () => [{
+      name: 'external_tool',
+      description: 'An external tool',
+      parameters: [{ name: 'input', type: 'string', description: 'Input value', required: true }],
+    }],
+    execute: vi.fn().mockResolvedValue({ output: 'delegate result' }),
+  }
+
+  const chunks: any[] = []
+  // @ts-expect-error protected
+  for await (const update of openai.callTool({ model: 'model' }, 'external_tool', { input: 'hello' }, delegate)) {
+    chunks.push(update)
+  }
+
+  expect(delegate.execute).toHaveBeenCalledWith(
+    { model: 'model' },
+    'external_tool',
+    { input: 'hello' }
+  )
+  expect(chunks).toHaveLength(1)
+  expect(chunks[0].type).toBe('result')
+  expect(chunks[0].result).toStrictEqual({ output: 'delegate result' })
+})
+
+test('Tool execution delegate - plugin takes priority over delegate', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin2())
+
+  const delegate: ToolExecutionDelegate = {
+    getTools: () => [{
+      name: 'plugin2',
+      description: 'Shadowed by plugin',
+      parameters: [],
+    }],
+    execute: vi.fn().mockResolvedValue('delegate result'),
+  }
+
+  const chunks: any[] = []
+  // @ts-expect-error protected
+  for await (const update of openai.callTool({ model: 'model' }, 'plugin2', { param: 'value' }, delegate)) {
+    chunks.push(update)
+  }
+
+  expect(delegate.execute).not.toHaveBeenCalled()
+  expect(Plugin2.prototype.execute).toHaveBeenCalled()
+  expect(chunks).toHaveLength(1)
+  expect(chunks[0].result).toBe('result2')
+})
+
+test('Tool execution delegate - validation applies to delegate tools', async () => {
+  const openai = new OpenAI(config)
+
+  const delegate: ToolExecutionDelegate = {
+    getTools: () => [{
+      name: 'external_tool',
+      description: 'An external tool',
+      parameters: [],
+    }],
+    execute: vi.fn().mockResolvedValue('should not reach'),
+  }
+
+  const validator = vi.fn().mockResolvedValue({ decision: 'deny', extra: { reason: 'blocked' } })
+
+  const chunks: any[] = []
+  // @ts-expect-error protected
+  for await (const update of openai.callTool({ model: 'model' }, 'external_tool', {}, delegate, validator)) {
+    chunks.push(update)
+  }
+
+  expect(validator).toHaveBeenCalled()
+  expect(delegate.execute).not.toHaveBeenCalled()
+  expect(chunks).toHaveLength(1)
+  expect(chunks[0]).toMatchObject({
+    type: 'result',
+    result: { error: expect.stringContaining('denied by validation function') },
+    validation: { decision: 'deny', extra: { reason: 'blocked' } },
+  })
+})
+
+test('Tool execution delegate - unknown tool without delegate errors', async () => {
+  const openai = new OpenAI(config)
+
+  const chunks: any[] = []
+  // @ts-expect-error protected
+  for await (const update of openai.callTool({ model: 'model' }, 'nonexistent', {})) {
+    chunks.push(update)
+  }
+
+  expect(chunks).toHaveLength(1)
+  expect(chunks[0].result).toStrictEqual({ error: 'Tool nonexistent does not exist. Check the tool list and try again.' })
+})
+
+test('Tool execution delegate - getAvailableTools includes delegate tools after plugins', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin1())
+
+  const delegate: ToolExecutionDelegate = {
+    getTools: () => [{
+      name: 'external_tool',
+      description: 'External',
+      parameters: [],
+    }],
+    execute: vi.fn(),
+  }
+
+  // @ts-expect-error protected
+  const tools = await openai.getAvailableTools(delegate)
+  const names = tools.map((t: any) => t.name)
+  expect(names).toContain('external_tool')
+  expect(names).toContain('plugin1')
+  // plugin tools come first — they take priority in execution
+  expect(names.indexOf('plugin1')).toBeLessThan(names.indexOf('external_tool'))
+})
+
+test('Tool execution delegate - getAvailableTools deduplicates by plugin priority', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin2())
+
+  const delegate: ToolExecutionDelegate = {
+    getTools: () => [
+      { name: 'plugin2', description: 'Shadow attempt', parameters: [] },
+      { name: 'unique_tool', description: 'Only in delegate', parameters: [] },
+    ],
+    execute: vi.fn(),
+  }
+
+  // @ts-expect-error protected
+  const tools = await openai.getAvailableTools(delegate)
+  const names = tools.map((t: any) => t.name)
+  // plugin2 appears once (from plugin, not delegate)
+  expect(names.filter((n: string) => n === 'plugin2')).toHaveLength(1)
+  // unique delegate tool is still included
+  expect(names).toContain('unique_tool')
+})
+
+test('Tool execution delegate - async getTools', async () => {
+  const openai = new OpenAI(config)
+
+  const delegate: ToolExecutionDelegate = {
+    getTools: async () => [{
+      name: 'async_tool',
+      description: 'Loaded asynchronously',
+      parameters: [{ name: 'query', type: 'string', description: 'Query' }],
+    }],
+    execute: vi.fn().mockResolvedValue({ answer: 42 }),
+  }
+
+  // @ts-expect-error protected
+  const tools = await openai.getAvailableTools(delegate)
+  expect(tools).toHaveLength(1)
+  expect(tools[0].name).toBe('async_tool')
+
+  const chunks: any[] = []
+  // @ts-expect-error protected
+  for await (const update of openai.callTool({ model: 'model' }, 'async_tool', { query: 'test' }, delegate)) {
+    chunks.push(update)
+  }
+
+  expect(chunks[0].result).toStrictEqual({ answer: 42 })
+})
+
+test('Tool execution delegate - execute error is thrown', async () => {
+  const openai = new OpenAI(config)
+
+  const delegate: ToolExecutionDelegate = {
+    getTools: () => [{ name: 'failing_tool', description: 'Fails', parameters: [] }],
+    execute: vi.fn().mockRejectedValue(new Error('External service down')),
+  }
+
+  await expect(async () => {
+    // @ts-expect-error protected
+    for await (const _update of openai.callTool({ model: 'model' }, 'failing_tool', {}, delegate)) {
+      // consume
+    }
+  }).rejects.toThrow('External service down')
+})
+
+test('Tool execution delegate - abort during delegate execution', async () => {
+  const openai = new OpenAI(config)
+  const controller = new AbortController()
+
+  const delegate: ToolExecutionDelegate = {
+    getTools: () => [{ name: 'slow_tool', description: 'Slow', parameters: [] }],
+    execute: vi.fn().mockImplementation(async () => {
+      controller.abort()
+      throw new Error('Operation cancelled')
+    }),
+  }
+
+  const chunks: any[] = []
+  // @ts-expect-error protected
+  for await (const update of openai.callTool({ model: 'model', abortSignal: controller.signal }, 'slow_tool', {}, delegate)) {
+    chunks.push(update)
+  }
+
+  expect(chunks).toHaveLength(1)
+  expect(chunks[0]).toMatchObject({
+    type: 'result',
+    result: { error: 'Operation cancelled' },
+    canceled: true,
+  })
 })

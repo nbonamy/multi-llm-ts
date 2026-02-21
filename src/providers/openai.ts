@@ -252,6 +252,7 @@ export default class extends LlmEngine {
         for await (const update of this.callTool(
           { model: model.id, abortSignal: opts?.abortSignal },
           functionToolCall.function.name, args,
+          opts?.toolExecutionDelegate,
           opts?.toolExecutionValidation,
         )) {
           if (update.type === 'result') {
@@ -416,7 +417,7 @@ export default class extends LlmEngine {
     }
 
     // tools - convert PluginTool[] to OpenAI format
-    const toolDefs = await this.getAvailableTools()
+    const toolDefs = await this.getAvailableTools(opts?.toolExecutionDelegate)
     const tools = toOpenAITools(toolDefs)
     if (!tools.length) return {}
 
@@ -676,7 +677,8 @@ export default class extends LlmEngine {
           for await (const update of this.callTool(
             { model: model.id, abortSignal: opts?.abortSignal },
             toolCall.name, args,
-            opts?.toolExecutionValidation
+            opts?.toolExecutionDelegate,
+            opts?.toolExecutionValidation,
           )) {
             if (update.type === 'result') {
               lastUpdate = update
@@ -907,7 +909,7 @@ export default class extends LlmEngine {
 
             // now execute
             let lastUpdate: PluginExecutionResult|undefined = undefined
-            for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.name, args, opts?.toolExecutionValidation)) {
+            for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.name, args, opts?.toolExecutionDelegate, opts?.toolExecutionValidation)) {
 
               if (update.type === 'status') {
                 yield {
@@ -1156,7 +1158,7 @@ export default class extends LlmEngine {
     }
 
     // tools - PluginTool[] format
-    const toolDefs = await this.getAvailableTools()
+    const toolDefs = await this.getAvailableTools(opts?.toolExecutionDelegate)
     if (!toolDefs.length) return []
 
     // convert PluginTool[] to Responses API Tool format

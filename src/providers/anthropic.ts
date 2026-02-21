@@ -221,7 +221,8 @@ export default class extends LlmEngine {
         for await (const update of this.callTool(
           { model: model.id, abortSignal: opts?.abortSignal },
           toolCall.name, toolCall.input,
-          opts?.toolExecutionValidation
+          opts?.toolExecutionDelegate,
+          opts?.toolExecutionValidation,
         )) {
           if (update.type === 'result') {
             lastUpdate = update
@@ -358,7 +359,7 @@ export default class extends LlmEngine {
     context.textContentBlock = undefined
 
     // tools in anthropic format
-    const tools: AnthropicTool[] = (await this.getAvailableTools()).map((tool) => {
+    const tools: AnthropicTool[] = (await this.getAvailableTools(context.opts?.toolExecutionDelegate)).map((tool) => {
       return {
         name: tool.name,
         description: tool.description,
@@ -437,7 +438,7 @@ export default class extends LlmEngine {
     }
 
     // tools in anthropic format
-    const tools: AnthropicTool[] = (await this.getAvailableTools()).map((tool) => {
+    const tools: AnthropicTool[] = (await this.getAvailableTools(opts?.toolExecutionDelegate)).map((tool) => {
       return {
         name: tool.name,
         description: tool.description,

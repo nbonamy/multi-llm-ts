@@ -1,7 +1,7 @@
 
 import { ZodType } from 'zod'
 import { ChatModel } from './index'
-import { PluginExecutionContext, PluginTool } from './plugin'
+import { PluginExecutionContext, PluginTool, ToolExecutionDelegate } from './plugin'
 
 export type LlmRole = 'system'|'developer'|'user'|'assistant'
 
@@ -181,6 +181,7 @@ export type LlmToolExecutionValidationCallback = (context: PluginExecutionContex
 export type LlmCompletionOpts = {
   tools?: boolean
   toolChoice?: LlmToolChoice
+  toolExecutionDelegate?: ToolExecutionDelegate
   toolExecutionValidation?: LlmToolExecutionValidationCallback
   toolCallsInThread?: boolean
   caching?: boolean

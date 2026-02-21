@@ -226,7 +226,7 @@ export default class extends LlmEngine {
 
         // now execute
         let lastUpdate: PluginExecutionResult|undefined = undefined
-        for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.function.name, toolCall.function.arguments, opts?.toolExecutionValidation)) {
+        for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.function.name, toolCall.function.arguments, opts?.toolExecutionDelegate, opts?.toolExecutionValidation)) {
           if (update.type === 'result') {
             lastUpdate = update
           }
@@ -387,7 +387,7 @@ export default class extends LlmEngine {
     }
 
     // tools - convert PluginTool[] to OpenAI format for Ollama
-    const toolDefs = await this.getAvailableTools()
+    const toolDefs = await this.getAvailableTools(opts?.toolExecutionDelegate)
     const tools = toOpenAITools(toolDefs)
     return tools.length ? {
       tools: tools as any,
@@ -473,7 +473,7 @@ export default class extends LlmEngine {
 
           // now execute
           let lastUpdate: PluginExecutionResult|undefined = undefined
-          for await (const update of this.callTool({ model: context.model.id, abortSignal: context.opts?.abortSignal }, toolCall.function, args, context.opts?.toolExecutionValidation)) {
+          for await (const update of this.callTool({ model: context.model.id, abortSignal: context.opts?.abortSignal }, toolCall.function, args, context.opts?.toolExecutionDelegate, context.opts?.toolExecutionValidation)) {
 
             if (update.type === 'status') {
               yield {

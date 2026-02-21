@@ -180,7 +180,7 @@ export default class extends LlmEngine {
 
         // now execute
         let lastUpdate: PluginExecutionResult|undefined = undefined
-        for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.name!, toolCall.args, opts?.toolExecutionValidation)) {
+        for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.name!, toolCall.args, opts?.toolExecutionDelegate, opts?.toolExecutionValidation)) {
           if (update.type === 'result') {
             lastUpdate = update
           }
@@ -409,7 +409,7 @@ export default class extends LlmEngine {
     // add tools
     else if (opts?.tools !== false && model.capabilities.tools) {
 
-      const tools = await this.getAvailableTools();
+      const tools = await this.getAvailableTools(opts?.toolExecutionDelegate);
       if (tools.length) {
 
         const functionDeclarations: FunctionDeclaration[] = [];

@@ -10,7 +10,7 @@ const completion = async (model: LlmModel, messages: Message[]) => {
 }
 
 const streaming = async (model: LlmModel, messages: Message[], opts?: LlmCompletionOpts) => {
-  console.log('\n** Chat streaming' + (model.plugins.length ? ' with plugins' : ''))
+  console.log('\n** Chat streaming' + (model.plugins.length ? ' with plugins' : '') + (opts?.toolExecutionDelegate ? ' with tool execution delegate' : ''))
   const stream = model.generate(messages, { ...opts, usage: true, reasoning: true })
   let reasoning = ''
   let response = ''
@@ -126,7 +126,23 @@ const structured = async (model: LlmModel, messages: Message[]) => {
   await streaming(model, messages)
   await conversation(model, messages)
 
-  // with function calling
+  // with tool execution delegate
+  messages[1].content = 'What is the answer to life, the universe and everything?'
+  await streaming(model, messages, { toolExecutionDelegate: {
+    getTools: () => [{
+      name: 'answer',
+      description: 'Has the answer to everything',
+      parameters: [
+        { name: 'question', type: 'string', description: 'The question to answer', required: true },
+      ],
+    }],
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    execute: async (context, tool, args) => {
+      return { content: '24 and not 42 as everybody says' }
+    },
+  }})
+
+  // with plugin
   messages[1].content = 'What is the answer to life, the universe and everything?'
   model.addPlugin(new Answer())
   await completion(model, messages)

@@ -417,8 +417,23 @@ async function validateToolExecution(context, tool, args) {
 }
 ```
 
+## Works with Delegates
+
+Tool validation applies to both plugin tools **and** [delegate tools](/guide/tool-delegate). The validation callback runs before any tool execution, regardless of whether the tool is provided by a plugin or a delegate:
+
+```typescript
+const response = await model.complete(messages, {
+  toolExecutionDelegate: myDelegate,
+  toolExecutionValidation: async (context, tool, args) => {
+    // Gates both plugin and delegate tools
+    return { decision: 'allow' }
+  }
+})
+```
+
 ## Next Steps
 
 - Learn about [Plugins](/guide/plugins) and their execution
+- Use [Tool Execution Delegate](/guide/tool-delegate) for dynamic external tools
 - Implement [Abort Operations](/guide/abort) for cancellation
 - Review [Function Calling](/guide/function-calling) patterns

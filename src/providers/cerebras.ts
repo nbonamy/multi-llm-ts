@@ -55,7 +55,8 @@ export default class extends OpenAI {
     // avoid override by super
   }
 
-  async getAvailableTools(): Promise<any[]> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async getAvailableTools(delegate?: any): Promise<any[]> {
     return []
   }
 
