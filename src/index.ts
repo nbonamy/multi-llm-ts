@@ -19,6 +19,8 @@ import {
 
 import { addUsages } from './usage'
 
+import { PROVIDER_BASE_URLS, getProviderBaseURL } from './defaults'
+
 import LlmEngine from './engine'
 import LlmModel from './model'
 
@@ -85,6 +87,8 @@ export {
   OpenRouter,
   XAI,
   xAIBaseURL,
+  PROVIDER_BASE_URLS,
+  getProviderBaseURL,
   textFormats,
   codeFormats,
   configFormats,

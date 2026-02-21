@@ -2,9 +2,10 @@ import { ChatCompletionChunk } from 'openai/resources'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelGeneric, ModelsList } from '../types/index'
 import { LlmChunk, LlmRole } from '../types/llm'
+import { PROVIDER_BASE_URLS } from '../defaults'
 import OpenAI, { OpenAIStreamingContext } from './openai'
 
-export const lmStudioBaseURL = 'http://localhost:1234/v1'
+export const lmStudioBaseURL = PROVIDER_BASE_URLS.lmstudio!
 
 export default class extends OpenAI {
 

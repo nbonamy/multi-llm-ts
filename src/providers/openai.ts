@@ -12,11 +12,12 @@ import { LlmCompletionPayload, LLmContentPayloadImageOpenai, LlmChunk, LlmComple
 import { PluginExecutionResult } from '../types/plugin'
 import { toOpenAITools } from '../tools'
 import { zeroUsage } from '../usage'
+import { PROVIDER_BASE_URLS } from '../defaults'
 import { RequestOptions } from 'openai/internal/request-options'
 
 type OpenAIToolOpts = Omit<ChatCompletionCreateParamsBase, 'model' | 'messages' | 'stream'>
 
-const defaultBaseUrl = 'https://api.openai.com/v1'
+const defaultBaseUrl = PROVIDER_BASE_URLS.openai!
 
 //
 // https://platform.openai.com/docs/api-reference/introduction

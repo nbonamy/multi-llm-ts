@@ -1,6 +1,7 @@
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelMeta } from '../types/index'
 import { LlmRole } from '../types/llm'
+import { PROVIDER_BASE_URLS } from '../defaults'
 import { minimatch } from 'minimatch'
 import OpenAI from './openai'
 
@@ -8,14 +9,14 @@ import OpenAI from './openai'
 // https://llama.developer.meta.com/docs/overview
 //
 
-export const metaBaseURL = 'https://api.llama.com/compat/v1/'
+export const metaBaseURL = PROVIDER_BASE_URLS.meta!
 
 export default class extends OpenAI {
 
   constructor(config: EngineCreateOpts) {
     super(config, {
       apiKey: config.apiKey,
-      baseURL: metaBaseURL,
+      baseURL: config.baseURL || metaBaseURL,
     })
   }
 

@@ -1,6 +1,7 @@
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelOpenRouter } from '../types/index'
 import { LlmRole } from '../types/llm'
+import { PROVIDER_BASE_URLS } from '../defaults'
 import OpenAI from './openai'
 
 //
@@ -12,7 +13,7 @@ export default class extends OpenAI {
   constructor(config: EngineCreateOpts) {
     super(config, {
       apiKey: config.apiKey,
-      baseURL: config.baseURL || 'https://openrouter.ai/api/v1',
+      baseURL: config.baseURL || PROVIDER_BASE_URLS.openrouter!,
     })
   }
 

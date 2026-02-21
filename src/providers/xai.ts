@@ -1,13 +1,14 @@
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, ModelCapabilities, ModelxAI } from '../types/index'
 import { LlmRole } from '../types/llm'
+import { PROVIDER_BASE_URLS } from '../defaults'
 import OpenAI from './openai'
 
 //
 // https://docs.x.ai/docs/introduction#what-is-grok-and-xai-api
 //
 
-export const xAIBaseURL = 'https://api.x.ai/v1'
+export const xAIBaseURL = PROVIDER_BASE_URLS.xai!
 
 export default class extends OpenAI {
 

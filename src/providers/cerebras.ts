@@ -2,6 +2,7 @@ import { ChatCompletionChunk } from 'openai/resources'
 import Message from '../models/message'
 import { ChatModel, EngineCreateOpts, Model, ModelCerebras } from '../types/index'
 import { LlmChunk, LlmRole } from '../types/llm'
+import { PROVIDER_BASE_URLS } from '../defaults'
 import OpenAI, { OpenAIStreamingContext } from './openai'
 
 //
@@ -13,7 +14,7 @@ export default class extends OpenAI {
   constructor(config: EngineCreateOpts) {
     super(config, {
       apiKey: config.apiKey,
-      baseURL: config.baseURL || 'https://api.cerebras.ai/v1',
+      baseURL: config.baseURL || PROVIDER_BASE_URLS.cerebras!,
     })
   }
 
