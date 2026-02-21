@@ -9,7 +9,7 @@ import { toOpenAITools } from '../tools'
 
 import { minimatch } from 'minimatch'
 import { ChatRequest, ChatResponse, Ollama, ProgressResponse, ShowResponse } from 'ollama/dist/browser.cjs'
-import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.27169772.cjs'
+import type { A as AbortableAsyncIterator } from 'ollama/dist/shared/ollama.1bfa89da.cjs'
 import { zodToJsonSchema } from 'zod-to-json-schema'
 
 export type OllamaMessage = NonNullable<ChatRequest['messages']>[number]
@@ -288,7 +288,8 @@ export default class extends LlmEngine {
       ...(opts?.usage ?  { usage: {
         prompt_tokens: response.prompt_eval_count,
         completion_tokens: response.eval_count,
-      } } : {})
+      } } : {}),
+      ...(opts?.logprobs && response.logprobs ?  { logprobs: response.logprobs } : {})
     }
   }
 
@@ -369,6 +370,12 @@ export default class extends LlmEngine {
     }
     if (opts?.think !== undefined) {
       chatOptions.think = opts.think
+    }
+    if (opts?.logprobs !== undefined) {
+      chatOptions.logprobs = opts.logprobs
+    }
+    if (opts?.top_logprobs !== undefined) {
+      chatOptions.top_logprobs = opts.top_logprobs
     }
     if (opts?.customOpts) {
       chatOptions.options = { ...chatOptions.options, ...opts.customOpts }
