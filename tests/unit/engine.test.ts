@@ -590,7 +590,8 @@ test('Tool execution delegate - execute error is thrown', async () => {
 
   await expect(async () => {
     // @ts-expect-error protected
-    for await (const _update of openai.callTool({ model: 'model' }, 'failing_tool', {}, delegate)) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const update of openai.callTool({ model: 'model' }, 'failing_tool', {}, delegate)) {
       // consume
     }
   }).rejects.toThrow('External service down')
