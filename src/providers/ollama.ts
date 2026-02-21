@@ -134,19 +134,19 @@ export default class extends LlmEngine {
 
     const reasoningModels = [
       'cogito:*',
-      'deepseek-r1',
-      'deepseek-v3.1',
-      'glm-4.7-flash',
-      'gpt-oss',
-      'gpt-oss-safeguard',
-      'magistral',
-      'nemotron-3-nano',
+      'deepseek-r1:*',
+      'deepseek-v3.1:*',
+      'glm-4.7-flash:*',
+      'gpt-oss-safeguard:*',
+      'gpt-oss:*',
+      'magistral:*',
+      'nemotron-3-nano:*',
       'openthinker:*',
       'phi:*',
+      'qwen3-next:*',
+      'qwen3-vl:*',
+      'qwen3:*',
       'qwq:*',
-      'qwen3',
-      'qwen3-next',
-      'qwen3-vl',
     ]
 
     return {
