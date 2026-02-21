@@ -6,12 +6,17 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - [All] New `PluginTool` format for defining tools in `CustomToolPlugin` and `MultiToolPlugin`
+- [All] Tool execution delegate for external per-request tools
+- [All] Expose provider base URLs programmatically
+- [Google] Base URL support
+- [Ollama] Handling of logprobs
 
 ### Changed
 - N/A
 
 ### Fixed
-- N/A
+- [All] Nested array and array-of-array tool params preservation
+- [Ollama] Model variant wildcard for reasoning models
 
 ### Removed
 - N/A
