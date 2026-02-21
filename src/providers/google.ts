@@ -40,6 +40,9 @@ export default class extends LlmEngine {
     super(config)
     this.client = new GoogleGenAI({
       apiKey: config.apiKey!,
+      ...(config.baseURL ? { httpOptions: {
+        baseUrl: config.baseURL }
+      } : {}),
     })
     this.computerInfo = computerInfo
   }
