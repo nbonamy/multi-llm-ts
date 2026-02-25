@@ -312,6 +312,12 @@ const fsPlugin = new FileSystemPlugin()
 fsPlugin.enableTool('read_file')  // Only enable read
 model.addPlugin(fsPlugin)
 
+// Remove a plugin by name
+model.removePlugin('get_weather')
+
+// Remove all plugins
+model.clearPlugins()
+
 // Model can now call these tools
 const response = await model.complete([
   new Message('user', 'What is the weather in Paris?')

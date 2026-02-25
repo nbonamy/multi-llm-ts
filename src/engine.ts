@@ -125,6 +125,10 @@ export default abstract class LlmEngine {
     this.plugins.push(plugin)
   }
 
+  removePlugin(name: string): void {
+    this.plugins = this.plugins.filter((p) => p.getName() !== name)
+  }
+
   async complete(model: ChatModel|string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
     const chatModel = this.toModel(model)
     const messages = this.buildPayload(chatModel, thread, opts)

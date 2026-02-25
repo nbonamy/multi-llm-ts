@@ -314,6 +314,16 @@ test('Does not add the same plugin twice', async () => {
   expect(openai.plugins.length).toBe(2)
 })
 
+test('Remove plugin by name', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin1())
+  openai.addPlugin(new Plugin2())
+  expect(openai.plugins.length).toBe(2)
+  openai.removePlugin('plugin2')
+  expect(openai.plugins.length).toBe(1)
+  expect(openai.plugins[0].getName()).toBe('plugin1')
+})
+
 test('Tool execution validation - allow', async () => {
   const openai = new OpenAI(config)
   openai.addPlugin(new Plugin2())
