@@ -314,6 +314,12 @@ import { WeatherPlugin } from './plugins/weather'
 const model = igniteModel('openai', chatModel, config)
 model.addPlugin(new WeatherPlugin())
 
+// Remove a plugin by name
+model.removePlugin('get_weather')
+
+// Remove all plugins
+model.clearPlugins()
+
 const messages = [
   new Message('user', 'What is the weather in Paris?')
 ]

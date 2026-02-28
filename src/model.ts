@@ -27,6 +27,10 @@ export default class LlmModel {
     this.engine.addPlugin(plugin)
   }
 
+  removePlugin(name: string): void {
+    this.engine.removePlugin(name)
+  }
+
   complete(thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
     return this.engine.complete(this.model, thread, opts)
   }
