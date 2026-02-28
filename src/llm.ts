@@ -695,9 +695,9 @@ export const loadXAIModels = async (engineConfig: EngineCreateOpts): Promise<Mod
   
   // done
   return {
-    chat: models.filter((m) => !m.id.includes('image') && !m.id.includes('imagine')),
-    image: models.filter((m) => m.id.includes('image') && !m.id.includes('imagine-video')),
-    video: models.filter((m) => m.id.includes('imagine-video')),
+    chat: models.filter((m) => !m.id.includes('image') && !m.id.includes('video')),
+    image: models.filter((m) => m.id.includes('image')), 
+    video: models.filter((m) => m.id.includes('video')),
     embedding: []
   }
 
