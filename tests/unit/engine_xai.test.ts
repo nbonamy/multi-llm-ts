@@ -24,6 +24,8 @@ vi.mock('openai', async () => {
           {'id': 'grok-2', 'created': 2, 'object': 'model', 'owned_by': 'xai'},
           {'id': 'grok-2-vision', 'created': 4, 'object': 'model', 'owned_by': 'xai'},
           {'id': 'grok-2-image', 'created': 3, 'object': 'model', 'owned_by': 'xai'},
+          {'id': 'grok-imagine-image', 'created': 3.25, 'object': 'model', 'owned_by': 'xai'},
+          {'id': 'grok-imagine-video', 'created': 3.5, 'object': 'model', 'owned_by': 'xai'},
           {'id': 'grok-3', 'created': 5, 'object': 'model', 'owned_by': 'xai'},
           {'id': 'grok-3-mini-fast', 'created': 6, 'object': 'model', 'owned_by': 'xai'},
         ]
@@ -82,7 +84,11 @@ test('xAI Load Chat Models', async () => {
     { id: 'grok-1', name: 'Grok 1', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
   ])
   expect(models!.image).toStrictEqual([
+    { id: 'grok-imagine-image', name: 'Grok Imagine Image', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
     { id: 'grok-2-image', name: 'Grok 2 Image', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
+  ])
+  expect(models!.video).toStrictEqual([
+    { id: 'grok-imagine-video', name: 'Grok Imagine Video', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: false, caching: false } },
   ])
   expect(await loadModels('xai', config)).toStrictEqual(models)
 })
