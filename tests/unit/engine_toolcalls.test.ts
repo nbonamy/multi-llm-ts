@@ -1,7 +1,7 @@
 
 import { vi, expect, test, describe, beforeEach } from 'vitest'
 import { LlmChunk, LlmToolCall, NormalizedToolChunk, LlmStream } from '../../src/types/llm'
-import { Plugin1, Plugin2, PluginUpdate } from '../mocks/plugins'
+import { Plugin1, Plugin2, PluginPartialPreparation, PluginUpdate } from '../mocks/plugins'
 import OpenAI from '../../src/providers/openai'
 import * as _openai from 'openai'
 
@@ -152,10 +152,46 @@ describe('processToolCallChunk', () => {
     // @ts-expect-error protected method
     const chunks = Array.from(openai.processToolCallChunk(normalized, context))
 
-    // Should append to args
     expect(context.toolCalls[0].args).toBe('{"param":"value"}')
-    // Should not yield anything for delta
-    expect(chunks).toHaveLength(0)
+    expect(chunks).toStrictEqual([{
+      type: 'tool',
+      id: 'tool-1',
+      name: 'plugin2',
+      state: 'preparing',
+      status: '',
+      done: false,
+    }])
+  })
+
+  test('delta type emits updated preparing status with partial args', () => {
+    const openai = new OpenAI(config)
+    openai.addPlugin(new PluginPartialPreparation())
+
+    const context = {
+      toolCalls: [{
+        id: 'tool-1',
+        function: 'partial_prep',
+        args: '{"path":"characters/raj',
+        message: ''
+      }] as LlmToolCall[]
+    }
+    const normalized: NormalizedToolChunk = {
+      type: 'delta',
+      argumentsDelta: '.md"}'
+    }
+
+    // @ts-expect-error protected method
+    const chunks = Array.from(openai.processToolCallChunk(normalized, context))
+
+    expect(context.toolCalls[0].args).toBe('{"path":"characters/raj.md"}')
+    expect(chunks).toStrictEqual([{
+      type: 'tool',
+      id: 'tool-1',
+      name: 'partial_prep',
+      state: 'preparing',
+      status: 'prep characters/raj.md',
+      done: false,
+    }])
   })
 
   test('delta type does nothing when no tool call exists', () => {
