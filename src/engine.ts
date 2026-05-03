@@ -9,12 +9,14 @@ import Attachment from './models/attachment'
 import Message from './models/message'
 import logger from './logger'
 import { start } from 'node:repl'
+import { parse as parsePartialJson } from 'partial-json'
 
 export default abstract class LlmEngine {
 
   config: EngineCreateOpts
   plugins: IPlugin[]
   private hooks: Map<EngineHookName, EngineHookCallback<EngineHookName>[]> = new Map()
+  private toolPreparationStatuses = new WeakMap<LlmToolCall, string>()
 
   static isConfigured = (opts: EngineCreateOpts): boolean => {
     return (opts?.apiKey != null && opts.apiKey.length > 0)
@@ -433,9 +435,9 @@ export default abstract class LlmEngine {
 
   }
 
-  protected getToolPreparationDescription(tool: string): string {
+  protected getToolPreparationDescription(tool: string, partialArgs?: any): string {
     const plugin = this.getPluginForTool(tool)
-    return plugin?.getPreparationDescription(tool) || ''
+    return plugin?.getPreparationDescription(tool, partialArgs) || ''
   }
   
   protected getToolRunningDescription(tool: string, args: any): string {
@@ -451,6 +453,15 @@ export default abstract class LlmEngine {
   protected getToolCanceledDescription(tool: string, args: any): string|undefined {
     const plugin = this.getPluginForTool(tool)
     return plugin?.getCanceledDescription(tool, args)
+  }
+
+  protected parsePartialToolArgs(args: string): any|undefined {
+    if (!args) return undefined
+    try {
+      return parsePartialJson(args)
+    } catch {
+      return undefined
+    }
   }
 
   protected processToolExecutionResult(
@@ -540,6 +551,9 @@ export default abstract class LlmEngine {
         message: normalized.message,
         ...normalized.metadata
       }
+      const partialArgs = this.parsePartialToolArgs(toolCall.args)
+      const preparationStatus = this.getToolPreparationDescription(toolCall.function, partialArgs)
+      this.toolPreparationStatuses.set(toolCall, preparationStatus)
       context.toolCalls.push(toolCall)
 
       // Yield preparation notification (include metadata like thoughtSignature)
@@ -548,7 +562,7 @@ export default abstract class LlmEngine {
         id: toolCall.id,
         name: toolCall.function,
         state: 'preparing',
-        status: this.getToolPreparationDescription(toolCall.function),
+        status: preparationStatus,
         ...(toolCall.thoughtSignature ? { thoughtSignature: toolCall.thoughtSignature } : {}),
         done: false
       } as LlmChunk
@@ -566,6 +580,23 @@ export default abstract class LlmEngine {
           if (lastMessage?.function?.arguments !== undefined) {
             lastMessage.function.arguments = currentTool.args
           }
+        }
+        const partialArgs = this.parsePartialToolArgs(currentTool.args)
+        if (partialArgs !== undefined) {
+          const status = this.getToolPreparationDescription(currentTool.function, partialArgs)
+          if (status === this.toolPreparationStatuses.get(currentTool)) {
+            return
+          }
+          this.toolPreparationStatuses.set(currentTool, status)
+          yield {
+            type: 'tool',
+            id: currentTool.id,
+            name: currentTool.function,
+            state: 'preparing',
+            status,
+            ...(currentTool.thoughtSignature ? { thoughtSignature: currentTool.thoughtSignature } : {}),
+            done: false
+          } as LlmChunk
         }
       }
     }

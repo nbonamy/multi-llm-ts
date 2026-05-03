@@ -59,6 +59,7 @@
     "minimatch": "^10.0.3",
     "ollama": "^0.6.3",
     "openai": "^6.7.0",
+    "partial-json": "^0.1.7",
     "zod": "^3.25.76",
     "zod-to-json-schema": "^3.24.6"
   }

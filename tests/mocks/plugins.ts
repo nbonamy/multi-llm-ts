@@ -136,6 +136,35 @@ export class Plugin2 extends Plugin {
   }
 }
 
+export class PluginPartialPreparation extends Plugin {
+
+  getName(): string {
+    return 'partial_prep'
+  }
+
+  getDescription(): string {
+    return 'Plugin Partial Preparation'
+  }
+
+  getPreparationDescription(tool: string, partialArgs?: any): string {
+    return partialArgs?.path ? `prep ${partialArgs.path}` : 'prep'
+  }
+
+  getRunningDescription(tool: string, args: any): string {
+    return `run ${args.path}`
+  }
+
+  getParameters(): PluginParameter[] {
+    return [
+      { name: 'path', type: 'string', description: 'Path', required: true },
+    ]
+  }
+
+  async execute(context: PluginExecutionContext, parameters: any): Promise<any> {
+    return parameters
+  }
+}
+
 export class Plugin3 extends Plugin {
 
   isEnabled(): boolean {

@@ -455,7 +455,7 @@ export default class extends LlmEngine {
           id: toolCall.id,
           name: toolCall.function,
           state: 'preparing',
-          status: this.getToolPreparationDescription(toolCall.function),
+          status: this.getToolPreparationDescription(toolCall.function, JSON.parse(toolCall.args)),
           done: false
         }
 

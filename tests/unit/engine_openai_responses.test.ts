@@ -1,6 +1,6 @@
 import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
 import { vi, beforeEach, expect, test, Mock } from 'vitest'
-import { Plugin2 } from '../mocks/plugins'
+import { Plugin2, PluginPartialPreparation } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import OpenAI from '../../src/providers/openai'
 import * as _openai from 'openai'
@@ -72,20 +72,22 @@ vi.mock('openai', async () => {
 
               callCount = 1
 
+              const toolName = opts.tools[0]?.name || 'plugin2'
+
               // response.output_item.added (function_call)
               yield {
                 type: 'response.output_item.added',
                 item: {
                   id: 'func_call_123',
                   type: 'function_call',
-                  name: 'plugin2',
+                  name: toolName,
                   call_id: 'call_123',
                   arguments: ''
                 }
               }
 
               // response.function_call_arguments.delta
-              const args = '["arg"]'
+              const args = toolName === 'partial_prep' ? '{"path":"characters/raj.md"}' : '["arg"]'
               for (let i = 0; i < args.length; i++) {
                 yield {
                   type: 'response.function_call_arguments.delta',
@@ -144,6 +146,8 @@ vi.mock('openai', async () => {
 
           callCount = 1
           
+          const toolName = opts.tools[0]?.name || 'plugin2'
+
           // Response with tool calls
           return {
             id: 'resp_123',
@@ -152,9 +156,9 @@ vi.mock('openai', async () => {
               {
                 type: 'function_call',
                 id: 'func_call_123',
-                name: 'plugin2',
+                name: toolName,
                 call_id: 'call_123',
-                arguments: '["arg"]'
+                arguments: toolName === 'partial_prep' ? '{"path":"characters/raj.md"}' : '["arg"]'
               }
             ],
             usage: {
@@ -523,6 +527,45 @@ test('OpenAI Responses API stream with tools', async () => {
       }
     }
   })
+})
+
+test('OpenAI Responses API stream emits preparing updates with partial tool args', async () => {
+
+  const openai = new OpenAI(config)
+  openai.addPlugin(new PluginPartialPreparation())
+
+  const { stream } = await openai.stream(openai.buildModel('gpt-4'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], {
+    useResponsesApi: true,
+  })
+
+  const toolCalls: LlmChunk[] = []
+  for await (const chunk of stream) {
+    if (chunk.type === 'tool') {
+      toolCalls.push(chunk)
+    }
+  }
+
+  expect(toolCalls.map((chunk) => chunk.status)).toContain('prep characters/raj.md')
+  expect(toolCalls).toContainEqual(expect.objectContaining({
+    type: 'tool',
+    id: 'func_call_123',
+    name: 'partial_prep',
+    state: 'running',
+    status: 'run characters/raj.md',
+    call: { params: { path: 'characters/raj.md' }, result: undefined },
+    done: false,
+  }))
+  expect(toolCalls).toContainEqual(expect.objectContaining({
+    type: 'tool',
+    id: 'func_call_123',
+    name: 'partial_prep',
+    state: 'completed',
+    call: { params: { path: 'characters/raj.md' }, result: { path: 'characters/raj.md' } },
+    done: true,
+  }))
 })
 
 test('OpenAI Responses API forced usage', async () => {

@@ -129,7 +129,7 @@ isEnabled(): boolean {
 Customize status messages:
 
 ```typescript
-getPreparationDescription(tool: string): string
+getPreparationDescription(tool: string, partialArgs?: any): string
 getRunningDescription(tool: string, args: any): string
 getCompletedDescription(tool: string, args: any, result: any): string
 getCanceledDescription(tool: string, args: any): string
@@ -137,8 +137,10 @@ getCanceledDescription(tool: string, args: any): string
 
 **Example:**
 ```typescript
-getPreparationDescription(tool: string): string {
-  return 'Preparing weather lookup...'
+getPreparationDescription(tool: string, partialArgs?: any): string {
+  return partialArgs?.location
+    ? `Preparing weather lookup for ${partialArgs.location}...`
+    : 'Preparing weather lookup...'
 }
 
 getRunningDescription(tool: string, args: any): string {
@@ -248,8 +250,10 @@ export class WeatherPlugin extends Plugin {
     ]
   }
 
-  getPreparationDescription(tool: string): string {
-    return 'Preparing to fetch weather data...'
+  getPreparationDescription(tool: string, partialArgs?: any): string {
+    return partialArgs?.location
+      ? `Preparing to fetch weather data for ${partialArgs.location}...`
+      : 'Preparing to fetch weather data...'
   }
 
   getRunningDescription(tool: string, args: any): string {

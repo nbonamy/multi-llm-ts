@@ -7,7 +7,7 @@ export interface IPlugin {
   isEnabled(): boolean
   getName(): string
   getDescription(): string
-  getPreparationDescription(tool: string): string
+  getPreparationDescription(tool: string, partialArgs?: any): string
   getRunningDescription(tool: string, args: any): string
   getCompletedDescription(tool: string, args: any, results: any): string|undefined
   getParameters(): PluginParameter[]

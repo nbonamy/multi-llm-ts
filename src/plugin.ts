@@ -24,7 +24,7 @@ export class Plugin implements IPlugin {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  getPreparationDescription(tool: string): string {
+  getPreparationDescription(tool: string, partialArgs?: any): string {
     return ''
   }
 

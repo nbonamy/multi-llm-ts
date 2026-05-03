@@ -779,6 +779,7 @@ export default class extends LlmEngine {
         // Track function-call tool invocations that the model initiates while streaming.
         // We gather their incremental arguments and execute them once finalized.
         const pendingCalls: ResponseFunctionToolCall[] = []
+        const preparationStatuses: Record<string, string> = {}
         let thinking = false
 
         for await (const ev of currentStream!) {
@@ -815,9 +816,13 @@ export default class extends LlmEngine {
                   break
                 
                 case 'function_call':
-                  
+
                   // record the tool call
                   pendingCalls.push(ev.item)
+                  const partialArgs = this.parsePartialToolArgs(ev.item.arguments)
+                  const preparationStatus = this.getToolPreparationDescription(ev.item.name, partialArgs)
+                  const preparationStatusKey = ev.item.id || ev.item.call_id || ''
+                  preparationStatuses[preparationStatusKey] = preparationStatus
 
                   // first notify
                   yield {
@@ -825,7 +830,7 @@ export default class extends LlmEngine {
                     id: ev.item.id,
                     name: ev.item.name,
                     state: 'preparing',
-                    status: this.getToolPreparationDescription(ev.item.name),
+                    status: preparationStatus,
                     done: false
                   }
 
@@ -857,6 +862,22 @@ export default class extends LlmEngine {
               const call = pendingCalls.find(c => c.id == ev.item_id)
               if (call) {
                 call.arguments += ev.delta
+                const partialArgs = this.parsePartialToolArgs(call.arguments)
+                if (partialArgs !== undefined) {
+                  const status = this.getToolPreparationDescription(call.name, partialArgs)
+                  const preparationStatusKey = call.id || call.call_id || ''
+                  if (status !== preparationStatuses[preparationStatusKey]) {
+                    preparationStatuses[preparationStatusKey] = status
+                    yield {
+                      type: 'tool',
+                      id: call.id,
+                      name: call.name,
+                      state: 'preparing',
+                      status,
+                      done: false
+                    }
+                  }
+                }
               }
               break
             }
@@ -1298,4 +1319,3 @@ export default class extends LlmEngine {
   }
 
 }
-

@@ -173,9 +173,11 @@ All plugin types support status description methods that provide real-time feedb
 ```typescript
 export class MyPlugin extends Plugin {
 
-  // Called when tool is about to execute
-  getPreparationDescription(tool: string): string {
-    return 'Preparing to search...'
+  // Called when tool is about to execute; partialArgs may be populated while arguments stream
+  getPreparationDescription(tool: string, partialArgs?: any): string {
+    return partialArgs?.query
+      ? `Preparing to search for "${partialArgs.query}"...`
+      : 'Preparing to search...'
   }
 
   // Called during execution (shown with running state)

@@ -1,6 +1,6 @@
 
 import { vi, beforeEach, expect, test } from 'vitest'
-import { Plugin1, Plugin2, Plugin3, CustomPlugin, MultiPlugin, PluginUpdate } from '../mocks/plugins'
+import { Plugin1, Plugin2, Plugin3, CustomPlugin, MultiPlugin, PluginUpdate, PluginPartialPreparation } from '../mocks/plugins'
 import OpenAI from '../../src/providers/openai'
 import { EngineCreateOpts } from '../../src/types/index'
 import { PluginExecutionUpdate } from '../../src/types/plugin'
@@ -27,6 +27,61 @@ test('Engine plugin descriptions', () => {
   expect(llm.getToolPreparationDescription('plugin2')).toBe('prep2')
   // @ts-expect-error protected
   expect(llm.getToolRunningDescription('plugin2', { arg: 'arg2' })).toBe('run2')
+})
+
+test('Engine emits preparing updates with partial tool args', () => {
+  const llm = new OpenAI(config)
+  llm.addPlugin(new PluginPartialPreparation())
+  const context = { toolCalls: [] }
+
+  // @ts-expect-error protected
+  const startChunks = Array.from(llm.processToolCallChunk({
+    type: 'start',
+    id: 'call_1',
+    name: 'partial_prep',
+    args: '',
+  }, context))
+
+  expect(startChunks).toStrictEqual([{
+    type: 'tool',
+    id: 'call_1',
+    name: 'partial_prep',
+    state: 'preparing',
+    status: 'prep',
+    done: false,
+  }])
+
+  // @ts-expect-error protected
+  const partialChunks = Array.from(llm.processToolCallChunk({
+    type: 'delta',
+    id: 'call_1',
+    argumentsDelta: '{"path":"characters/raj',
+  }, context))
+
+  expect(partialChunks).toStrictEqual([{
+    type: 'tool',
+    id: 'call_1',
+    name: 'partial_prep',
+    state: 'preparing',
+    status: 'prep characters/raj',
+    done: false,
+  }])
+
+  // @ts-expect-error protected
+  const completedChunks = Array.from(llm.processToolCallChunk({
+    type: 'delta',
+    id: 'call_1',
+    argumentsDelta: '.md"}',
+  }, context))
+
+  expect(completedChunks).toStrictEqual([{
+    type: 'tool',
+    id: 'call_1',
+    name: 'partial_prep',
+    state: 'preparing',
+    status: 'prep characters/raj.md',
+    done: false,
+  }])
 })
 
 test('Multi Tools Plugin', () => {
