@@ -815,7 +815,7 @@ export default class extends LlmEngine {
                   thinking = true
                   break
                 
-                case 'function_call':
+                case 'function_call': {
 
                   // record the tool call
                   pendingCalls.push(ev.item)
@@ -836,6 +836,7 @@ export default class extends LlmEngine {
 
                   // done
                   break
+                }
               }
               break
 
