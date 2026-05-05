@@ -548,15 +548,18 @@ export default class extends LlmEngine {
       context.done = true
     }
 
-    // @ts-expect-error reasoning content for some providers
-    if (chunk.choices?.length && chunk.choices?.[0]?.delta?.reasoning_content) {
-      // @ts-expect-error reasoning content for some providers
-      context.reasoningContent += chunk.choices?.[0]?.delta?.reasoning_content
-      yield {
-        type: 'reasoning',
-        // @ts-expect-error reasoning content for some providers
-        text: chunk.choices?.[0]?.delta?.reasoning_content || '',
-        done: done,
+    // @ts-expect-error reasoning content for some providers (supports both reasoning_content and reasoning)
+    if (chunk.choices?.length) {
+      const reasoningText = chunk.choices[0]?.delta?.reasoning_content ||
+        chunk.choices[0]?.delta?.reasoning
+
+      if (reasoningText) {
+        context.reasoningContent += reasoningText
+        yield {
+          type: 'reasoning',
+          text: reasoningText,
+          done: done,
+        }
       }
     }
 
