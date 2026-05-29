@@ -233,6 +233,74 @@ test('OpenAI Responses API completion without tools', async () => {
   })
 })
 
+test('OpenAI Responses API replays prior tool call history as function call outputs', async () => {
+  const openai = new OpenAI(config)
+
+  await openai.complete(openai.buildModel('gpt-4'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'draw an image'),
+    new Message('assistant', '', undefined, [{
+      id: 'fc_123',
+      function: 'generate_image',
+      args: { prompt: 'sunset' },
+      result: { url: 'https://example.com/sunset.png' },
+    }]),
+    new Message('user', 'what did you create?'),
+  ], {
+    useResponsesApi: true,
+    tools: false,
+  })
+
+  expect(_openai.default.prototype.responses.create).toHaveBeenCalledWith({
+    model: 'gpt-4',
+    instructions: 'instruction',
+    input: [
+      { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'draw an image' }] },
+      {
+        type: 'function_call',
+        call_id: 'fc_123',
+        name: 'generate_image',
+        arguments: JSON.stringify({ prompt: 'sunset' }),
+      },
+      {
+        type: 'function_call_output',
+        call_id: 'fc_123',
+        output: JSON.stringify({ url: 'https://example.com/sunset.png' }),
+      },
+      { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'what did you create?' }] },
+    ],
+    stream: false,
+  })
+})
+
+test('OpenAI Responses API responseId continuation does not replay prior tool call history', async () => {
+  const openai = new OpenAI(config)
+
+  await openai.complete(openai.buildModel('gpt-4'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'draw an image'),
+    new Message('assistant', '', undefined, [{
+      id: 'fc_123',
+      function: 'generate_image',
+      args: { prompt: 'sunset' },
+      result: { url: 'https://example.com/sunset.png' },
+    }]),
+    new Message('user', 'what did you create?'),
+  ], {
+    useResponsesApi: true,
+    responseId: 'resp_previous',
+    tools: false,
+  })
+
+  expect(_openai.default.prototype.responses.create).toHaveBeenCalledWith({
+    model: 'gpt-4',
+    instructions: 'instruction',
+    previous_response_id: 'resp_previous',
+    input: 'what did you create?',
+    stream: false,
+  })
+})
+
 test('OpenAI Responses API completion with tools', async () => {
   const openai = new OpenAI(config)
   openai.addPlugin(new Plugin2())
@@ -257,13 +325,18 @@ test('OpenAI Responses API completion with tools', async () => {
     'param6', 'param7', 'param8', 'param9', 'param10', 'param11', 'param12',
   ])
   expect(toolParams.additionalProperties).toBe(false)
+  expect(toolParams.properties.param1.type).toBe('string')
+  expect(toolParams.properties.param2.type).toStrictEqual(['number', 'null'])
 
   // param3: array with no items — must default to items: { type: 'string' }
   expect(toolParams.properties.param3.type).toBe('array')
   expect(toolParams.properties.param3.items).toStrictEqual({ type: 'string' })
+  expect(toolParams.properties.param4.type).toStrictEqual(['array', 'null'])
+  expect(toolParams.properties.param4.items).toStrictEqual({ type: 'string' })
 
   // param5: items.properties must be a Record (not an array)
   // Responses API strict mode: required must list ALL keys
+  expect(toolParams.properties.param5.type).toStrictEqual(['array', 'null'])
   expect(toolParams.properties.param5.items.properties).toStrictEqual({
     key: { type: 'string', description: 'Key' },
     value: { type: 'number', description: 'Value' },
@@ -286,16 +359,18 @@ test('OpenAI Responses API completion with tools', async () => {
   expect(toolParams.properties.param8.items.additionalProperties).toBe(false)
 
   // param9: same as param3
-  expect(toolParams.properties.param9.type).toBe('array')
+  expect(toolParams.properties.param9.type).toStrictEqual(['array', 'null'])
   expect(toolParams.properties.param9.items).toStrictEqual({ type: 'string' })
 
   // param10: array with object items but no properties
   // Responses API strict mode: object items need full strict schema
+  expect(toolParams.properties.param10.type).toStrictEqual(['array', 'null'])
   expect(toolParams.properties.param10.items).toStrictEqual({
     type: 'object', properties: {}, required: [], additionalProperties: false,
   })
 
   // param11: nested array property inside object items must preserve items
+  expect(toolParams.properties.param11.type).toStrictEqual(['array', 'null'])
   const param11Items = toolParams.properties.param11.items
   expect(param11Items.properties.fields.type).toBe('array')
   expect(param11Items.properties.fields.items).toStrictEqual({ type: 'string' })
@@ -306,6 +381,7 @@ test('OpenAI Responses API completion with tools', async () => {
   expect(param11Items.additionalProperties).toBe(false)
 
   // param12: array-of-arrays (2D) must preserve inner items
+  expect(toolParams.properties.param12.type).toStrictEqual(['array', 'null'])
   const param12Items = toolParams.properties.param12.items
   expect(param12Items.properties.values.type).toBe('array')
   expect(param12Items.properties.values.items).toStrictEqual({ type: 'array', items: { type: 'string' } })

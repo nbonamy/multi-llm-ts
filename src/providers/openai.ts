@@ -1056,6 +1056,20 @@ export default class extends LlmEngine {
       return JSON.stringify(c)
     }
 
+    function getToolCallId(toolCall: any): string {
+      return toolCall?.id || toolCall?.call_id || ''
+    }
+
+    function getToolCallName(toolCall: any): string {
+      return toolCall?.function?.name || toolCall?.name || ''
+    }
+
+    function getToolCallArguments(toolCall: any): string {
+      const args = toolCall?.function?.arguments ?? toolCall?.arguments ?? toolCall?.args
+      if (typeof args === 'string') return args
+      return JSON.stringify(args ?? {})
+    }
+
     // rebuild the instructions
     const instructions = payload
       .filter((m: any) => m.role === 'system')
@@ -1115,10 +1129,24 @@ export default class extends LlmEngine {
 
         } else if (msg.role === 'assistant') {
 
-          input.push({
-            role: 'assistant',
-            content: extractText(msg)
-          })
+          const toolCalls = Array.isArray(msg.tool_calls) ? msg.tool_calls : []
+          const assistantText = extractText(msg)
+
+          if (assistantText || !toolCalls.length) {
+            input.push({
+              role: 'assistant',
+              content: assistantText
+            })
+          }
+
+          for (const toolCall of toolCalls) {
+            input.push({
+              type: 'function_call',
+              call_id: getToolCallId(toolCall),
+              name: getToolCallName(toolCall),
+              arguments: getToolCallArguments(toolCall),
+            })
+          }
 
         // } else if (msg.role === 'assistant' && msg.messageId?.length) {
 
@@ -1144,10 +1172,9 @@ export default class extends LlmEngine {
 
         } else if (msg.role === 'tool') {
           input.push({
-            type: 'function_call',
+            type: 'function_call_output',
             call_id: msg.tool_call_id || '',
-            name: msg.name || '',
-            arguments: '',
+            output: msg.content || '',
           })
         }
       }
@@ -1190,16 +1217,7 @@ export default class extends LlmEngine {
       const properties: Record<string, any> = {}
 
       for (const param of tool.parameters) {
-        const type = param.type || (param.items ? 'array' : 'string')
-        const prop: any = {
-          type,
-          description: param.description,
-          ...(param.enum ? { enum: param.enum } : {}),
-        }
-        if (type === 'array') {
-          prop.items = this.convertItemsForResponsesAPI(param.items)
-        }
-        properties[param.name] = prop
+        properties[param.name] = this.pluginParamToResponsesSchema(param)
       }
 
       // Build parameters schema with strict mode requirements
@@ -1230,10 +1248,11 @@ export default class extends LlmEngine {
   // Convert a single PluginParameter to Responses API strict mode schema
   private pluginParamToResponsesSchema(param: any): any {
     const type = param.type || (param.items ? 'array' : 'string')
+    const nullable = param.required === false
     const prop: any = {
-      type,
+      type: nullable ? [type, 'null'] : type,
       description: param.description,
-      ...(param.enum ? { enum: param.enum } : {}),
+      ...(param.enum ? { enum: nullable ? [...param.enum, null] : param.enum } : {}),
     }
     if (type === 'array') {
       prop.items = this.convertItemsForResponsesAPI(param.items)
