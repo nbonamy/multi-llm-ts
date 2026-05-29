@@ -13,7 +13,7 @@
       ],
       "env": {
         "ENGINE": "openai",
-        "MODEL": "gpt-4.1"
+        "MODEL": "gpt-5.4"
       },
       "runtimeExecutable": "npm",
       "skipFiles": [
