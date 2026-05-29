@@ -605,6 +605,177 @@ test('OpenAI Responses API stream with tools', async () => {
   })
 })
 
+test('OpenAI Responses API stream starts tool execution when function call item is done', async () => {
+
+  const order: string[] = []
+
+  ;(Plugin2.prototype.execute as Mock).mockImplementationOnce(async () => {
+    order.push('tool-executed')
+    return 'result2'
+  })
+
+  ;(_openai.default.prototype.responses.create as Mock)
+    .mockImplementationOnce(() => ({
+      async * [Symbol.asyncIterator]() {
+        yield {
+          type: 'response.created',
+          response: {
+            id: 'resp_early_tool',
+            status: 'in_progress'
+          }
+        }
+        yield {
+          type: 'response.in_progress',
+          response: {
+            id: 'resp_early_tool',
+            status: 'in_progress'
+          }
+        }
+        yield {
+          type: 'response.output_item.added',
+          item: {
+            id: 'func_call_early',
+            type: 'function_call',
+            name: 'plugin2',
+            call_id: 'call_early',
+            arguments: ''
+          }
+        }
+        yield {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'func_call_early',
+          delta: '["arg"]'
+        }
+        yield {
+          type: 'response.function_call_arguments.done',
+          item_id: 'func_call_early',
+          name: 'plugin2',
+          arguments: '["arg"]'
+        }
+
+        order.push('function-call-done')
+        yield {
+          type: 'response.output_item.done',
+          item: {
+            id: 'func_call_early',
+            type: 'function_call',
+            name: 'plugin2',
+            call_id: 'call_early',
+            arguments: '["arg"]'
+          }
+        }
+
+        yield {
+          type: 'response.output_item.added',
+          item: {
+            id: 'msg_after_tool',
+            type: 'message'
+          }
+        }
+        yield {
+          type: 'response.output_text.delta',
+          delta: 'still streaming'
+        }
+
+        order.push('response-completed')
+        yield {
+          type: 'response.completed',
+          response: {
+            id: 'resp_early_tool',
+            status: 'completed',
+            usage: {
+              input_tokens: 10,
+              output_tokens: 20,
+              input_tokens_details: { cached_tokens: 0 },
+              output_tokens_details: { reasoning_tokens: 0 }
+            }
+          }
+        }
+      }
+    }))
+    .mockImplementationOnce(() => ({
+      async * [Symbol.asyncIterator]() {
+        yield {
+          type: 'response.created',
+          response: {
+            id: 'resp_followup',
+            status: 'in_progress'
+          }
+        }
+        yield {
+          type: 'response.output_item.added',
+          item: {
+            id: 'msg_followup',
+            type: 'message'
+          }
+        }
+        yield {
+          type: 'response.output_text.delta',
+          delta: 'done'
+        }
+        yield {
+          type: 'response.completed',
+          response: {
+            id: 'resp_followup',
+            status: 'completed',
+            usage: {
+              input_tokens: 5,
+              output_tokens: 5,
+              input_tokens_details: { cached_tokens: 0 },
+              output_tokens_details: { reasoning_tokens: 0 }
+            }
+          }
+        }
+      }
+    }))
+
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin2())
+
+  const { stream } = await openai.stream(openai.buildModel('gpt-4'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], {
+    useResponsesApi: true,
+  })
+
+  const toolCalls: LlmChunk[] = []
+  let response = ''
+  for await (const chunk of stream) {
+    if (chunk.type === 'tool') {
+      toolCalls.push(chunk)
+    } else if (chunk.type === 'content') {
+      response += chunk.text
+    }
+  }
+
+  expect(order.indexOf('tool-executed')).toBeGreaterThan(order.indexOf('function-call-done'))
+  expect(order.indexOf('tool-executed')).toBeLessThan(order.indexOf('response-completed'))
+  expect(response).toBe('still streamingdone')
+  expect(toolCalls).toContainEqual(expect.objectContaining({
+    type: 'tool',
+    id: 'func_call_early',
+    name: 'plugin2',
+    state: 'running',
+    call: { params: ['arg'], result: undefined },
+    done: false,
+  }))
+  expect(_openai.default.prototype.responses.create).toHaveBeenNthCalledWith(2, {
+    model: 'gpt-4',
+    previous_response_id: 'resp_early_tool',
+    input: [
+      {
+        type: 'function_call_output',
+        call_id: 'call_early',
+        output: 'result2'
+      }
+    ],
+    tools: expect.any(Array),
+    tool_choice: 'auto',
+    stream: true
+  })
+})
+
 test('OpenAI Responses API stream emits preparing updates with partial tool args', async () => {
 
   const openai = new OpenAI(config)

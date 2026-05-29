@@ -17,6 +17,18 @@ import { RequestOptions } from 'openai/internal/request-options'
 
 type OpenAIToolOpts = Omit<ChatCompletionCreateParamsBase, 'model' | 'messages' | 'stream'>
 
+type ResponsesToolFollowUpInput = {
+  type: 'function_call_output'
+  call_id: string
+  output: string
+}
+
+type ResponsesToolExecutionResult = {
+  followReqInput?: ResponsesToolFollowUpInput
+  canceled?: boolean
+  error?: unknown
+}
+
 const defaultBaseUrl = PROVIDER_BASE_URLS.openai!
 
 //
@@ -779,8 +791,209 @@ export default class extends LlmEngine {
         // Track function-call tool invocations that the model initiates while streaming.
         // We gather their incremental arguments and execute them once finalized.
         const pendingCalls: ResponseFunctionToolCall[] = []
+        const toolExecutions = new Map<string, Promise<ResponsesToolExecutionResult>>()
+        const toolChunkQueue: LlmChunk[] = []
         const preparationStatuses: Record<string, string> = {}
         let thinking = false
+        let wakeToolChunks: (() => void) | null = null
+        let toolChunkWakePromise: Promise<void> | null = null
+
+        const getToolCallKey = (toolCall: ResponseFunctionToolCall, fallbackIndex?: number): string => {
+          return toolCall.id || toolCall.call_id || `${toolCall.name}:${fallbackIndex ?? pendingCalls.indexOf(toolCall)}`
+        }
+
+        const enqueueToolChunk = (chunk: LlmChunk) => {
+          toolChunkQueue.push(chunk)
+          if (wakeToolChunks) {
+            wakeToolChunks()
+            wakeToolChunks = null
+            toolChunkWakePromise = null
+          }
+        }
+
+        function* drainToolChunks() {
+          while (toolChunkQueue.length) {
+            yield toolChunkQueue.shift()!
+          }
+        }
+
+        const waitForToolChunks = (): Promise<void> => {
+          if (toolChunkQueue.length) {
+            return Promise.resolve()
+          }
+          if (!toolChunkWakePromise) {
+            toolChunkWakePromise = new Promise(resolve => {
+              wakeToolChunks = resolve
+            })
+          }
+          return toolChunkWakePromise
+        }
+
+        const findPendingCall = (item: any): ResponseFunctionToolCall | undefined => {
+          return pendingCalls.find(call => {
+            return (item.id && call.id === item.id) || (item.call_id && call.call_id === item.call_id)
+          })
+        }
+
+        const mergeToolCall = (target: ResponseFunctionToolCall, source: any) => {
+          if (source.name) target.name = source.name
+          if (source.call_id) target.call_id = source.call_id
+          if (typeof source.arguments === 'string' && source.arguments.length) {
+            target.arguments = source.arguments
+          }
+        }
+
+        const parseToolCallArgs = (toolCall: ResponseFunctionToolCall): any => {
+          const rawArgs = toolCall.arguments || ''
+          try {
+            return rawArgs.trim() ? JSON.parse(rawArgs) : {}
+          } catch (err) {
+            throw new Error(`[openai] tool call ${toolCall.name} with invalid JSON args: "${rawArgs}"`, { cause: err })
+          }
+        }
+
+        const startToolExecution = (toolCall: ResponseFunctionToolCall) => {
+          const key = getToolCallKey(toolCall)
+          if (toolExecutions.has(key)) {
+            return
+          }
+
+          const args = parseToolCallArgs(toolCall)
+
+          enqueueToolChunk({
+            type: 'tool',
+            id: toolCall.id,
+            name: toolCall.name,
+            state: 'running',
+            status: this.getToolRunningDescription(toolCall.name, args),
+            call: {
+              params: args,
+              result: undefined
+            },
+            done: false
+          } as LlmChunk)
+
+          const execution = (async (): Promise<ResponsesToolExecutionResult> => {
+            try {
+              let lastUpdate: PluginExecutionResult|undefined = undefined
+              for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.name, args, opts?.toolExecutionDelegate, opts?.toolExecutionValidation)) {
+
+                if (opts?.abortSignal?.aborted) {
+                  enqueueToolChunk({
+                    type: 'tool',
+                    id: toolCall.id,
+                    name: toolCall.name,
+                    state: 'canceled',
+                    status: this.getToolCanceledDescription(toolCall.name, args) || 'Tool execution was canceled',
+                    done: true,
+                    call: {
+                      params: args,
+                      result: undefined
+                    }
+                  } as LlmChunk)
+                  return { canceled: true }
+                }
+
+                if (update.type === 'status') {
+                  enqueueToolChunk({
+                    type: 'tool',
+                    id: toolCall.id,
+                    name: toolCall.name,
+                    state: 'running',
+                    status: update.status,
+                    call: {
+                      params: args,
+                      result: undefined
+                    },
+                    done: false
+                  } as LlmChunk)
+
+                } else if (update.type === 'result') {
+                  lastUpdate = update
+                }
+
+              }
+
+              const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
+                'openai',
+                toolCall.name,
+                args,
+                lastUpdate
+              )
+
+              enqueueToolChunk({
+                type: 'tool',
+                id: toolCall.id,
+                name: toolCall.name,
+                state: toolCallCanceled ? 'canceled' : 'completed',
+                status: toolCallCanceled
+                  ? this.getToolCanceledDescription(toolCall.name, args) || (typeof content === 'object' ? content.error : undefined) || 'Tool execution was canceled'
+                  : this.getToolCompletedDescription(toolCall.name, args, content),
+                done: true,
+                call: {
+                  params: args,
+                  result: content
+                }
+              } as LlmChunk)
+
+              if (toolCallCanceled) {
+                return { canceled: true }
+              }
+
+              return {
+                followReqInput: {
+                  type: 'function_call_output',
+                  call_id: toolCall.call_id,
+                  output: typeof content === 'string' ? content : JSON.stringify(content),
+                }
+              }
+
+            } catch (error) {
+              if (opts?.abortSignal?.aborted) {
+                enqueueToolChunk({
+                  type: 'tool',
+                  id: toolCall.id,
+                  name: toolCall.name,
+                  state: 'canceled',
+                  status: this.getToolCanceledDescription(toolCall.name, args),
+                  done: true,
+                  call: {
+                    params: args,
+                    result: undefined
+                  }
+                } as LlmChunk)
+                return { canceled: true }
+              }
+              return { error }
+            }
+          })()
+
+          toolExecutions.set(key, execution)
+        }
+
+        async function* waitForToolExecution(execution: Promise<ResponsesToolExecutionResult>): AsyncGenerator<LlmChunk, ResponsesToolExecutionResult> {
+          const executionDone = execution.then(result => ({ type: 'result' as const, result }))
+
+          while (true) {
+            if (toolChunkQueue.length) {
+              yield* drainToolChunks()
+              continue
+            }
+
+            const next = await Promise.race([
+              executionDone,
+              waitForToolChunks().then(() => ({ type: 'chunks' as const }))
+            ])
+
+            if (next.type === 'chunks') {
+              yield* drainToolChunks()
+              continue
+            }
+
+            yield* drainToolChunks()
+            return next.result
+          }
+        }
 
         for await (const ev of currentStream!) {
 
@@ -845,6 +1058,15 @@ export default class extends LlmEngine {
                 case 'reasoning':
                   thinking = false
                   break
+                case 'function_call': {
+                  const toolCall = findPendingCall(ev.item) || ev.item
+                  if (!pendingCalls.includes(toolCall)) {
+                    pendingCalls.push(toolCall)
+                  }
+                  mergeToolCall(toolCall, ev.item)
+                  startToolExecution(toolCall)
+                  break
+                }
               }
               break
 
@@ -885,11 +1107,18 @@ export default class extends LlmEngine {
 
             case 'response.function_call_arguments.done': {
               const call = pendingCalls.find(c => c.id == ev.item_id)
-              if (call) { /* nop */ }
+              if (call) {
+                if (typeof ev.arguments === 'string') {
+                  call.arguments = ev.arguments
+                }
+                call.name = ev.name || call.name
+              }
               break
             }
 
           }
+
+          yield* drainToolChunks()
 
         }
 
@@ -902,111 +1131,31 @@ export default class extends LlmEngine {
           break
         }
 
-        // run tool calls
+        // Some providers/tests may omit response.output_item.done for function calls.
+        // Preserve the old behavior by starting any remaining tools after the stream ends.
+        for (const toolCall of pendingCalls) {
+          startToolExecution(toolCall)
+          yield* drainToolChunks()
+        }
+
+        // collect tool call results
         const followReqInput: any[] = []
         for (const toolCall of pendingCalls) {
 
-          // this can error
-          let args = null
-          try {
-            args = JSON.parse(toolCall.arguments)
-          } catch (err) {
-            throw new Error(`[openai] tool call ${toolCall.name} with invalid JSON args: "${args}"`, { cause: err })
+          const execution = toolExecutions.get(getToolCallKey(toolCall))
+          if (!execution) {
+            continue
           }
 
-          try {
-            // first notify
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.name,
-              state: 'running',
-              status: this.getToolRunningDescription(toolCall.name, args),
-              call: {
-                params: args,
-                result: undefined
-              },
-              done: false
-            }
-
-            // now execute
-            let lastUpdate: PluginExecutionResult|undefined = undefined
-            for await (const update of this.callTool({ model: model.id, abortSignal: opts?.abortSignal }, toolCall.name, args, opts?.toolExecutionDelegate, opts?.toolExecutionValidation)) {
-
-              if (update.type === 'status') {
-                yield {
-                  type: 'tool',
-                  id: toolCall.id,
-                  name: toolCall.name,
-                  state: 'running',
-                  status: update.status,
-                  call: {
-                    params: args,
-                    result: undefined
-                  },
-                  done: false
-                }
-
-              } else if (update.type === 'result') {
-                lastUpdate = update
-              }
-
-            }
-
-            // process result
-            const { content, canceled: toolCallCanceled } = this.processToolExecutionResult(
-              'openai',
-              toolCall.name,
-              args,
-              lastUpdate
-            )
-
-            // done
-            yield {
-              type: 'tool',
-              id: toolCall.id,
-              name: toolCall.name,
-              state: toolCallCanceled ? 'canceled' : 'completed',
-              status: toolCallCanceled
-                ? this.getToolCanceledDescription(toolCall.name, args) || content.error || 'Tool execution was canceled'
-                : this.getToolCompletedDescription(toolCall.name, args, content),
-              done: true,
-              call: {
-                params: args,
-                result: content
-              }
-            }
-
-            // if canceled, stop processing
-            if (toolCallCanceled) {
-              return  // Stop processing remaining tools
-            }
-
-            // store
-            followReqInput.push({
-              type: 'function_call_output',
-              call_id: toolCall.call_id,
-              output: typeof content === 'string' ? content : JSON.stringify(content),
-            })
-
-          } catch (error) {
-            // Check if this was an abort
-            if (opts?.abortSignal?.aborted) {
-              yield {
-                type: 'tool',
-                id: toolCall.id,
-                name: toolCall.name,
-                state: 'canceled',
-                status: this.getToolCanceledDescription(toolCall.name, args),
-                done: true,
-                call: {
-                  params: args,
-                  result: undefined
-                }
-              }
-              return  // Stop processing remaining tools
-            }
-            throw error  // Re-throw non-abort errors
+          const result = yield* waitForToolExecution(execution)
+          if (result.error) {
+            throw result.error
+          }
+          if (result.canceled) {
+            return  // Stop processing remaining tools
+          }
+          if (result.followReqInput) {
+            followReqInput.push(result.followReqInput)
           }
 
         }
