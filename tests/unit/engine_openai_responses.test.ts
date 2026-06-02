@@ -5,10 +5,67 @@ import Message from '../../src/models/message'
 import OpenAI from '../../src/providers/openai'
 import * as _openai from 'openai'
 import { EngineCreateOpts } from '../../src/types/index'
+import { Plugin } from '../../src/plugin'
+import { PluginExecutionContext, PluginParameter } from '../../src/types/plugin'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
 
 let callCount = 0
+
+class PluginSchemaTypeUnion extends Plugin {
+  getName(): string {
+    return 'schema_type_union'
+  }
+
+  getDescription(): string {
+    return 'Schema type union'
+  }
+
+  getParameters(): PluginParameter[] {
+    return [{
+      name: 'custom_fields',
+      description: 'Custom fields',
+      required: false,
+      type: [
+        {
+          type: 'object',
+          properties: {
+            field_gid: { type: 'string' },
+          },
+        },
+        'null',
+      ],
+    } as any]
+  }
+
+  async execute(context: PluginExecutionContext, parameters: any): Promise<any> {
+    return parameters
+  }
+}
+
+class PluginOpenObjectMap extends Plugin {
+  getName(): string {
+    return 'open_object_map'
+  }
+
+  getDescription(): string {
+    return 'Open object map'
+  }
+
+  getParameters(): PluginParameter[] {
+    return [{
+      name: 'custom_fields',
+      description: 'Custom fields',
+      type: 'object',
+      required: false,
+      additionalProperties: { type: 'string' },
+    } as any]
+  }
+
+  async execute(context: PluginExecutionContext, parameters: any): Promise<any> {
+    return parameters
+  }
+}
 
 vi.mock('openai', async () => {
   
@@ -437,6 +494,57 @@ test('OpenAI Responses API completion with tools', async () => {
         audio_tokens: 0
       }
     }
+  })
+})
+
+test('OpenAI Responses API normalizes schema-valued type unions for strict tools', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new PluginSchemaTypeUnion())
+
+  await openai.complete(openai.buildModel('gpt-4'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], {
+    useResponsesApi: true,
+  })
+
+  const tool = (_openai.default.prototype.responses.create as Mock).mock.calls[0][0].tools[0]
+  expect(tool.strict).toBe(true)
+  expect(tool.parameters.properties.custom_fields).toStrictEqual({
+    description: 'Custom fields',
+    anyOf: [
+      {
+        type: 'object',
+        properties: {
+          field_gid: { type: 'string' },
+        },
+        required: ['field_gid'],
+        additionalProperties: false,
+      },
+      { type: 'null' },
+    ],
+  })
+})
+
+test('OpenAI Responses API uses non-strict mode for open object maps', async () => {
+  const openai = new OpenAI(config)
+  openai.addPlugin(new PluginOpenObjectMap())
+
+  await openai.complete(openai.buildModel('gpt-4'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], {
+    useResponsesApi: true,
+  })
+
+  const tool = (_openai.default.prototype.responses.create as Mock).mock.calls[0][0].tools[0]
+  expect(tool.strict).toBe(false)
+  expect(tool.parameters.properties.custom_fields).toStrictEqual({
+    type: ['object', 'null'],
+    description: 'Custom fields',
+    properties: {},
+    required: [],
+    additionalProperties: { type: 'string' },
   })
 })
 

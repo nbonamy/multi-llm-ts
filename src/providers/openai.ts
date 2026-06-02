@@ -29,6 +29,11 @@ type ResponsesToolExecutionResult = {
   error?: unknown
 }
 
+type ResponsesSchemaConversion = {
+  schema: any
+  strict: boolean
+}
+
 const defaultBaseUrl = PROVIDER_BASE_URLS.openai!
 
 //
@@ -1369,9 +1374,12 @@ export default class extends LlmEngine {
 
       // Build properties object from PluginParameter[]
       const properties: Record<string, any> = {}
+      let strict = true
 
       for (const param of tool.parameters) {
-        properties[param.name] = this.pluginParamToResponsesSchema(param)
+        const converted = this.pluginParamToResponsesSchema(param)
+        properties[param.name] = converted.schema
+        strict = strict && converted.strict
       }
 
       // Build parameters schema with strict mode requirements
@@ -1393,51 +1401,144 @@ export default class extends LlmEngine {
         name: tool.name,
         description: tool.description,
         parameters: parameters,
-        strict: true
+        strict
       }
     })
 
   }
 
   // Convert a single PluginParameter to Responses API strict mode schema
-  private pluginParamToResponsesSchema(param: any): any {
+  private pluginParamToResponsesSchema(param: any): ResponsesSchemaConversion {
     const type = param.type || (param.items ? 'array' : 'string')
-    const nullable = param.required === false
-    const prop: any = {
-      type: nullable ? [type, 'null'] : type,
-      description: param.description,
-      ...(param.enum ? { enum: nullable ? [...param.enum, null] : param.enum } : {}),
+    const schema: any = {
+      type,
+      ...(param.description ? { description: param.description } : {}),
+      ...(param.enum ? { enum: param.enum } : {}),
     }
-    if (type === 'array') {
-      prop.items = this.convertItemsForResponsesAPI(param.items)
+
+    const passthroughKeys = [
+      'properties', 'additionalProperties', 'anyOf', 'oneOf', 'allOf',
+      '$defs', 'definitions', 'format', 'minimum', 'maximum', 'minLength',
+      'maxLength', 'minItems', 'maxItems',
+    ]
+
+    for (const key of passthroughKeys) {
+      if (param[key] !== undefined) {
+        schema[key] = param[key]
+      }
     }
-    return prop
+
+    if (type === 'array' && param.items) {
+      schema.items = param.items
+    }
+
+    return this.normalizeSchemaForResponses(schema, param.required === false)
   }
 
   // Helper to convert items for Responses API strict mode
   // Responses API strict mode: required must list ALL property keys
-  private convertItemsForResponsesAPI(items?: { type: string; properties?: any[] }): any {
-    if (!items) return { type: 'string' }
-    if (!items.properties) {
-      // strict mode: object types need additionalProperties: false
-      if (items.type === 'object') {
-        return { type: 'object', properties: {}, required: [], additionalProperties: false }
+  private normalizeSchemaForResponses(schema: any, nullable = false): ResponsesSchemaConversion {
+    if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+      return this.normalizeSchemaForResponses({ type: 'string' }, nullable)
+    }
+
+    const normalized = { ...schema }
+    let strict = true
+
+    if (Array.isArray(normalized.type) && normalized.type.some((entry: any) => typeof entry === 'object')) {
+      const variants = normalized.type.map((entry: any) => typeof entry === 'string' ? { type: entry } : entry)
+      delete normalized.type
+      normalized.anyOf = [
+        ...(Array.isArray(normalized.anyOf) ? normalized.anyOf : []),
+        ...variants,
+      ]
+    }
+
+    const objectLike = this.schemaHasType(normalized, 'object') || normalized.properties !== undefined
+    if (objectLike) {
+      if (!normalized.type && !normalized.anyOf && !normalized.oneOf) {
+        normalized.type = 'object'
       }
-      if (items.type === 'array' && (items as any).items) {
-        return { type: 'array', items: { type: (items as any).items.type || 'string' } }
+
+      if (Array.isArray(normalized.properties)) {
+        const properties: Record<string, any> = {}
+        for (const prop of normalized.properties) {
+          const converted = this.pluginParamToResponsesSchema(prop)
+          properties[prop.name] = converted.schema
+          strict = strict && converted.strict
+        }
+        normalized.properties = properties
+      } else if (normalized.properties && typeof normalized.properties === 'object') {
+        const originalRequired = new Set(Array.isArray(normalized.required) ? normalized.required : [])
+        const hasOriginalRequired = Array.isArray(normalized.required)
+        const properties: Record<string, any> = {}
+
+        for (const [key, value] of Object.entries(normalized.properties)) {
+          const converted = this.normalizeSchemaForResponses(value, hasOriginalRequired && !originalRequired.has(key))
+          properties[key] = converted.schema
+          strict = strict && converted.strict
+        }
+
+        normalized.properties = properties
+      } else {
+        normalized.properties = {}
       }
-      return { type: items.type }
+
+      normalized.required = Object.keys(normalized.properties)
+
+      if (normalized.additionalProperties === undefined || normalized.additionalProperties === false) {
+        normalized.additionalProperties = false
+      } else {
+        strict = false
+      }
     }
-    const props: Record<string, any> = {}
-    for (const prop of items.properties) {
-      props[prop.name] = this.pluginParamToResponsesSchema(prop)
+
+    if (this.schemaHasType(normalized, 'array') || normalized.items !== undefined) {
+      const convertedItems = this.normalizeSchemaForResponses(normalized.items || { type: 'string' })
+      normalized.items = convertedItems.schema
+      strict = strict && convertedItems.strict
     }
-    return {
-      type: items.type || 'object',
-      properties: props,
-      required: Object.keys(props),
-      additionalProperties: false,
+
+    for (const key of ['anyOf', 'oneOf', 'allOf']) {
+      if (Array.isArray(normalized[key])) {
+        normalized[key] = normalized[key].map((entry: any) => {
+          const converted = this.normalizeSchemaForResponses(entry)
+          strict = strict && converted.strict
+          return converted.schema
+        })
+      }
     }
+
+    const result = nullable ? this.makeSchemaNullable(normalized) : normalized
+    return { schema: result, strict }
+  }
+
+  private schemaHasType(schema: any, type: string): boolean {
+    return schema.type === type || (Array.isArray(schema.type) && schema.type.includes(type))
+  }
+
+  private makeSchemaNullable(schema: any): any {
+    if (schema.enum && !schema.enum.includes(null)) {
+      schema.enum = [...schema.enum, null]
+    }
+
+    if (typeof schema.type === 'string') {
+      if (schema.type !== 'null') {
+        schema.type = [schema.type, 'null']
+      }
+    } else if (Array.isArray(schema.type)) {
+      if (!schema.type.includes('null')) {
+        schema.type = [...schema.type, 'null']
+      }
+    } else if (Array.isArray(schema.anyOf)) {
+      if (!schema.anyOf.some((entry: any) => entry?.type === 'null')) {
+        schema.anyOf = [...schema.anyOf, { type: 'null' }]
+      }
+    } else {
+      schema.anyOf = [{ ...schema }, { type: 'null' }]
+    }
+
+    return schema
   }
 
   private getResponsesToolChoice(toolChoice?: LlmToolChoice): ToolChoiceOptions|ToolChoiceFunction {
