@@ -746,6 +746,7 @@ export default class extends LlmEngine {
           input: followReqInput,
           stream: false,
         }
+        await this.attachResponsesTools(followUpReq, model, opts)
         
         // debug
         logger.debug('[responses] FOLLOW-UP REQUEST', JSON.stringify(followUpReq, null, 2))
@@ -1165,10 +1166,9 @@ export default class extends LlmEngine {
           model: model.id,
           previous_response_id: responseId,
           input: followReqInput,
-          tools: request.tools,
-          tool_choice: request.tool_choice,
           stream: true,
         }
+        await this.attachResponsesTools(followReq, model, opts)
         
         // debug
         logger.debug('[responsesStream] FOLLOW-UP STREAM REQ', JSON.stringify(followReq, null, 2))
@@ -1337,15 +1337,20 @@ export default class extends LlmEngine {
       stream,
     }
 
-    // attach tool definitions if any
-    const tools = await this.getResponsesTools(model, opts)
-    if (tools.length) {
-      req.tools = tools
-      req.tool_choice = this.getResponsesToolChoice(opts?.toolChoice)
-    }
+    await this.attachResponsesTools(req, model, opts)
 
     // done
     return req
+  }
+
+  private async attachResponsesTools(req: ResponseCreateParams, model: ChatModel, opts?: LlmCompletionOpts): Promise<void> {
+    const tools = await this.getResponsesTools(model, opts)
+    if (!tools.length) {
+      return
+    }
+
+    req.tools = tools
+    req.tool_choice = this.getResponsesToolChoice(opts?.toolChoice)
   }
 
   async getResponsesTools(model: ChatModel, opts?: LlmCompletionOpts): Promise<Tool[]> {

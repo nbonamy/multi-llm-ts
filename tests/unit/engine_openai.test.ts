@@ -5,10 +5,12 @@ import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
 import OpenAI, { OpenAIStreamingContext } from '../../src/providers/openai'
+import { MultiToolPlugin } from '../../src/plugin'
 import * as _openai from 'openai'
 import { ChatCompletionChunk } from 'openai/resources'
 import { loadModels, loadOpenAIModels } from '../../src/llm'
 import { EngineCreateOpts } from '../../src/types/index'
+import { PluginExecutionContext, PluginTool } from '../../src/types/plugin'
 import { z } from 'zod'
 
 Plugin1.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result1'))
@@ -93,6 +95,14 @@ vi.mock('openai', async () => {
         }
       })
     }
+  }
+  OpenAI.prototype.responses = {
+    create: vi.fn(() => ({
+      async * [Symbol.asyncIterator]() {
+        yield { type: 'response.created', response: { id: 'resp_default' } }
+        yield { type: 'response.completed', response: { id: 'resp_default' } }
+      }
+    }))
   }
   OpenAI.prototype.images = {
     generate: vi.fn(() => {
@@ -801,6 +811,114 @@ test('OpenAI hook modifies tool results before second API call', async () => {
       { role: 'tool', content: expect.not.stringContaining('[truncated]'), name: 'plugin2', tool_call_id: '2' }
     ])
   }), {})
+})
+
+test('OpenAI Responses stream refreshes tools after a tool enables new capabilities', async () => {
+  class DynamicToolsPlugin extends MultiToolPlugin {
+
+    private dynamicToolEnabled = false
+
+    getName(): string {
+      return 'dynamic-tools'
+    }
+
+    getDescription(): string {
+      return 'Dynamic tools'
+    }
+
+    getPreparationDescription(): string {
+      return 'Preparing dynamic tool'
+    }
+
+    getRunningDescription(): string {
+      return 'Running dynamic tool'
+    }
+
+    getCompletedDescription(): string {
+      return 'Completed dynamic tool'
+    }
+
+    async getTools(): Promise<PluginTool[]> {
+      return [
+        {
+          name: 'enable_dynamic_tool',
+          description: 'Enable a dynamic tool',
+          parameters: [],
+        },
+        ...(this.dynamicToolEnabled ? [{
+          name: 'dynamic_tool',
+          description: 'A dynamically enabled tool',
+          parameters: [],
+        }] : []),
+      ]
+    }
+
+    handlesTool(name: string): boolean {
+      return name === 'enable_dynamic_tool' || (this.dynamicToolEnabled && name === 'dynamic_tool')
+    }
+
+    async execute(_context: PluginExecutionContext, payload: { tool: string }): Promise<any> {
+      if (payload.tool === 'enable_dynamic_tool') {
+        this.dynamicToolEnabled = true
+        return { enabled: ['dynamic_tool'], success: true }
+      }
+      return { success: true }
+    }
+  }
+
+  vi.mocked(_openai.default.prototype.responses.create)
+    .mockImplementationOnce(() => ({
+      async * [Symbol.asyncIterator]() {
+        yield { type: 'response.created', response: { id: 'resp_1' } }
+        yield {
+          type: 'response.output_item.added',
+          item: {
+            id: 'fc_1',
+            call_id: 'call_1',
+            type: 'function_call',
+            name: 'enable_dynamic_tool',
+            arguments: '{}',
+          }
+        }
+        yield {
+          type: 'response.output_item.done',
+          item: {
+            id: 'fc_1',
+            call_id: 'call_1',
+            type: 'function_call',
+            name: 'enable_dynamic_tool',
+            arguments: '{}',
+          }
+        }
+        yield { type: 'response.completed', response: { id: 'resp_1' } }
+      }
+    }) as any)
+    .mockImplementationOnce(() => ({
+      async * [Symbol.asyncIterator]() {
+        yield { type: 'response.created', response: { id: 'resp_2' } }
+        yield { type: 'response.output_text.delta', delta: 'done' }
+        yield { type: 'response.completed', response: { id: 'resp_2' } }
+      }
+    }) as any)
+
+  const openai = new OpenAI(config)
+  openai.addPlugin(new DynamicToolsPlugin())
+
+  const { stream } = await openai.stream(openai.buildModel('model'), [
+    new Message('user', 'enable the dynamic tool'),
+  ], { useResponsesApi: true })
+
+  const chunks: LlmChunk[] = []
+  for await (const chunk of stream) {
+    chunks.push(chunk)
+  }
+
+  const firstRequest = vi.mocked(_openai.default.prototype.responses.create).mock.calls[0][0] as any
+  const secondRequest = vi.mocked(_openai.default.prototype.responses.create).mock.calls[1][0] as any
+
+  expect(chunks.some(chunk => chunk.type === 'tool' && chunk.name === 'enable_dynamic_tool')).toBe(true)
+  expect(firstRequest.tools.map((tool: any) => tool.name)).toEqual(['enable_dynamic_tool'])
+  expect(secondRequest.tools.map((tool: any) => tool.name)).toEqual(['enable_dynamic_tool', 'dynamic_tool'])
 })
 
 test('OpenAI stream preserves text content before tool calls', async () => {

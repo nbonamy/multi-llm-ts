@@ -407,6 +407,8 @@ test('OpenAI Responses API completion with tools', async () => {
         output: 'result2'
       }
     ],
+    tools: expect.any(Array),
+    tool_choice: 'auto',
     stream: false
   })
 
