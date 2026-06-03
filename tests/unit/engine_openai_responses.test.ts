@@ -715,6 +715,51 @@ test('OpenAI Responses API stream with tools', async () => {
   })
 })
 
+test('OpenAI Responses API stream calls beforeToolCallsResponse hook before follow-up request', async () => {
+
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin2())
+
+  const hook = vi.fn((context) => {
+    expect(context.responsesApi).toBe(true)
+    expect(context.currentRound).toBe(1)
+    expect(context.toolHistory).toStrictEqual([{
+      id: 'call_123',
+      name: 'plugin2',
+      args: ['arg'],
+      result: 'result2',
+      round: 1,
+    }])
+
+    context.toolHistory = context.toolHistory.filter((entry) => entry.round >= context.currentRound)
+    context.toolHistory[0].result = {
+      hooked: context.toolHistory[0].result,
+      round: context.currentRound,
+    }
+  })
+  openai.addHook('beforeToolCallsResponse', hook)
+
+  const { stream } = await openai.stream(openai.buildModel('gpt-4'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], {
+    useResponsesApi: true,
+  })
+
+  for await (const chunk of stream) {
+    expect(chunk).toBeDefined()
+  }
+
+  expect(hook).toHaveBeenCalledTimes(1)
+  expect(_openai.default.prototype.responses.create).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    input: [{
+      type: 'function_call_output',
+      call_id: 'call_123',
+      output: JSON.stringify({ hooked: 'result2', round: 1 }),
+    }],
+  }))
+})
+
 test('OpenAI Responses API stream starts tool execution when function call item is done', async () => {
 
   const order: string[] = []

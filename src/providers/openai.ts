@@ -17,14 +17,7 @@ import { RequestOptions } from 'openai/internal/request-options'
 
 type OpenAIToolOpts = Omit<ChatCompletionCreateParamsBase, 'model' | 'messages' | 'stream'>
 
-type ResponsesToolFollowUpInput = {
-  type: 'function_call_output'
-  call_id: string
-  output: string
-}
-
 type ResponsesToolExecutionResult = {
-  followReqInput?: ResponsesToolFollowUpInput
   canceled?: boolean
   error?: unknown
 }
@@ -781,6 +774,21 @@ export default class extends LlmEngine {
     const stream = await this.client.responses.create(request) as AsyncIterable<ResponseStreamEvent>
     logger.debug('[responsesStream] subscribed')
 
+    const context: OpenAIStreamingContext = {
+      model,
+      opts: opts || {},
+      usage: zeroUsage(),
+      thread: [],
+      toolCalls: [],
+      toolHistory: [],
+      currentRound: 0,
+      startTime: Date.now(),
+      reasoningContent: '',
+      textContent: '',
+      responsesApi: true,
+      thinking: false,
+    }
+
     // async generator bound to preserve class context
     async function* generator(this: any) {
       
@@ -788,7 +796,7 @@ export default class extends LlmEngine {
       let responseId: string = ''
 
       // we need to accumulate usage
-      const usage: LlmUsage = zeroUsage()
+      const usage: LlmUsage = context.usage
 
       // We may need to run multiple streaming passes if the model calls tools.
       let currentStream: AsyncIterable<ResponseStreamEvent> | null = stream
@@ -801,6 +809,7 @@ export default class extends LlmEngine {
         const toolChunkQueue: LlmChunk[] = []
         const preparationStatuses: Record<string, string> = {}
         let thinking = false
+        let toolRoundStarted = false
         let wakeToolChunks: (() => void) | null = null
         let toolChunkWakePromise: Promise<void> | null = null
 
@@ -814,6 +823,15 @@ export default class extends LlmEngine {
             wakeToolChunks()
             wakeToolChunks = null
             toolChunkWakePromise = null
+          }
+        }
+
+        const ensureToolRoundStarted = () => {
+          if (!toolRoundStarted) {
+            context.currentRound++
+            context.toolCalls = []
+            context.startTime = Date.now()
+            toolRoundStarted = true
           }
         }
 
@@ -863,8 +881,16 @@ export default class extends LlmEngine {
           if (toolExecutions.has(key)) {
             return
           }
+          ensureToolRoundStarted()
 
           const args = parseToolCallArgs(toolCall)
+          const toolCallId = toolCall.call_id || toolCall.id || key
+          context.toolCalls.push({
+            id: toolCallId,
+            function: toolCall.name,
+            args,
+            message: toolCall,
+          })
 
           enqueueToolChunk({
             type: 'tool',
@@ -942,17 +968,19 @@ export default class extends LlmEngine {
                 }
               } as LlmChunk)
 
+              context.toolHistory.push({
+                id: toolCallId,
+                name: toolCall.name,
+                args,
+                result: content,
+                round: context.currentRound,
+              })
+
               if (toolCallCanceled) {
                 return { canceled: true }
               }
 
-              return {
-                followReqInput: {
-                  type: 'function_call_output',
-                  call_id: toolCall.call_id,
-                  output: typeof content === 'string' ? content : JSON.stringify(content),
-                }
-              }
+              return {}
 
             } catch (error) {
               if (opts?.abortSignal?.aborted) {
@@ -1145,7 +1173,6 @@ export default class extends LlmEngine {
         }
 
         // collect tool call results
-        const followReqInput: any[] = []
         for (const toolCall of pendingCalls) {
 
           const execution = toolExecutions.get(getToolCallKey(toolCall))
@@ -1160,11 +1187,18 @@ export default class extends LlmEngine {
           if (result.canceled) {
             return  // Stop processing remaining tools
           }
-          if (result.followReqInput) {
-            followReqInput.push(result.followReqInput)
-          }
 
         }
+
+        await this.callHook('beforeToolCallsResponse', context)
+
+        const followReqInput = context.toolHistory
+          .filter((entry) => entry.round === context.currentRound)
+          .map((entry) => ({
+            type: 'function_call_output' as const,
+            call_id: entry.id,
+            output: typeof entry.result === 'string' ? entry.result : JSON.stringify(entry.result),
+          }))
 
         // now we can build the follow-up request
         const followReq: ResponseCreateParams = {
@@ -1187,9 +1221,7 @@ export default class extends LlmEngine {
 
     return {
       stream: (generator.bind(this))(),
-      context: {
-        responsesApi: true,
-      } as OpenAIStreamingContext
+      context
     }
   }
 
