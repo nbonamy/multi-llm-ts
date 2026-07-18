@@ -1,4 +1,32 @@
 
+export type LlmInternalToolProvider = 'anthropic' | 'openai' | 'all' | string
+
+export type LlmInternalToolUserLocation = {
+  type: 'approximate'
+  city?: string
+  region?: string
+  country?: string
+  timezone?: string
+}
+
+export type LlmInternalWebSearchTool = {
+  type: 'web_search'
+  provider?: LlmInternalToolProvider
+  version?: string
+  maxUses?: number
+  allowedDomains?: string[]
+  blockedDomains?: string[]
+  searchContextSize?: 'low' | 'medium' | 'high'
+  userLocation?: LlmInternalToolUserLocation
+}
+
+export type LlmProviderInternalTool = {
+  provider: LlmInternalToolProvider
+  tool: Record<string, any>
+}
+
+export type LlmInternalTool = LlmInternalWebSearchTool | LlmProviderInternalTool
+
 export type EngineCreateOpts = {
   apiKey?: string
   baseURL?: string
@@ -9,6 +37,7 @@ export type EngineCreateOpts = {
   useOpenAIResponsesApi?: boolean
   preferResponses?: boolean
   requestCooldown?: number
+  internalTools?: LlmInternalTool[]
 }
 
 export type ModelsList = {

@@ -290,6 +290,54 @@ test('OpenAI Responses API completion without tools', async () => {
   })
 })
 
+test('OpenAI internal web search enables Responses API from config', async () => {
+  callCount = 1
+  const openai = new OpenAI({
+    ...config,
+    internalTools: [{
+      type: 'web_search',
+      provider: 'openai',
+      searchContextSize: 'low',
+      allowedDomains: ['example.com'],
+      userLocation: {
+        type: 'approximate',
+        city: 'Chicago',
+        region: 'Illinois',
+        country: 'US',
+        timezone: 'America/Chicago',
+      },
+    }],
+  })
+
+  const response = await openai.complete(openai.buildModel('gpt-4'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+
+  expect(_openai.default.prototype.responses.create).toHaveBeenCalledWith({
+    model: 'gpt-4',
+    instructions: 'instruction',
+    input: [ { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'prompt', }] } ],
+    stream: false,
+    tools: [{
+      type: 'web_search',
+      search_context_size: 'low',
+      user_location: {
+        type: 'approximate',
+        city: 'Chicago',
+        region: 'Illinois',
+        country: 'US',
+        timezone: 'America/Chicago',
+      },
+      filters: {
+        allowed_domains: ['example.com'],
+      },
+    }],
+    tool_choice: 'auto',
+  })
+  expect(response.content).toBe('response text')
+})
+
 test('OpenAI Responses API replays prior tool call history as function call outputs', async () => {
   const openai = new OpenAI(config)
 

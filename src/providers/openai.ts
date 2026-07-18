@@ -181,7 +181,7 @@ export default class extends LlmEngine {
   }
 
   protected shouldUseResponsesApi(model: ChatModel, opts?: LlmCompletionOpts): boolean {
-    return this.modelRequiresResponsesApi(model) || (opts?.useResponsesApi ?? false) || (this.config.useOpenAIResponsesApi ?? false)
+    return this.modelRequiresResponsesApi(model) || (opts?.useResponsesApi ?? false) || (this.config.useOpenAIResponsesApi ?? false) || (opts?.tools !== false && this.getInternalTools(this.getId(), opts).length > 0)
   }
 
   buildOpenAIPayload(model: ChatModel, thread: Message[] | string, opts?: LlmCompletionOpts): ChatCompletionMessageParam[] {
@@ -1397,46 +1397,75 @@ export default class extends LlmEngine {
       return []
     }
 
+    const internalTools = this.getOpenAIInternalTools(opts)
+
     // tools - PluginTool[] format
     const toolDefs = await this.getAvailableTools(opts?.toolExecutionDelegate)
-    if (!toolDefs.length) return []
+    if (!toolDefs.length) return internalTools
 
     // convert PluginTool[] to Responses API Tool format
-    return toolDefs.map((tool): Tool => {
+    return [
+      ...internalTools,
+      ...toolDefs.map((tool): Tool => {
 
-      // Build properties object from PluginParameter[]
-      const properties: Record<string, any> = {}
-      let strict = true
+        // Build properties object from PluginParameter[]
+        const properties: Record<string, any> = {}
+        let strict = true
 
-      for (const param of tool.parameters) {
-        const converted = this.pluginParamToResponsesSchema(param)
-        properties[param.name] = converted.schema
-        strict = strict && converted.strict
+        for (const param of tool.parameters) {
+          const converted = this.pluginParamToResponsesSchema(param)
+          properties[param.name] = converted.schema
+          strict = strict && converted.strict
+        }
+
+        // Build parameters schema with strict mode requirements
+        // strict mode: required must list ALL property keys
+        const parameters = tool.parameters.length > 0 ? {
+          type: 'object',
+          properties,
+          required: Object.keys(properties),
+          additionalProperties: false,
+        } : {
+          type: 'object',
+          properties: {},
+          required: [],
+          additionalProperties: false,
+        }
+
+        return {
+          type: 'function',
+          name: tool.name,
+          description: tool.description,
+          parameters: parameters,
+          strict
+        }
+      })
+    ]
+
+  }
+
+  private getOpenAIInternalTools(opts?: LlmCompletionOpts): Tool[] {
+    return this.getInternalTools(this.getId(), opts).map((internalTool) => {
+      if ('tool' in internalTool) {
+        return internalTool.tool as Tool
       }
 
-      // Build parameters schema with strict mode requirements
-      // strict mode: required must list ALL property keys
-      const parameters = tool.parameters.length > 0 ? {
-        type: 'object',
-        properties,
-        required: Object.keys(properties),
-        additionalProperties: false,
-      } : {
-        type: 'object',
-        properties: {},
-        required: [],
-        additionalProperties: false,
+      if (internalTool.type === 'web_search') {
+        const tool: Record<string, any> = {
+          type: internalTool.version || 'web_search',
+        }
+        if (internalTool.searchContextSize) tool.search_context_size = internalTool.searchContextSize
+        if (internalTool.userLocation) tool.user_location = internalTool.userLocation
+        if (internalTool.allowedDomains) {
+          tool.filters = {
+            allowed_domains: internalTool.allowedDomains,
+          }
+        }
+        return tool as Tool
       }
 
-      return {
-        type: 'function',
-        name: tool.name,
-        description: tool.description,
-        parameters: parameters,
-        strict
-      }
+      return internalTool as never
     })
-
   }
 
   // Convert a single PluginParameter to Responses API strict mode schema

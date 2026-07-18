@@ -529,6 +529,72 @@ test('Anthropic stream without tools', async () => {
   expect(stream).toBeDefined()
 })
 
+test('Anthropic stream with internal web search from config', async () => {
+  const anthropic = new Anthropic({
+    ...config,
+    internalTools: [{
+      type: 'web_search',
+      provider: 'anthropic',
+      maxUses: 3,
+      allowedDomains: ['example.com'],
+      userLocation: {
+        type: 'approximate',
+        city: 'Chicago',
+        region: 'Illinois',
+        country: 'US',
+        timezone: 'America/Chicago',
+      },
+    }],
+  })
+
+  await anthropic.stream(anthropic.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalledWith({
+    max_tokens: 4096,
+    model: 'model',
+    system: 'instruction',
+    messages: [ { role: 'user', content: [{ type: 'text', text: 'prompt' }] }, ],
+    tools: [{
+      type: 'web_search_20250305',
+      name: 'web_search',
+      max_uses: 3,
+      allowed_domains: ['example.com'],
+      user_location: {
+        type: 'approximate',
+        city: 'Chicago',
+        region: 'Illinois',
+        country: 'US',
+        timezone: 'America/Chicago',
+      },
+    }],
+    tool_choice: { type: 'auto' },
+    stream: true,
+  })
+})
+
+test('Anthropic tools false disables internal web search', async () => {
+  const anthropic = new Anthropic({
+    ...config,
+    internalTools: [{ type: 'web_search', provider: 'anthropic' }],
+  })
+
+  await anthropic.stream(anthropic.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ], { tools: false })
+
+  expect(_Anthropic.default.prototype.messages.create).toHaveBeenCalledWith({
+    max_tokens: 4096,
+    model: 'model',
+    system: 'instruction',
+    messages: [ { role: 'user', content: [{ type: 'text', text: 'prompt' }] } ],
+    stream: true,
+  })
+})
+
 test('Anthropic thinking', async () => {
   const anthropic = new Anthropic(config)
   await anthropic.stream(anthropic.buildModel('model'), [

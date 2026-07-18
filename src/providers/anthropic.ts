@@ -301,10 +301,10 @@ export default class extends LlmEngine {
     }
 
     // return an object
-    const content = response.content[0] as TextBlock
+    const textBlocks = response.content.filter((block): block is TextBlock => block.type === 'text' || ('text' in block && typeof block.text === 'string'))
     return {
       type: 'text',
-      content: content.text,
+      content: textBlocks.map((block) => block.text).join(''),
       toolCalls: toolCallInfo,
       ...(opts?.usage && response.usage ? { usage: {
         prompt_tokens: response.usage.input_tokens,
@@ -446,6 +446,7 @@ export default class extends LlmEngine {
         input_schema: this.toolDefinitionToInputSchema(tool.parameters),
       }
     })
+    tools.push(...this.getAnthropicInternalTools(opts))
 
     let toolChoice: ToolChoice = { type: 'auto' }
     if (opts?.toolChoice?.type === 'auto' || opts?.toolChoice?.type === 'none') {
@@ -461,6 +462,28 @@ export default class extends LlmEngine {
       tool_choice: toolChoice,
       tools: tools as Tool[]
     } as T : {} as T 
+  }
+
+  private getAnthropicInternalTools(opts?: LlmCompletionOpts): AnthropicTool[] {
+    return this.getInternalTools(this.getId(), opts).map((internalTool) => {
+      if ('tool' in internalTool) {
+        return internalTool.tool as AnthropicTool
+      }
+
+      if (internalTool.type === 'web_search') {
+        const tool: Record<string, any> = {
+          type: internalTool.version || 'web_search_20250305',
+          name: 'web_search',
+        }
+        if (internalTool.maxUses !== undefined) tool.max_uses = internalTool.maxUses
+        if (internalTool.allowedDomains) tool.allowed_domains = internalTool.allowedDomains
+        if (internalTool.blockedDomains) tool.blocked_domains = internalTool.blockedDomains
+        if (internalTool.userLocation) tool.user_location = internalTool.userLocation
+        return tool as AnthropicTool
+      }
+
+      return internalTool as never
+    })
   }
 
   cacheRequest<T extends MessageCreateParamsBase>(model: ChatModel, opts: LlmCompletionOpts, params: T): T {

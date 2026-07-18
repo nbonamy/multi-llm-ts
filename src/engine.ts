@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 
-import { ChatModel, EngineCreateOpts, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
+import { ChatModel, EngineCreateOpts, LlmInternalTool, Model, ModelCapabilities, ModelMetadata, ModelsList } from './types/index'
 import { LlmResponse, LlmCompletionOpts, LlmCompletionPayload, LlmCompletionPayloadContent, LlmCompletionPayloadTool, LlmChunk, LlmToolCall, LlmStreamingResponse, LlmStreamingContext, CompletedToolCall, LlmUsage, LlmStream, LlmToolExecutionValidationCallback, LlmToolExecutionValidationResponse, LlmChunkToolAbort, EngineHookName, EngineHookCallback, EngineHookPayloads, NormalizedToolChunk } from './types/llm'
 import { IPlugin, PluginExecutionContext, PluginExecutionUpdate, PluginParameter, PluginExecutionResult, PluginTool, ToolExecutionDelegate } from './types/plugin'
 import { Plugin, ICustomPlugin, MultiToolPlugin } from './plugin'
@@ -401,6 +401,16 @@ export default abstract class LlmEngine {
     }
 
     return tools
+  }
+
+  protected getInternalTools(provider: string, opts?: LlmCompletionOpts): LlmInternalTool[] {
+    return [
+      ...(this.config.internalTools || []),
+      ...(opts?.internalTools || []),
+    ].filter((tool) => {
+      const toolProvider = tool.provider
+      return !toolProvider || toolProvider === 'all' || toolProvider === provider
+    })
   }
 
   // Returns plugin as a PluginTool
