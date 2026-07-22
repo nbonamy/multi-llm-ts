@@ -496,6 +496,16 @@ test('OpenAI reasoning effort', async () => {
   expect(_openai.default.prototype.chat.completions.create.mock.calls[1][0].reasoning_effort).toBe('low')
 })
 
+test('OpenAI Responses API forwards reasoning effort', async () => {
+  const openai = new OpenAI(config)
+  await openai.stream(openai.buildModel('gpt-5.6-terra'), [
+    new Message('user', 'prompt'),
+  ], { useResponsesApi: true, reasoningEffort: 'max' })
+
+  const request = vi.mocked(_openai.default.prototype.responses.create).mock.calls[0][0] as any
+  expect(request.reasoning).toEqual({ effort: 'max' })
+})
+
 test('OpenAI verbosity', async () => {
   const openai = new OpenAI(config)
   await openai.stream(openai.buildModel('gpt-4.1'), [

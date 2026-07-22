@@ -124,7 +124,9 @@ export type EngineHookPayloads = {
 
 export type EngineHookCallback<T extends EngineHookName> = (payload: EngineHookPayloads[T]) => void | Promise<void>
 
-export type LlmReasoningEffort = 'low'|'medium'|'high'
+// Keep this provider-neutral surface aligned with the OpenAI Responses API.
+// Individual providers/models can support a subset of these values.
+export type LlmReasoningEffort = 'none'|'minimal'|'low'|'medium'|'high'|'xhigh'|'max'
 
 export type LlmVerbosity = 'low'|'medium'|'high'
 

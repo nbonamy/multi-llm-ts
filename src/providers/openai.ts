@@ -29,6 +29,10 @@ type ResponsesSchemaConversion = {
 
 const defaultBaseUrl = PROVIDER_BASE_URLS.openai!
 
+function isChatCompletionReasoningEffort(effort: LlmCompletionOpts['reasoningEffort']): effort is 'minimal' | 'low' | 'medium' | 'high' {
+  return effort === 'minimal' || effort === 'low' || effort === 'medium' || effort === 'high'
+}
+
 //
 // https://platform.openai.com/docs/api-reference/introduction
 // 
@@ -397,12 +401,17 @@ export default class extends LlmEngine {
   }
 
   getCompletionOpts(model: ChatModel, opts?: LlmCompletionOpts): Omit<ChatCompletionCreateParamsBase, 'model' | 'messages' | 'stream'> {
+    const reasoningEffort = opts?.reasoningEffort
     return {
       ...(this.modelSupportsMaxTokens(model) && opts?.maxTokens ? { max_completion_tokens: opts?.maxTokens } : {}),
       ...(this.modelSupportsTemperature(model) && opts?.temperature ? { temperature: opts?.temperature } : {}),
       ...(this.modelSupportsTopK(model) && opts?.top_k ? { logprobs: true, top_logprobs: opts?.top_k } : {}),
       ...(this.modelSupportsTopP(model) && opts?.top_p ? { top_p: opts?.top_p } : {}),
-      ...(this.modelSupportsReasoningEffort(model) && opts?.reasoningEffort ? { reasoning_effort: opts?.reasoningEffort } : {}),
+      // The legacy Chat Completions endpoint accepts a narrower effort set than
+      // the Responses API. Unsupported values remain available on Responses.
+      ...(this.modelSupportsReasoningEffort(model) && isChatCompletionReasoningEffort(reasoningEffort)
+        ? { reasoning_effort: reasoningEffort }
+        : {}),
       ...(this.modelSupportsVerbosity(model) && opts?.verbosity ? { verbosity: opts.verbosity } : {}),
       ...(this.modelSupportsStructuredOutput(model) && opts?.structuredOutput ? {
           // @ts-expect-error structured output
@@ -1370,9 +1379,14 @@ export default class extends LlmEngine {
       model: model.id,
       ...(instructions ? { instructions } : {}),
       ...(opts?.responseId ? { previous_response_id: opts.responseId } : {}),
+      ...(this.modelSupportsReasoningEffort(model) && opts?.reasoningEffort
+        ? { reasoning: { effort: opts.reasoningEffort } }
+        : {}),
       input,
       stream,
-    }
+    // The installed OpenAI SDK type may lag the Responses API's supported
+    // reasoning efforts (notably `xhigh`), while the wire format accepts it.
+    } as ResponseCreateParams
 
     await this.attachResponsesTools(req, model, opts)
 
