@@ -98,4 +98,5 @@ Valid provider identifiers:
 - `'meta'` - Meta/Llama
 - `'mistralai'` - MistralAI
 - `'openrouter'` - OpenRouter
+- `'webwright'` - WebWright
 - `'xai'` - xAI

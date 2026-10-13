@@ -36,6 +36,7 @@ import MistralAI from './providers/mistralai'
 import Ollama, { OllamaMessage } from './providers/ollama'
 import OpenAI from './providers/openai'
 import OpenRouter from './providers/openrouter'
+import WebWright from './providers/webwright'
 import XAI, { xAIBaseURL } from './providers/xai'
 
 export * from './llm'
@@ -85,6 +86,7 @@ export {
   OllamaMessage,
   OpenAI,
   OpenRouter,
+  WebWright,
   XAI,
   xAIBaseURL,
   PROVIDER_BASE_URLS,

@@ -12,6 +12,7 @@ export const PROVIDER_BASE_URLS: Record<string, string | null> = {
   openai: 'https://api.openai.com/v1',
   openrouter: 'https://openrouter.ai/api/v1',
   together: 'https://api.together.xyz/v1',
+  webwright: 'https://webwright.ai/v1',
   xai: 'https://api.x.ai/v1',
 }
 
