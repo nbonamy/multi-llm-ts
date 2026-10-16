@@ -54,6 +54,7 @@ interface EngineConfig {
   timeout?: number
   requestCooldown?: number
   useOpenAIResponsesApi?: boolean
+  toolFormat?: 'openai' | 'hermes' | 'deepseek'
   customOpts?: Record<string, any>
 }
 ```
@@ -64,6 +65,7 @@ interface EngineConfig {
 - `timeout`: Request timeout in milliseconds
 - `requestCooldown`: Minimum time in ms between API request starts during tool loops (see [Providers Guide](/guide/providers#request-cooldown))
 - `useOpenAIResponsesApi`: Use OpenAI's Responses API format
+- `toolFormat`: Tool protocol for OpenAI SDK-based providers (default: `'openai'`); see [text tool formats](/guide/function-calling#qwen-and-deepseek-text-tool-formats)
 - `customOpts`: Provider-specific options
 
 **Example:**
@@ -83,6 +85,7 @@ Options for generation:
 
 ```typescript
 interface LlmCompletionOpts {
+  toolFormat?: 'openai' | 'hermes' | 'deepseek'
   temperature?: number
   maxTokens?: number
   topP?: number

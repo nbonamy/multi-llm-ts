@@ -14,6 +14,7 @@ import { toOpenAITools } from '../tools'
 import { zeroUsage } from '../usage'
 import { PROVIDER_BASE_URLS } from '../defaults'
 import { RequestOptions } from 'openai/internal/request-options'
+import { TextToolParser, textToolMessages } from './text-tools'
 
 type OpenAIToolOpts = Omit<ChatCompletionCreateParamsBase, 'model' | 'messages' | 'stream'>
 
@@ -78,6 +79,7 @@ export default class extends LlmEngine {
       'gpt-4.1*',
       'gpt-4.5*',
       'gpt-5*',
+      'gpt-6*',
       'o1*',
       'o3*',
       'o4*',
@@ -94,7 +96,7 @@ export default class extends LlmEngine {
     return {
       tools: !modelId.includes('chat') && !modelId.startsWith('o1-mini'),
       vision: visionGlobs.some((m) => minimatch(modelId, m)) && !excludeVisionGlobs.some((m) => minimatch(modelId, m)),
-      reasoning: modelId.startsWith('o') || modelId.startsWith('gpt-5'),
+      reasoning: modelId.startsWith('o') || modelId.startsWith('gpt-5') || modelId.startsWith('gpt-6'),
       caching: false,
     }
   }
@@ -186,6 +188,7 @@ export default class extends LlmEngine {
   }
 
   protected shouldUseResponsesApi(model: ChatModel, opts?: LlmCompletionOpts): boolean {
+    if ((opts?.toolFormat ?? this.config.toolFormat ?? 'openai') !== 'openai') return false
     return this.modelRequiresResponsesApi(model) || (opts?.useResponsesApi ?? false) || (this.config.useOpenAIResponsesApi ?? false) || (opts?.tools !== false && this.getInternalTools(this.getId(), opts).length > 0)
   }
 
@@ -228,15 +231,24 @@ export default class extends LlmEngine {
 
     // call
     logger.log(`[${this.getName()}] prompting model ${model.id}`)
+    const prepared = await this.prepareChatTools(model, thread, opts)
     const response = await this.client.chat.completions.create({
       model: model.id,
-      messages: thread,
+      messages: prepared.messages,
       ...this.getCompletionOpts(model, opts),
-      ...await this.getToolsOpts(model, opts),
+      ...prepared.tools,
     }, this.getRequestOptions(model, opts));
 
     // get choice
     const choice = response.choices?.[0]
+    if (prepared.parser && !choice.message.tool_calls?.length) {
+      const parsed = prepared.parser.push(choice.message.content || '', true)
+      choice.message.content = parsed.text
+      if (parsed.calls.length) {
+        choice.message.tool_calls = parsed.calls
+        choice.finish_reason = 'tool_calls'
+      }
+    }
 
     // tool call
     if (choice.message.tool_calls && (choice?.finish_reason === 'tool_calls' || this.doesNotSendToolCallFinishReason(model))) {
@@ -308,7 +320,8 @@ export default class extends LlmEngine {
       await this.applyCooldown(startTime)
 
       // prompt again
-      const completion = await this.chat(model, thread, opts)
+      const nextOpts = prepared.parser && opts?.toolChoice?.type === 'tool' ? { ...opts, toolChoice: undefined } : opts
+      const completion = await this.chat(model, thread, nextOpts)
 
       // prepend tool call info
       completion.toolCalls = [
@@ -391,18 +404,103 @@ export default class extends LlmEngine {
 
     // call
     logger.log(`[${this.getName()}] prompting model ${context.model.id}`)
-    const stream = this.client.chat.completions.create({
+    const prepared = await this.prepareChatTools(context.model, context.thread, context.opts)
+    const stream = await this.client.chat.completions.create({
       model: context.model.id,
-      messages: context.thread,
+      messages: prepared.messages,
       ...this.getCompletionOpts(context.model, context.opts),
-      ...await this.getToolsOpts(context.model, context.opts),
+      ...prepared.tools,
       stream_options: { include_usage: context.opts.usage || false },
       stream: true,
     }, this.getRequestOptions(context.model, context.opts))
     
     // done
-    return stream
+    if (!prepared.parser) return stream
+    return this.parseTextToolStream(stream, prepared.parser)
 
+  }
+
+  private async prepareChatTools(model: ChatModel, thread: ChatCompletionMessageParam[], opts?: LlmCompletionOpts) {
+    const format = opts?.toolFormat ?? this.config.toolFormat ?? 'openai'
+    if (format === 'openai') {
+      return { messages: thread, tools: await this.getToolsOpts(model, opts), parser: undefined }
+    }
+    const enabled = opts?.tools !== false && opts?.toolChoice?.type !== 'none' && model.capabilities?.tools
+    let tools = enabled ? toOpenAITools(await this.getAvailableTools(opts?.toolExecutionDelegate)) : []
+    if (opts?.toolChoice?.type === 'tool') {
+      const name = opts.toolChoice.name
+      tools = tools.filter(tool => tool.function.name === name)
+      if (enabled && !tools.length) throw new Error(`Unknown tool: ${name}`)
+    }
+    return {
+      messages: textToolMessages(thread, format, tools, opts?.toolChoice),
+      tools: {},
+      parser: tools.length ? new TextToolParser(format) : undefined,
+    }
+  }
+
+  private parseTextToolStream(stream: LlmStream, parser: TextToolParser): LlmStream {
+    return {
+      controller: stream.controller,
+      async *[Symbol.asyncIterator]() {
+        const textCalls: ChatCompletionMessageFunctionToolCall[] = []
+        let hasStructuredCalls = false
+        let parseError: unknown
+        let finished = false
+        let last: ChatCompletionChunk | undefined
+        const parse = (content: string, final: boolean) => {
+          if (parseError) return { text: '', calls: [] }
+          try {
+            return parser.push(content, final)
+          } catch (error) {
+            // A later structured call can supersede a malformed text representation.
+            parseError = error
+            return { text: '', calls: [] }
+          }
+        }
+        const finish = (delta: ChatCompletionChunk.Choice.Delta) => {
+          if (!hasStructuredCalls) {
+            if (parseError) throw parseError
+            if (textCalls.length) delta.tool_calls = textCalls.map((tc, index) => ({ ...tc, index }))
+          }
+          return hasStructuredCalls || textCalls.length ? 'tool_calls' : undefined
+        }
+        for await (const chunk of stream) {
+          const choice = chunk.choices?.[0]
+          if (!choice) {
+            yield chunk
+            continue
+          }
+          last = chunk
+          finished ||= !!choice.finish_reason
+          hasStructuredCalls ||= !!choice.delta?.tool_calls?.length
+          const parsed = parse(choice.delta?.content || '', !!choice.finish_reason)
+          textCalls.push(...parsed.calls)
+          const delta = { ...choice.delta }
+          delete delta.content
+          if (parsed.text) {
+            yield { ...chunk, usage: undefined, choices: [{ ...choice, delta: { content: parsed.text }, finish_reason: null }] }
+          }
+          // Defer text calls until the round ends, so structured calls always take precedence.
+          const finishReason = choice.finish_reason ? finish(delta) : undefined
+          yield { ...chunk, choices: [{
+            ...choice, delta,
+            finish_reason: finishReason || choice.finish_reason,
+          }] }
+        }
+        if (!finished && last) {
+          const parsed = parse('', true)
+          textCalls.push(...parsed.calls)
+          const choice = last.choices[0]
+          if (parsed.text) {
+            yield { ...last, usage: undefined, choices: [{ ...choice, delta: { content: parsed.text }, finish_reason: null }] }
+          }
+          const delta: ChatCompletionChunk.Choice.Delta = {}
+          // Finalize calls collected in earlier chunks too; the parser may already be empty.
+          yield { ...last, usage: undefined, choices: [{ ...choice, delta, finish_reason: finish(delta) || 'stop' }] }
+        }
+      }
+    }
   }
 
   getCompletionOpts(model: ChatModel, opts?: LlmCompletionOpts): Omit<ChatCompletionCreateParamsBase, 'model' | 'messages' | 'stream'> {
@@ -437,7 +535,7 @@ export default class extends LlmEngine {
   async getToolsOpts(model: ChatModel, opts?: LlmCompletionOpts): Promise<OpenAIToolOpts> {
 
     // check if enabled
-    if (opts?.tools === false || !model.capabilities?.tools) {
+    if (opts?.tools === false || !model.capabilities?.tools || (opts?.toolFormat ?? this.config.toolFormat ?? 'openai') !== 'openai') {
       return {}
     }
 

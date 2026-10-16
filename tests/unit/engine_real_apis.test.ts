@@ -1,7 +1,7 @@
 
 import { beforeAll, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'
-import { LlmChunk, LlmChunkContent } from '../../src/types/llm'
+import { LlmChunk, LlmChunkContent, LlmCompletionOpts } from '../../src/types/llm'
 import { igniteEngine } from '../../src/llm'
 import Message from '../../src/models/message'
 import Attachment from '../../src/models/attachment'
@@ -11,7 +11,7 @@ beforeAll(() => {
   dotenv.config()
 })
 
-const realApiTest = async (engine: string, apiKey: string|undefined, modelName: string) => {
+const realApiTest = async (engine: string, apiKey: string|undefined, modelName: string, opts: LlmCompletionOpts = {}) => {
 
   // check flag
   if (!process.env.REAL_API) {
@@ -43,7 +43,7 @@ const realApiTest = async (engine: string, apiKey: string|undefined, modelName: 
     const response = await llm.complete(model, [
       new Message('system', 'instruction'),
       new Message('user', 'hello'),
-    ])
+    ], opts)
     expect(response.content).toBeTruthy()
   }
 
@@ -63,6 +63,7 @@ const realApiTest = async (engine: string, apiKey: string|undefined, modelName: 
     } : {}),
     reasoningEffort: 'low',
     caching: true,
+    ...opts,
   })
 
   // iterate
@@ -78,11 +79,19 @@ const realApiTest = async (engine: string, apiKey: string|undefined, modelName: 
 }
 
 test.concurrent('OpenAI real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('openai', process.env.OPENAI_API_KEY, 'gpt-5-mini')
+  await realApiTest('openai', process.env.OPENAI_API_KEY, 'gpt-6-luna', {
+    // Luna supports Chat Completions tools only without reasoning.
+    // Use customOpts because the installed SDK's effort type predates 'none'.
+    customOpts: { reasoning_effort: 'none' },
+  })
 })
 
 test.concurrent('OpenAI Responses real test', { timeout: 1000 * 60 }, async () => {
-  await realApiTest('openai', process.env.OPENAI_API_KEY, 'o3-pro')
+  await realApiTest('openai', process.env.OPENAI_API_KEY, 'gpt-6.1-sol', {
+    useResponsesApi: true,
+    reasoningEffort: 'low',
+    maxTokens: 1024,
+  })
 })
 
 test.concurrent('Anthropic real test', { timeout: 1000 * 60 }, async () => {

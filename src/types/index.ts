@@ -27,7 +27,11 @@ export type LlmProviderInternalTool = {
 
 export type LlmInternalTool = LlmInternalWebSearchTool | LlmProviderInternalTool
 
+export type LlmToolFormat = 'openai' | 'hermes' | 'deepseek'
+
 export type EngineCreateOpts = {
+  /** Tool protocol for OpenAI-compatible Chat Completions. Defaults to openai. */
+  toolFormat?: LlmToolFormat
   apiKey?: string
   baseURL?: string
   timeout?: number

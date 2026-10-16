@@ -116,6 +116,66 @@ for await (const chunk of stream) {
 
 **Tool states:** During streaming, tools emit state updates (`preparing`, `running`, `completed`, `canceled`, `error`). See [Streaming](/guide/streaming#tool-chunks) for details.
 
+## Qwen and DeepSeek text tool formats
+
+OpenAI-compatible servers normally translate a model's native tool syntax into
+structured `tool_calls`. Keep the default `toolFormat: 'openai'` when your server
+supports this. For endpoints that expose calls as text or models that need tool
+instructions in their prompt, the OpenAI SDK-based providers also support:
+
+- `toolFormat: 'hermes'`: Qwen's `<tool_call>{"name": ..., "arguments": ...}</tool_call>` format.
+- `toolFormat: 'deepseek'`: DeepSeek-R1's `<｜tool▁calls▁begin｜>` / `<｜tool▁call▁begin｜>` delimiter format, with JSON arguments in a code fence.
+
+These formats are based on the [Qwen3 template](https://huggingface.co/Qwen/Qwen3-8B/blob/main/tokenizer_config.json)
+and [DeepSeek-R1 template](https://huggingface.co/deepseek-ai/DeepSeek-R1/blob/main/tokenizer_config.json).
+They are opt-in because the required format depends on both the model and its
+hosting server. They use Chat Completions, including when Responses API mode is
+otherwise configured. The Ollama provider uses its own native tool API and does
+not use this option.
+
+```typescript
+import { DeepSeek, OpenAI, Message } from 'multi-llm-ts'
+
+const deepseek = new DeepSeek({
+  apiKey: process.env.DEEPSEEK_API_KEY,
+  toolFormat: 'deepseek',
+  // Optional: an OpenRouter, Fireworks, or other compatible endpoint.
+  // Use that service's API key and model ID when changing baseURL.
+  baseURL: 'https://api.deepseek.com/v1',
+})
+
+const qwen = new OpenAI({
+  apiKey: process.env.QWEN_API_KEY,
+  baseURL: 'http://localhost:8000/v1',
+  toolFormat: 'hermes',
+})
+
+// Register plugins or supply a toolExecutionDelegate as usual.
+qwen.addPlugin(new SearchPlugin())
+for await (const chunk of qwen.generate('Qwen/Qwen3-8B', [
+  new Message('user', 'Search for references to editFile'),
+])) {
+  // Same content and tool lifecycle chunks as structured tool calls.
+}
+```
+
+You can also set `toolFormat` per `complete()` / `generate()` request; it overrides
+the engine configuration. The adapter places tool schemas and call instructions
+in the prompt, parses text calls, and sends results back in the selected format.
+It supports plugins, delegates, and tool execution validation. `tools: false`
+and `toolChoice: { type: 'none' }` disable parsing; a named `toolChoice` limits the
+advertised tools to that function. In text modes, tool choice is a prompt
+instruction rather than a server-enforced constraint.
+
+Text outside tool blocks continues to stream. Partial tool blocks are buffered
+until their JSON and closing delimiters are complete; malformed or truncated
+calls raise an error and are not executed. Calls inside `<think>...</think>` are
+not executed, and tool syntax in Markdown code spans or fences remains text.
+Structured calls take precedence when an endpoint also returns their text
+representation. Streams without a finish reason are finalized at EOF so complete
+calls execute and incomplete calls raise an error. Model-specific tool-use quality still depends on the model,
+prompt, and hosting service.
+
 ## Multi-Turn Conversations with Tool Calls
 
 **Important**: When building multi-turn conversations, track tool calls in message history to maintain proper context.
