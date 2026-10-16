@@ -51,6 +51,12 @@ export default defineConfig({
             { text: 'Tool Validation', link: '/guide/tool-validation' },
             { text: 'Hooks', link: '/guide/hooks' }
           ]
+        },
+        {
+          text: 'Contributing',
+          items: [
+            { text: 'Publishing to npm', link: '/guide/publishing' }
+          ]
         }
       ],
       '/api/': [

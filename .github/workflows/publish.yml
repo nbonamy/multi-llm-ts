@@ -1,0 +1,107 @@
+name: Publish to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact stable package version already committed on main
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-npm
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Validate and publish package
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org
+
+      - name: Confirm release version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+          const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+          if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(process.env.RELEASE_VERSION ?? '')
+            || process.env.RELEASE_VERSION !== manifest.version) {
+            throw new Error(`Requested version must match the committed stable package version: ${manifest.version}`);
+          }
+          if (lock.version !== manifest.version || lock.packages[''].version !== manifest.version) {
+            throw new Error('package-lock.json must match the package version');
+          }
+          NODE
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint, test, and build
+        run: npm run dist
+
+      - name: Preview and validate package contents
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process';
+          import { readFileSync } from 'node:fs';
+          const output = execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], { encoding: 'utf8' });
+          const [archive] = JSON.parse(output);
+          const paths = archive.files.map(file => file.path);
+          console.log(paths.join('\n'));
+          const unexpected = paths.filter(path => !path.startsWith('dist/')
+            && !['package.json', 'README.md', 'LICENSE'].includes(path));
+          if (unexpected.length) {
+            throw new Error(`Unexpected package files: ${unexpected.join(', ')}`);
+          }
+          const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
+          for (const entry of [manifest.main, manifest.module, manifest.types]) {
+            if (!entry || !paths.includes(entry.replace(/^\.\//, ''))) {
+              throw new Error(`Missing built package entry: ${entry}`);
+            }
+          }
+          NODE
+
+      - name: Publish to npm with trusted publishing
+        run: npm publish --access public --registry https://registry.npmjs.org
+
+  release:
+    name: Create GitHub release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Tag the published commit and create release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          gh release create "v${RELEASE_VERSION}" \
+            --target "$RELEASE_SHA" \
+            --title "multi-llm-ts ${RELEASE_VERSION}" \
+            --generate-notes

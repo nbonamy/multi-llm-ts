@@ -15,6 +15,10 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsup",

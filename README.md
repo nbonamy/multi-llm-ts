@@ -78,6 +78,9 @@ API_KEY=your-anthropic-key ENGINE=anthropic npm run example
 
 Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
+Maintainers: see the [npm publishing guide](docs/guide/publishing.md) for the
+manual release workflow and credential-free trusted publishing setup.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details
