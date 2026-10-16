@@ -43,6 +43,7 @@ export type OpenAIStreamingContext = LlmStreamingContext<ChatCompletionMessagePa
   responsesApi: boolean
   thinking: boolean
   done?: boolean
+  toolCallIdsByIndex: Map<number, string>  // stream index → tool call id (later deltas may omit the id)
 }
 
 export default class extends LlmEngine {
@@ -369,6 +370,7 @@ export default class extends LlmEngine {
       usage: zeroUsage(),
       thinking: false,
       done: false,
+      toolCallIdsByIndex: new Map(),
     }
 
     // do it
@@ -383,6 +385,7 @@ export default class extends LlmEngine {
 
     // reset
     context.toolCalls = []
+    context.toolCallIdsByIndex = new Map()
     context.startTime = Date.now()
     context.textContent = ''
 
@@ -496,29 +499,37 @@ export default class extends LlmEngine {
     for (const tool_call of chunk.choices[0]?.delta?.tool_calls || []) {
       if (tool_call?.function) {
         const hasId = tool_call.id !== null && tool_call.id !== undefined && tool_call.id !== ''
-        const existingToolCall = hasId ? context.toolCalls.find(tc => tc.id === tool_call.id) : null
+        const index: number | undefined = typeof tool_call.index === 'number' ? tool_call.index : undefined
+        const id: string | undefined = hasId ? tool_call.id : (index !== undefined ? context.toolCallIdsByIndex.get(index) : undefined)
+
+        // remember which call this index belongs to: argument deltas may omit the id
+        if (id && index !== undefined) {
+          context.toolCallIdsByIndex.set(index, id)
+        }
+        const existingToolCall = id ? context.toolCalls.find(tc => tc.id === id) : null
 
         if (hasId && !existingToolCall) {
+          // copy the delta (index stripped) so the SDK chunk stays intact for other observers
+          const toolCallMessage: any = structuredClone(tool_call)
+          delete toolCallMessage.index
+
           // New tool call - normalize as 'start'
           yield* this.processToolCallChunk({
             type: 'start',
             id: tool_call.id,
             name: tool_call.function.name || '',
             args: tool_call.function.arguments || '',
-            message: chunk.choices[0].delta.tool_calls!.map((tc: any) => {
-              delete tc.index
-              return tc
-            }),
+            message: [toolCallMessage],
             metadata: {
               // @ts-expect-error reasoning details for some providers
               reasoningDetails: chunk.choices[0]?.delta?.reasoning_details,
             }
           }, context)
         } else {
-          // Delta - append to existing tool call (by id if parallel, otherwise last)
+          // Delta - append to the call resolved by id or index (falls back to last call)
           yield* this.processToolCallChunk({
             type: 'delta',
-            id: hasId ? tool_call.id : undefined,
+            id,
             argumentsDelta: tool_call.function.arguments || '',
           }, context)
         }
@@ -795,6 +806,7 @@ export default class extends LlmEngine {
       textContent: '',
       responsesApi: true,
       thinking: false,
+      toolCallIdsByIndex: new Map(),
     }
 
     // async generator bound to preserve class context
