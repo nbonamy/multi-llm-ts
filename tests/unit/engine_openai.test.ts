@@ -978,3 +978,44 @@ test('OpenAI stream preserves text content before tool calls', async () => {
     ])
   }), expect.any(Object))
 })
+
+test('OpenAI stream routes index-only tool argument deltas to their own call', async () => {
+  const chunks: any[] = [
+    { choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_a', function: { name: 'plugin1', arguments: '{"message":"al' } }] }, finish_reason: null }] },
+    { choices: [{ delta: { tool_calls: [{ index: 1, id: 'call_b', function: { name: 'plugin2', arguments: '{"message":"be' } }] }, finish_reason: null }] },
+    { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: 'pha"}' } }] }, finish_reason: null }] },
+    { choices: [{ delta: { tool_calls: [{ index: 1, function: { arguments: 'ta"}' } }] }, finish_reason: null }] },
+    { choices: [{ finish_reason: 'tool_calls' }] },
+    { choices: [{ delta: { content: 'Done!' }, finish_reason: 'stop' }] },
+  ]
+
+  vi.mocked(_openai.default.prototype.chat.completions.create).mockImplementationOnce(() => ({
+    async * [Symbol.asyncIterator]() {
+      for (const chunk of chunks) yield chunk
+    },
+    controller: { abort: vi.fn() }
+  }) as any)
+
+  const openai = new OpenAI(config)
+  openai.addPlugin(new Plugin1())
+  openai.addPlugin(new Plugin2())
+
+  const { stream, context } = await openai.stream(openai.buildModel('model'), [
+    new Message('system', 'instruction'),
+    new Message('user', 'prompt'),
+  ])
+
+  for await (const chunk of stream) {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    for await (const msg of openai.processNativeChunk(chunk, context)) {
+      // just consume
+    }
+  }
+
+  expect(Plugin1.prototype.execute).toHaveBeenCalledWith(expect.anything(), { message: 'alpha' })
+  expect(Plugin2.prototype.execute).toHaveBeenCalledWith(expect.anything(), { message: 'beta' })
+
+  // the SDK chunks must not be mutated (index is still needed by other observers)
+  expect(chunks[0].choices[0].delta.tool_calls[0].index).toBe(0)
+  expect(chunks[1].choices[0].delta.tool_calls[0].index).toBe(1)
+})
