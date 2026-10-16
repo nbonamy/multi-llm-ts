@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.1.2] - 2026-10-16
+
+### Fixed
+- [OpenAI] Correctly assemble arguments for parallel tool calls when streaming deltas omit the call ID
+- [OpenAI] Forward generation and request options to the Responses API, including structured output, abort signals, and timeouts
+- [OpenAI] Surface failed and incomplete Responses API requests instead of returning partial results
+- [OpenAI] Apply vision fallback consistently in complete and streaming requests
+- [OpenAI] Preserve response text, usage, and metadata when continuing a previous response
+
+### Changed
+- Updated the Apache license copyright notice
+
 ## [5.1.0] - WIP
 
 ### Added
