@@ -28,10 +28,10 @@ export default class extends OpenAI {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getModelCapabilities(model: ModelWebWright): ModelCapabilities {
     return {
-      tools: false,
+      tools: true,
       vision: false,
-      reasoning: false,
-      caching: false,
+      reasoning: true,
+      caching: true,
     }
   }
 

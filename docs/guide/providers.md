@@ -18,7 +18,7 @@ multi-llm-ts supports multiple LLM providers with a consistent API. This page pr
 | **OpenAI** | `openai` | ✅ | ✅² | ✅² | ✅ | ✅ | ✅ | ❌ |
 | **OpenRouter** | `openrouter` | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
 | **TogetherAI**³ | `openai` | ✅ | ✅² | ✅² | ❌ | ✅ | ✅ | ❌ |
-| **WebWright** | `webwright` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **WebWright** | `webwright` | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
 | **xAI** | `xai` | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ |
 
 **Notes:**

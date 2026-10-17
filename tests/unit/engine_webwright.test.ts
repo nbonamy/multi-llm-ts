@@ -58,7 +58,7 @@ beforeEach(() => {
 test('WebWright Load Chat Models', async () => {
   const models = await loadWebWrightModels(config)
   expect(models!.chat).toStrictEqual([
-    { id: 'wren-r1', name: 'Wren R1', meta: expect.any(Object), capabilities: { tools: false, vision: false, reasoning: false, caching: false } },
+    { id: 'wren-r1', name: 'Wren R1', meta: expect.any(Object), capabilities: { tools: true, vision: false, reasoning: true, caching: true } },
   ])
   expect(await loadModels('webwright', config)).toStrictEqual(models)
 })
@@ -84,9 +84,9 @@ test('WebWright getModels returns empty without an api key', async () => {
 test('WebWright capabilities and support flags', () => {
   const webwright = new WebWright(config)
   const model = webwright.buildModel('wren-r1')
-  expect(webwright.getModelCapabilities({ id: 'wren-r1', object: 'model', owned_by: 'webwright' })).toStrictEqual({ tools: false, vision: false, reasoning: false, caching: false })
+  expect(webwright.getModelCapabilities({ id: 'wren-r1', object: 'model', owned_by: 'webwright' })).toStrictEqual({ tools: true, vision: false, reasoning: true, caching: true })
   expect(webwright.modelSupportsStructuredOutput(model)).toBe(false)
-  expect(webwright.modelSupportsReasoningEffort(model)).toBe(false)
+  expect(webwright.modelSupportsReasoningEffort(model)).toBe(true)
 })
 
 test('WebWright isConfigured', () => {
