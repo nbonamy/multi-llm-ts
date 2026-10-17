@@ -496,14 +496,37 @@ test('OpenAI reasoning effort', async () => {
   expect(_openai.default.prototype.chat.completions.create.mock.calls[1][0].reasoning_effort).toBe('low')
 })
 
-test('OpenAI Responses API forwards reasoning effort', async () => {
+test.each(['complete', 'stream'] as const)('OpenAI Luna %s sends tools and images without reasoning sampling options', async method => {
   const openai = new OpenAI(config)
-  await openai.stream(openai.buildModel('gpt-5.6-terra'), [
-    new Message('user', 'prompt'),
-  ], { useResponsesApi: true, reasoningEffort: 'max' })
+  openai.addPlugin(new Plugin2())
+  await openai[method](openai.buildModel('gpt-6-luna'), [
+    new Message('user', 'prompt', new Attachment('image-data', 'image/png')),
+  ], {
+    customOpts: { reasoning_effort: 'none' },
+    temperature: 1,
+    top_p: 0.5,
+    top_k: 4,
+  })
+  const request = vi.mocked(_openai.default.prototype.chat.completions.create).mock.calls[0][0] as any
+  expect(request.reasoning_effort).toBe('none')
+  expect(request.tools).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'function' })]))
+  expect(JSON.stringify(request.messages)).toContain('data:image/png;base64,image-data')
+  expect(request.temperature).toBeUndefined()
+  expect(request.top_p).toBeUndefined()
+  expect(request.top_logprobs).toBeUndefined()
+})
+
+test.each(['gpt-5.6-terra', 'gpt-6.1-sol'])('OpenAI Responses API forwards reasoning and images for %s', async modelId => {
+  const openai = new OpenAI(config)
+  await openai.stream(openai.buildModel(modelId), [
+    new Message('user', 'prompt', new Attachment('image-data', 'image/png')),
+  ], { useResponsesApi: true, reasoningEffort: 'max', temperature: 1, top_p: 0.5 })
 
   const request = vi.mocked(_openai.default.prototype.responses.create).mock.calls[0][0] as any
   expect(request.reasoning).toEqual({ effort: 'max' })
+  expect(JSON.stringify(request.input)).toContain('data:image/png;base64,image-data')
+  expect(request.temperature).toBeUndefined()
+  expect(request.top_p).toBeUndefined()
 })
 
 test('OpenAI verbosity', async () => {

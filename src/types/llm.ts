@@ -1,6 +1,6 @@
 
 import { ZodType } from 'zod'
-import { ChatModel, LlmInternalTool } from './index'
+import { ChatModel, LlmInternalTool, LlmToolFormat } from './index'
 import { PluginExecutionContext, PluginTool, ToolExecutionDelegate } from './plugin'
 
 export type LlmRole = 'system'|'developer'|'user'|'assistant'
@@ -184,6 +184,8 @@ export type LlmToolExecutionValidationResponse = {
 export type LlmToolExecutionValidationCallback = (context: PluginExecutionContext, tool: string, args: any) => Promise<LlmToolExecutionValidationResponse>
 
 export type LlmCompletionOpts = {
+  /** Overrides the engine tool protocol for this request. */
+  toolFormat?: LlmToolFormat
   tools?: boolean
   internalTools?: LlmInternalTool[]
   toolChoice?: LlmToolChoice
