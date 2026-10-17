@@ -172,7 +172,7 @@ export const loadCerebrasModels = async (engineConfig: EngineCreateOpts): Promis
 }
 
 export const loadWebWrightModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
-  
+
   const webwright = new WebWright(engineConfig)
   let metas: ModelWebWright[] = []
 
@@ -180,9 +180,6 @@ export const loadWebWrightModels = async (engineConfig: EngineCreateOpts): Promi
     metas = await webwright.getModels()
   } catch (error) {
     console.error('Error listing WebWright models:', error);
-  }
-  if (!metas) {
-    return null
   }
 
   // xform

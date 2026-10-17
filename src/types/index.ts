@@ -230,7 +230,7 @@ export type ModelxAI = {
 export type ModelWebWright = {
   id: string
   object: string
-  created: number
+  created?: number
   owned_by: string
   context_length?: number
 }

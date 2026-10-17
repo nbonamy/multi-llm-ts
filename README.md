@@ -57,6 +57,7 @@ console.log(response.content)
 - Ollama
 - OpenAI
 - OpenRouter
+- WebWright
 - xAI
 
 **→ [See detailed feature coverage](https://nbonamy.github.io/multi-llm-ts/guide/providers)**

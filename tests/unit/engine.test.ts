@@ -13,6 +13,7 @@ import Google from '../../src/providers/google'
 import XAI from '../../src/providers/xai'
 import Groq from '../../src/providers/groq'
 import Cerebras from '../../src/providers/cerebras'
+import WebWright from '../../src/providers/webwright'
 import * as _openai from 'openai'
 
 Plugin2.prototype.execute = vi.fn((): Promise<string> => Promise.resolve('result2'))
@@ -83,6 +84,7 @@ test('Default Configuration', () => {
   expect(XAI.isConfigured({})).toBe(false)
   expect(Groq.isConfigured({})).toBe(false)
   expect(Cerebras.isConfigured({})).toBe(false)
+  expect(WebWright.isConfigured({})).toBe(false)
 })
 
 test('Valid Configuration', () => {
@@ -94,6 +96,7 @@ test('Valid Configuration', () => {
   expect(XAI.isConfigured(config)).toBe(true)
   expect(Groq.isConfigured(config)).toBe(true)
   expect(Cerebras.isConfigured(config)).toBe(true)
+  expect(WebWright.isConfigured(config)).toBe(true)
 })
 
 test('Build payload no attachment', async () => {

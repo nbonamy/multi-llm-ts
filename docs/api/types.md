@@ -320,6 +320,7 @@ type ProviderId =
   | 'meta'
   | 'mistralai'
   | 'openrouter'
+  | 'webwright'
   | 'xai'
 ```
 
