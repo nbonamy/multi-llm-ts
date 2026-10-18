@@ -11,6 +11,7 @@ import DeepSeek from '../../src/providers/deepseek'
 import OpenRouter from '../../src/providers/openrouter'
 import Groq from '../../src/providers/groq'
 import Cerebras from '../../src/providers/cerebras'
+import WebWright from '../../src/providers/webwright'
 
 const config = { apiKey: '123' }
 
@@ -30,5 +31,6 @@ test('Ignite Engine', async () => {
   expect(await igniteEngine('openrouter', config)).toBeInstanceOf(OpenRouter)
   expect(await igniteEngine('groq', config)).toBeInstanceOf(Groq)
   expect(await igniteEngine('cerebras', config)).toBeInstanceOf(Cerebras)
+  expect(await igniteEngine('webwright', config)).toBeInstanceOf(WebWright)
   await expect(async() => await igniteEngine('aws', config)).rejects.toThrowError(/Unknown engine/)
 })

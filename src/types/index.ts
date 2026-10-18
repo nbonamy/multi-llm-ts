@@ -231,7 +231,15 @@ export type ModelxAI = {
   owned_by: string
 }
 
+export type ModelWebWright = {
+  id: string
+  object: string
+  created?: number
+  owned_by: string
+  context_length?: number
+}
+
 export type ModelMetadata =  ModelGeneric |
   ModelAnthropic | ModelCerebras | ModelDeepseek | ModelGoogle |
   ModelGroq | ModelMeta | ModelMistralAI | ModelOllama | ModelOpenAI |
-  ModelOpenRouter | ModelTogether | ModelxAI
+  ModelOpenRouter | ModelTogether | ModelWebWright | ModelxAI

@@ -13,8 +13,9 @@ import MistralAI from './providers/mistralai'
 import Ollama from './providers/ollama'
 import OpenAI from './providers/openai'
 import OpenRouter from './providers/openrouter'
+import WebWright from './providers/webwright'
 import XAI from './providers/xai'
-import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCerebras, ModelDeepseek, ModelGeneric, ModelGoogle, ModelGroq, ModelMeta, ModelMistralAI, ModelOllama, ModelOpenAI, ModelOpenRouter, ModelsList, ModelTogether, ModelxAI } from './types/index'
+import { ChatModel, EngineCreateOpts, ModelAnthropic, ModelCerebras, ModelDeepseek, ModelGeneric, ModelGoogle, ModelGroq, ModelMeta, ModelMistralAI, ModelOllama, ModelOpenAI, ModelOpenRouter, ModelsList, ModelTogether, ModelWebWright, ModelxAI } from './types/index'
 
 export const staticModelsListEngines = [ ]
 
@@ -31,6 +32,7 @@ export const igniteEngine = (engine: string, config: EngineCreateOpts): LlmEngin
   if (engine === 'ollama') return new Ollama(config)
   if (engine === 'openai') return new OpenAI(config)
   if (engine === 'openrouter') return new OpenRouter(config)
+  if (engine === 'webwright') return new WebWright(config)
   if (engine === 'xai') return new XAI(config)
   throw new Error('Unknown engine: ' + engine)
 }
@@ -52,6 +54,7 @@ export const loadModels = async (engine: string, config: EngineCreateOpts): Prom
   if (engine === 'ollama') return await loadOllamaModels(config)
   if (engine === 'openai') return await loadOpenAIModels(config)
   if (engine === 'openrouter') return await loadOpenRouterModels(config)
+  if (engine === 'webwright') return await loadWebWrightModels(config)
   if (engine === 'xai') return await loadXAIModels(config)
   throw new Error('Unknown engine: ' + engine)
 }
@@ -162,6 +165,34 @@ export const loadCerebrasModels = async (engineConfig: EngineCreateOpts): Promis
   // done
   return {
     chat: models,//.sort((a, b) => a.name.localeCompare(b.name))
+    image: [],
+    embedding: []
+  }
+
+}
+
+export const loadWebWrightModels = async (engineConfig: EngineCreateOpts): Promise<ModelsList|null> => {
+
+  const webwright = new WebWright(engineConfig)
+  let metas: ModelWebWright[] = []
+
+  try {
+    metas = await webwright.getModels()
+  } catch (error) {
+    console.error('Error listing WebWright models:', error);
+  }
+
+  // xform
+  const models: ChatModel[] = metas.map(m => ({
+    id: m.id,
+    name: m.id.split('-').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
+    capabilities: webwright.getModelCapabilities(m),
+    meta: m,
+  }))
+
+  // done
+  return {
+    chat: models,
     image: [],
     embedding: []
   }

@@ -19,7 +19,7 @@ multi-llm-ts supports 10+ LLM providers including:
 - **Anthropic** - Claude 3.5 Sonnet, Claude 3 Opus/Haiku
 - **Google** - Gemini Pro, Gemini Flash
 - **Ollama** - Run models locally
-- **Azure AI**, **Cerebras**, **DeepSeek**, **Groq**, **MistralAI**, **xAI**, and more
+- **Azure AI**, **Cerebras**, **DeepSeek**, **Groq**, **MistralAI**, **WebWright**, **xAI**, and more
 
 See the [Providers Overview](/guide/providers) for the complete list and feature matrix.
 

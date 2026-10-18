@@ -6,7 +6,7 @@ test('PROVIDER_BASE_URLS has all providers', () => {
   const expectedProviders = [
     'openai', 'anthropic', 'cerebras', 'deepseek',
     'google', 'groq', 'lmstudio', 'meta', 'mistralai',
-    'ollama', 'openrouter', 'xai', 'together',
+    'ollama', 'openrouter', 'xai', 'together', 'webwright',
   ]
   for (const provider of expectedProviders) {
     expect(PROVIDER_BASE_URLS).toHaveProperty(provider)
@@ -23,6 +23,7 @@ test('All non-azure providers have string URLs', () => {
 test('getProviderBaseURL returns correct URLs', () => {
   expect(getProviderBaseURL('openai')).toBe('https://api.openai.com/v1')
   expect(getProviderBaseURL('xai')).toBe('https://api.x.ai/v1')
+  expect(getProviderBaseURL('webwright')).toBe('https://webwright.ai/v1')
 })
 
 test('getProviderBaseURL returns null for unknown provider', () => {
