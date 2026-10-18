@@ -85,7 +85,7 @@ test('WebWright capabilities and support flags', () => {
   const webwright = new WebWright(config)
   const model = webwright.buildModel('wren-r1')
   expect(webwright.getModelCapabilities({ id: 'wren-r1', object: 'model', owned_by: 'webwright' })).toStrictEqual({ tools: true, vision: false, reasoning: true, caching: true })
-  expect(webwright.modelSupportsStructuredOutput(model)).toBe(false)
+  expect(webwright.modelSupportsStructuredOutput(model)).toBe(true)
   expect(webwright.modelSupportsReasoningEffort(model)).toBe(true)
 })
 
@@ -94,12 +94,14 @@ test('WebWright isConfigured', () => {
   expect(WebWright.isConfigured(config)).toBe(true)
 })
 
-test('WebWright structured output is not sent', async () => {
+test('WebWright structured output is sent', async () => {
   const webwright = new WebWright(config)
   await webwright.stream(webwright.buildModel('wren-r1'), [
     new Message('system', 'instruction'),
     new Message('user', 'prompt'),
   ], { structuredOutput: { name: 'test', structure: z.object({}) } })
   // @ts-expect-error mock
-  expect(OpenAI.prototype.chat.completions.create.mock.calls[0][0].response_format).toBeUndefined()
+  const responseFormat = OpenAI.prototype.chat.completions.create.mock.calls[0][0].response_format
+  expect(responseFormat.type).toBe('json_schema')
+  expect(responseFormat.json_schema.name).toBe('test')
 })

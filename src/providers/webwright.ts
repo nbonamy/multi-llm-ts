@@ -35,13 +35,6 @@ export default class extends OpenAI {
     }
   }
 
-  // WebWright does not document structured output for wren-r1, so the
-  // inherited OpenAI json_schema response format is not sent.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  modelSupportsStructuredOutput(model: ChatModel): boolean {
-    return false
-  }
-
   get systemRole(): LlmRole {
     return 'system'
   }
